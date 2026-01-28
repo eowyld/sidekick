@@ -1,14 +1,3 @@
-export function LiveOverviewPage() {
-  return (
-    <div className="p-6 space-y-2">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight">Live</h1>
-      <p className="text-sm text-muted-foreground">
-        Module live réinitialisé. Nous allons y reconstruire tournée, répétitions et prospection.
-      </p>
-    </div>
-  );
-}
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

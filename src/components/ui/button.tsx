@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, DetailedHTMLProps } from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 type Variant = "default" | "outline" | "ghost";
@@ -10,6 +11,8 @@ type ButtonProps = DetailedHTMLProps<
 > & {
   variant?: Variant;
   size?: Size;
+  /** Quand true, rend l'enfant (ex. Link) avec les styles du bouton au lieu d'un <button>. */
+  asChild?: boolean;
 };
 
 const variantClasses: Record<Variant, string> = {
@@ -31,11 +34,13 @@ export function Button({
   variant = "default",
   size = "md",
   type = "button",
+  asChild = false,
   ...props
 }: ButtonProps) {
+  const Comp = asChild ? Slot : "button";
   return (
-    <button
-      type={type}
+    <Comp
+      type={asChild ? undefined : type}
       className={cn(
         "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
         variantClasses[variant],
