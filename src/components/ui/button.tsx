@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 type Variant = "default" | "outline" | "ghost";
-type Size = "sm" | "md" | "lg";
+type Size = "xs" | "sm" | "md" | "lg";
 
 type ButtonProps = DetailedHTMLProps<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -24,6 +24,7 @@ const variantClasses: Record<Variant, string> = {
 };
 
 const sizeClasses: Record<Size, string> = {
+  xs: "h-7 px-2 text-xs",
   sm: "h-8 px-3 text-xs",
   md: "h-9 px-4 text-sm",
   lg: "h-10 px-5 text-sm"
