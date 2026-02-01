@@ -51,7 +51,21 @@ const ROLES: { value: PhonoRole; label: string }[] = [
   { value: "directeur_musical", label: "Directeur musical" },
 ];
 
-function defaultTrack(): Omit<Track, "id"> {
+/** Draft pour édition de titre (évite l'inférence unknown de Track). */
+type TrackDraft = {
+  title: string;
+  mainArtist: string;
+  role: PhonoRole;
+  guestArtists: string[];
+  isrc: string;
+  releaseDate: string;
+  selfProduced: boolean;
+  label?: string;
+  versions: TrackVersion[];
+  notes: string;
+};
+
+function defaultTrack(): TrackDraft {
   return {
     title: "",
     mainArtist: "",
@@ -105,7 +119,18 @@ const ALBUM_TYPES: { value: AlbumType; label: string }[] = [
   { value: "single", label: "Single" },
 ];
 
-function defaultAlbum(): Omit<Album, "id"> {
+/** Draft pour édition d'album (évite l'inférence unknown de Album). */
+type AlbumDraft = {
+  title: string;
+  type: AlbumType;
+  releaseDate: string;
+  upcEan: string;
+  trackIds: string[];
+  notes: string;
+  cover?: string;
+};
+
+function defaultAlbum(): AlbumDraft {
   return {
     title: "",
     type: "album",
@@ -138,10 +163,10 @@ function albumTypeLabel(type: AlbumType): string {
 export function CatalogPage() {
   const { data, setData } = useSidekickData();
   const [tab, setTab] = useState<"tracks" | "albums">("tracks");
-  const [draft, setDraft] = useState<Omit<Track, "id">>(defaultTrack());
+  const [draft, setDraft] = useState<TrackDraft>(defaultTrack());
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [newTrackDialogOpen, setNewTrackDialogOpen] = useState(false);
-  const [albumDraft, setAlbumDraft] = useState<Omit<Album, "id">>(defaultAlbum());
+  const [albumDraft, setAlbumDraft] = useState<AlbumDraft>(defaultAlbum());
   const [newAlbumDialogOpen, setNewAlbumDialogOpen] = useState(false);
   const [editingAlbumId, setEditingAlbumId] = useState<string | null>(null);
   const [albumTrackSearch, setAlbumTrackSearch] = useState("");
@@ -161,9 +186,9 @@ export function CatalogPage() {
   };
 
   const isDraftComplete =
-    draft.title.trim() !== "" &&
-    draft.mainArtist.trim() !== "" &&
-    isValidDateFr(draft.releaseDate);
+    String(draft.title ?? "").trim() !== "" &&
+    String(draft.mainArtist ?? "").trim() !== "" &&
+    isValidDateFr(String(draft.releaseDate ?? ""));
 
   const addTrackFromDraft = () => {
     if (!isDraftComplete) return;
@@ -172,7 +197,7 @@ export function CatalogPage() {
     setNewTrackDialogOpen(false);
   };
 
-  const updateDraft = (patch: Partial<Omit<Track, "id">>) => {
+  const updateDraft = (patch: Partial<TrackDraft>) => {
     setDraft((prev) => ({ ...prev, ...patch }));
   };
 
@@ -240,8 +265,8 @@ export function CatalogPage() {
   };
 
   const isAlbumDraftComplete =
-    albumDraft.title.trim() !== "" &&
-    isValidDateFr(albumDraft.releaseDate);
+    String(albumDraft.title ?? "").trim() !== "" &&
+    isValidDateFr(String(albumDraft.releaseDate ?? ""));
 
   const addAlbumFromDraft = () => {
     if (!isAlbumDraftComplete) return;
