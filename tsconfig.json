@@ -22,6 +22,9 @@
       }
     ],
     "baseUrl": ".",
+    "types": [
+      "jspdf"
+    ],
     "paths": {
       "@/*": [
         "./src/*"

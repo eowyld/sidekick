@@ -1,164 +1,210 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { defaultRepresentations } from "@/modules/live/data/defaultRepresentations";
+
+type RepresentationItem = {
+  id: number;
+  city: string;
+  venue: string;
+  date: string;
+  status: string;
+};
+
+type RehearsalItem = {
+  id: number;
+  label?: string;
+  date: string;
+  time: string;
+  location: string;
+};
+
+function parseFrDate(frDate: string): Date | null {
+  if (!frDate) return null;
+  const parts = frDate.split("/");
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts;
+  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateShort(frDate: string): string {
+  const d = parseFrDate(frDate);
+  if (!d) return frDate;
+  const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const dayName = days[d.getDay()];
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  return `${dayName} ${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
+}
+
+function isDateTodayOrFuture(frDate: string): boolean {
+  const d = parseFrDate(frDate);
+  if (!d) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() >= today.getTime();
+}
+
+type UpcomingEvent =
+  | { type: "representation"; id: number; name: string; date: string; href: string }
+  | { type: "rehearsal"; id: number; name: string; date: string; href: string };
 
 export function LiveOverviewPage() {
-  // TODO: remplacer ces données mockées par de vraies données (Supabase)
-  const nextShows = [
-    { id: 1, city: "Paris", venue: "La Cigale", date: "Ven 14/03", status: "Confirmé" },
-    { id: 2, city: "Lyon", venue: "Le Transbordeur", date: "Sam 22/03", status: "En option" }
-  ];
+  const [isHydrated, setIsHydrated] = useState(false);
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
-  const upcomingRehearsals = [
-    { id: 1, label: "Répétition set festival", date: "Lun 10/03", location: "Studio Bleu – 2h" },
-    { id: 2, label: "Balance son + lumière", date: "Jeu 13/03", location: "Salle – 1h" }
-  ];
+  const [representations] = useLocalStorage<RepresentationItem[]>(
+    "live:representations",
+    defaultRepresentations
+  );
+  const [rehearsals] = useLocalStorage<RehearsalItem[]>("live:rehearsals", []);
 
-  const prospectionStatus = {
-    contacted: 18,
-    inDiscussion: 5,
-    confirmed: 3
-  };
+  // Même logique que l'onglet "A venir" du module Représentations (date >= aujourd'hui)
+  const upcomingRepresentations = useMemo(
+    () =>
+      isHydrated
+        ? representations.filter((r) => isDateTodayOrFuture(r.date))
+        : [],
+    [representations, isHydrated]
+  );
 
-  const equipmentAlerts = [
-    { id: 1, label: "Réparer footswitch ampli guitare", priority: "Haute" },
-    { id: 2, label: "Vérifier stock piles / in-ears", priority: "Moyenne" }
-  ];
+  const upcomingRepresentationsForList = upcomingRepresentations;
+
+  const upcomingRehearsals = useMemo(
+    () =>
+      isHydrated
+        ? rehearsals.filter((r) => isDateTodayOrFuture(r.date))
+        : [],
+    [rehearsals, isHydrated]
+  );
+
+  const upcomingEvents: UpcomingEvent[] = useMemo(() => {
+    const reps: UpcomingEvent[] = upcomingRepresentationsForList.map((r) => ({
+      type: "representation" as const,
+      id: r.id,
+      name: r.venue ? `${r.venue} – ${r.city}` : r.city,
+      date: r.date,
+      href: "/live/representations"
+    }));
+    const rehs: UpcomingEvent[] = upcomingRehearsals.map((r) => ({
+      type: "rehearsal" as const,
+      id: r.id,
+      name: r.label || `Répétition – ${r.location}`,
+      date: r.date,
+      href: "/live/repetitions"
+    }));
+    const combined = [...reps, ...rehs];
+    combined.sort((a, b) => {
+      const da = parseFrDate(a.date)?.getTime() ?? 0;
+      const db = parseFrDate(b.date)?.getTime() ?? 0;
+      return da - db;
+    });
+    return combined;
+  }, [upcomingRepresentationsForList, upcomingRehearsals]);
+
+  if (!isHydrated) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="mb-1 text-2xl font-semibold tracking-tight">Live – vue d&apos;ensemble</h1>
+        <h1 className="mb-1 text-2xl font-semibold tracking-tight">
+          Live – vue d&apos;ensemble
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Synthèse rapide de ta tournée : dates, répétitions, prospection et matériel.
+          Synthèse rapide de ta tournée : dates, répétitions et prochains
+          événements.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        {/* Représentations */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Prochaines dates</CardTitle>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" asChild>
-              <a href="/live/dates-de-tournee">Voir le calendrier</a>
+            <CardTitle className="text-base">Représentations</CardTitle>
+            <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
+              <Link href="/live/representations">Gérer les représentations</Link>
             </Button>
           </CardHeader>
           <CardContent>
-            {nextShows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucune date à venir. Commence par ajouter une tournée.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {nextShows.map((show) => (
-                  <li
-                    key={show.id}
-                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
-                  >
-                    <div className="space-y-0.5">
-                      <p className="font-medium">
-                        {show.city} – {show.venue}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{show.date}</p>
-                    </div>
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                      {show.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="mb-2 text-2xl font-semibold tabular-nums">
+              {upcomingRepresentations.length}
+            </p>
+            <p className="text-sm text-muted-foreground">Concerts à venir</p>
           </CardContent>
         </Card>
 
+        {/* Répétitions */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Répétitions à venir</CardTitle>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" asChild>
-              <a href="/live/repetitions">Gérer les répétitions</a>
+            <CardTitle className="text-base">Répétitions</CardTitle>
+            <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
+              <Link href="/live/repetitions">Gérer les répétitions</Link>
             </Button>
           </CardHeader>
           <CardContent>
-            {upcomingRehearsals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucune répétition prévue. Planifie-en une avant la prochaine date.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {upcomingRehearsals.map((rehearsal) => (
-                  <li
-                    key={rehearsal.id}
-                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
-                  >
-                    <div className="space-y-0.5">
-                      <p className="font-medium">{rehearsal.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {rehearsal.date} • {rehearsal.location}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="mb-2 text-2xl font-semibold tabular-nums">
+              {upcomingRehearsals.length}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Planifiez et organisez vos sessions de répétition avec votre
+              groupe.
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Prospection tournée</CardTitle>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" asChild>
-              <a href="/live/prospection">Ouvrir la prospection</a>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Lieux contactés</p>
-                <p className="text-lg font-semibold">{prospectionStatus.contacted}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">En discussion</p>
-                <p className="text-lg font-semibold">{prospectionStatus.inDiscussion}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Confirmés</p>
-                <p className="text-lg font-semibold">{prospectionStatus.confirmed}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Matériel & alertes</CardTitle>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" asChild>
-              <a href="/live/materiel">Voir le matériel</a>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {equipmentAlerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun problème signalé sur le matériel.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {equipmentAlerts.map((alert) => (
-                  <li
-                    key={alert.id}
-                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
-                  >
-                    <span className="line-clamp-2">{alert.label}</span>
-                    <span className="ml-3 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
-                      {alert.priority}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Les Prochains événements */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Les prochains événements
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Représentations et répétitions à venir, par date.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun événement à venir. Ajoutez des représentations ou des
+              répétitions.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {upcomingEvents.map((event) => (
+                <li
+                  key={`${event.type}-${event.id}`}
+                  className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2"
+                >
+                  <div>
+                    <p className="font-medium">{event.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateShort(event.date)}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-8 text-xs" asChild>
+                    <Link href={event.href}>Voir détails</Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-

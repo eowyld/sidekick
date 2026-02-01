@@ -1,36 +1,42 @@
 "use client";
 
 import { useState } from "react";
-
-interface Todo {
-  id: string;
-  title: string;
-  done: boolean;
-}
+import type { Todo } from "@/lib/sidekick-store";
+import { useSidekickData } from "@/hooks/useSidekickData";
 
 export function Tasks() {
   const [input, setInput] = useState("");
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const { data, setData } = useSidekickData();
+  const todos = data.tasks;
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
-    setTodos((prev) => [
+    setData((prev) => ({
       ...prev,
-      { id: Date.now().toString(), title: trimmed, done: false }
-    ]);
+      tasks: [
+        ...prev.tasks,
+        { id: Date.now().toString(), title: trimmed, done: false }
+      ]
+    }));
     setInput("");
   };
 
   const toggleTodo = (id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
+    setData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) =>
+        t.id === id ? { ...t, done: !t.done } : t
+      )
+    }));
   };
 
   const removeTodo = (id: string) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
+    setData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((t) => t.id !== id)
+    }));
   };
 
   return (

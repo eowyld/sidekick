@@ -2,10 +2,10 @@ export function NeighboringRightsPage() {
   return (
     <div>
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">
-        Neighboring rights
+        Droits voisins
       </h1>
       <p className="text-sm text-muted-foreground">
-        TODO: port UI from prototype RevenueNeighboringRights.tsx.
+        Gestion des droits voisins.
       </p>
     </div>
   );

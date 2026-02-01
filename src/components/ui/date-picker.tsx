@@ -12,6 +12,12 @@ interface DatePickerProps {
   className?: string;
 }
 
+const MONTH_NAMES = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+];
+const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
 export function DatePicker({
   value,
   onChange,
@@ -20,29 +26,17 @@ export function DatePicker({
   className
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<"days" | "months">("days");
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (value) {
       const date = new Date(value);
-      return new Date(date.getFullYear(), date.getMonth(), 1);
+      if (!isNaN(date.getTime())) return new Date(date.getFullYear(), date.getMonth(), 1);
     }
     return new Date();
   });
-
-  const monthNames = [
-    "Janvier",
-    "Février",
-    "Mars",
-    "Avril",
-    "Mai",
-    "Juin",
-    "Juillet",
-    "Août",
-    "Septembre",
-    "Octobre",
-    "Novembre",
-    "Décembre"
-  ];
-  const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const [yearView, setYearView] = useState(() =>
+    value ? new Date(value).getFullYear() : new Date().getFullYear()
+  );
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -51,7 +45,6 @@ export function DatePicker({
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-
     return { daysInMonth, startingDayOfWeek };
   };
 
@@ -68,6 +61,19 @@ export function DatePicker({
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)
     );
   };
+
+  const goToMonthsView = () => {
+    setYearView(currentMonth.getFullYear());
+    setView("months");
+  };
+
+  const selectMonth = (monthIndex: number) => {
+    setCurrentMonth(new Date(yearView, monthIndex, 1));
+    setView("days");
+  };
+
+  const previousYear = () => setYearView((y) => y - 1);
+  const nextYear = () => setYearView((y) => y + 1);
 
   const selectDate = (day: number) => {
     const year = currentMonth.getFullYear();
@@ -107,8 +113,13 @@ export function DatePicker({
     );
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) setView("days");
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -128,71 +139,116 @@ export function DatePicker({
         align="start"
       >
         <div className="p-3">
-          <div className="flex items-center justify-between mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={previousMonth}
-              className="h-7 w-7 p-0"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="text-sm font-medium">
-              {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={nextMonth}
-              className="h-7 w-7 p-0"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-7 mb-1">
-            {dayNames.map((day) => (
-              <div
-                key={day}
-                className="text-center text-xs font-medium text-gray-600 h-8 flex items-center justify-center"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: startingDayOfWeek }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-8" />
-            ))}
-
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const selected = isSelectedDate(day);
-              const today = isToday(day);
-
-              return (
-                <button
-                  key={day}
-                  onClick={() => selectDate(day)}
-                  className={cn(
-                    "h-8 w-8 rounded-md text-sm transition-colors hover:bg-gray-100",
-                    selected && "bg-indigo-600 text-white hover:bg-indigo-700",
-                    today &&
-                      !selected &&
-                      "border border-indigo-600 text-indigo-600 font-semibold",
-                    !selected && !today && "text-gray-700"
-                  )}
+          {view === "days" ? (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={previousMonth}
+                  className="h-7 w-7 p-0"
                 >
-                  {day}
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <button
+                  type="button"
+                  onClick={goToMonthsView}
+                  className="text-sm font-medium rounded px-2 py-1 hover:bg-muted transition-colors min-w-[140px]"
+                  title="Choisir le mois"
+                >
+                  {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </button>
-              );
-            })}
-          </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={nextMonth}
+                  className="h-7 w-7 p-0"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
 
+              <div className="grid grid-cols-7 mb-1">
+                {DAY_NAMES.map((day) => (
+                  <div
+                    key={day}
+                    className="text-center text-xs font-medium text-gray-600 h-8 flex items-center justify-center"
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                  <div key={`empty-${i}`} className="h-8" />
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const selected = isSelectedDate(day);
+                  const today = isToday(day);
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => selectDate(day)}
+                      className={cn(
+                        "h-8 w-8 rounded-md text-sm transition-colors hover:bg-gray-100",
+                        selected && "bg-indigo-600 text-white hover:bg-indigo-700",
+                        today &&
+                          !selected &&
+                          "border border-indigo-600 text-indigo-600 font-semibold",
+                        !selected && !today && "text-gray-700"
+                      )}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={previousYear}
+                  className="h-7 w-7 p-0"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium tabular-nums">{yearView}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={nextYear}
+                  className="h-7 w-7 p-0"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {MONTH_NAMES.map((name, index) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => selectMonth(index)}
+                    className={cn(
+                      "h-9 rounded-md text-sm transition-colors hover:bg-gray-100",
+                      currentMonth.getMonth() === index &&
+                        currentMonth.getFullYear() === yearView
+                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "text-gray-700"
+                    )}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>
   );
 }
-
