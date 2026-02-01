@@ -2,23 +2,30 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { SIDEKICK_STORAGE_KEY } from "@/lib/sidekick-store";
+import { createClient } from "@/lib/supabase";
+import { getStorageKey } from "@/lib/sidekick-store";
 
 /**
- * Réinitialise toutes les données Sidekick (localStorage).
- * Ouvre cette page ou lance "npm run reset-data" pour tout effacer.
+ * Réinitialise les données Sidekick du compte connecté (localStorage).
+ * Ouvre cette page ou lance "npm run reset-data" pour effacer tes données.
  */
 export default function ResetDataPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      window.localStorage.removeItem(SIDEKICK_STORAGE_KEY);
-      setDone(true);
-    } catch (e) {
-      console.warn("Reset data failed:", e);
-    }
+    const run = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        const key = getStorageKey(user?.id ?? null);
+        window.localStorage.removeItem(key);
+        setDone(true);
+      } catch (e) {
+        console.warn("Reset data failed:", e);
+      }
+    };
+    run();
   }, []);
 
   return (
@@ -29,15 +36,15 @@ export default function ResetDataPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           {done
-            ? "Toutes les données Sidekick (tâches, etc.) ont été effacées. Tu peux repartir de zéro."
+            ? "Tes données Sidekick (tâches, etc.) ont été effacées. Tu peux repartir de zéro."
             : "Effacement des données en cours…"}
         </p>
         {done && (
           <Link
-            href="/"
+            href="/dashboard"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Retour à l&apos;accueil
+            Retour au tableau de bord
           </Link>
         )}
       </div>

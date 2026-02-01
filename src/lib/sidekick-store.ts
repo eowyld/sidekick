@@ -8,7 +8,12 @@
  * - Reset : /reset-data ou "npm run reset-data".
  */
 
-export const SIDEKICK_STORAGE_KEY = "sidekick-data";
+export const SIDEKICK_STORAGE_KEY_PREFIX = "sidekick-data";
+
+/** Clé de stockage par utilisateur. Chaque user a ses propres données. */
+export function getStorageKey(userId: string | null): string {
+  return userId ? `${SIDEKICK_STORAGE_KEY_PREFIX}-${userId}` : `${SIDEKICK_STORAGE_KEY_PREFIX}-anon`;
+}
 
 // --- Tasks ---
 export interface Todo {

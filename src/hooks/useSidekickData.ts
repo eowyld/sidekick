@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
 import {
   DEFAULT_SIDEKICK_DATA,
+  getStorageKey,
   mergeWithDefaults,
-  SIDEKICK_STORAGE_KEY,
   type SidekickData
 } from "@/lib/sidekick-store";
 
-function readStored(): SidekickData {
+function readStored(key: string): SidekickData {
   if (typeof window === "undefined") return DEFAULT_SIDEKICK_DATA;
   try {
-    const raw = window.localStorage.getItem(SIDEKICK_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     const partial = raw ? (JSON.parse(raw) as Partial<SidekickData>) : null;
     return mergeWithDefaults(partial);
   } catch (e) {
@@ -21,23 +22,40 @@ function readStored(): SidekickData {
 }
 
 /**
- * Données persistant Sidekick (localStorage).
- * Tous les modules y contribuent ; sauvegarde auto, reset via /reset-data ou "npm run reset-data".
- * Les anciennes données sont fusionnées avec les défauts pour garder la structure à jour.
+ * Données persistant Sidekick (localStorage), isolées par utilisateur.
+ * Chaque user a sa propre clé : sidekick-data-{userId}.
+ * Nouvel utilisateur = données vides. Reset via /reset-data.
  */
 export function useSidekickData() {
-  const [data, setData] = useState<SidekickData>(readStored);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [data, setData] = useState<SidekickData>(DEFAULT_SIDEKICK_DATA);
 
   useEffect(() => {
-    setData(readStored());
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id ?? null);
+      const key = getStorageKey(user?.id ?? null);
+      setData(readStored(key));
+    });
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user?.id ?? null;
+      setUserId(id);
+      const key = getStorageKey(id);
+      setData(readStored(key));
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  const storageKey = getStorageKey(userId);
 
   const setValue = (value: SidekickData | ((prev: SidekickData) => SidekickData)) => {
     const next = typeof value === "function" ? value(data) : value;
     setData(next);
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.setItem(SIDEKICK_STORAGE_KEY, JSON.stringify(next));
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
       } catch (e) {
         console.warn("Error writing sidekick-data:", e);
       }

@@ -15,9 +15,17 @@ export default function LandingPage() {
           </p>
         </div>
 
-        <Button asChild size="lg">
-          <Link href="/dashboard">Accéder au dashboard</Link>
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button asChild size="lg" variant="outline">
+            <Link href="/login">Connexion</Link>
+          </Button>
+          <Button asChild size="lg">
+            <Link href="/inscription">Inscription</Link>
+          </Button>
+          <Button asChild size="lg" variant="ghost">
+            <Link href="/dashboard">Accéder au dashboard</Link>
+          </Button>
+        </div>
       </div>
     </main>
   );

@@ -162,7 +162,7 @@ function albumTypeLabel(type: AlbumType): string {
 
 export function CatalogPage() {
   const { data, setData } = useSidekickData();
-  const [tab, setTab] = useState<"tracks" | "albums">("tracks");
+  const [tab, setTab] = useState<"tracks" | "albums">("albums");
   const [draft, setDraft] = useState<TrackDraft>(defaultTrack());
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [newTrackDialogOpen, setNewTrackDialogOpen] = useState(false);
@@ -173,7 +173,12 @@ export function CatalogPage() {
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const tracks = (data.phono?.tracks ?? []).map(normalizeTrack);
-  const albums = (data.phono?.albums ?? []).map(normalizeAlbum);
+  const albums = (data.phono?.albums ?? [])
+    .map(normalizeAlbum)
+    .sort((a, b) => {
+      const order = { album: 0, ep: 1, single: 2 };
+      return (order[a.type] ?? 2) - (order[b.type] ?? 2);
+    });
 
   const setTracks = (updater: (prev: Track[]) => Track[]) => {
     setData((prev) => ({
@@ -424,18 +429,6 @@ export function CatalogPage() {
       <div className="mb-6 flex gap-1 rounded-lg border border-input bg-muted/30 p-1">
         <button
           type="button"
-          onClick={() => setTab("tracks")}
-          className={
-            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors " +
-            (tab === "tracks"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground")
-          }
-        >
-          Tous les titres
-        </button>
-        <button
-          type="button"
           onClick={() => setTab("albums")}
           className={
             "flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors " +
@@ -445,6 +438,18 @@ export function CatalogPage() {
           }
         >
           Albums & EP
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("tracks")}
+          className={
+            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors " +
+            (tab === "tracks"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          Tous les titres
         </button>
       </div>
 
