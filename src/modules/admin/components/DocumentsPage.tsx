@@ -470,8 +470,9 @@ export function DocumentsPage() {
         date: folder.createdAt ?? "",
         type: "Dossier",
         size: 0,
-        isFolder: true,
+        isFolder: true as const,
         folder,
+        doc: null as null,
         parentPath: "parentPath" in folder ? (folder as { parentPath?: string | null }).parentPath : null
       })),
       ...docsInFolder.map((doc) => ({
@@ -480,7 +481,8 @@ export function DocumentsPage() {
         date: doc.dateModified ?? doc.dateAdded ?? "",
         type: formatFileType(doc.fileExtension, false),
         size: doc.fileSizeBytes ?? 0,
-        isFolder: false,
+        isFolder: false as const,
+        folder: null as null,
         doc,
         parentPath: "parentPath" in doc ? (doc as { parentPath?: string | null }).parentPath : null
       }))
