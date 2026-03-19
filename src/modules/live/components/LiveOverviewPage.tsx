@@ -315,18 +315,13 @@ export function LiveOverviewPage() {
           attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
         mapInstanceRef.current = map;
-      } else {
-        map.eachLayer((layer) => {
-          // Ne pas retirer le fond de carte (tile layer)
-          if ((layer as any).getAttribution) return;
-        });
       }
 
       // Nettoyer les anciens marqueurs / tracés : retirer tout sauf le tile layer
-      map.eachLayer((layer) => {
+      map.eachLayer((layer: unknown) => {
         const anyLayer = layer as any;
         if (!anyLayer.getAttribution) {
-          map!.removeLayer(layer);
+          map!.removeLayer(layer as any);
         }
       });
 

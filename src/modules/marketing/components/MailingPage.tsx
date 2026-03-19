@@ -209,10 +209,11 @@ export function MailingPage() {
   // Charger les stats (ouverts, clics) depuis Supabase pour l'historique
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from("mailing_campaigns")
-      .select("id, ouverts, pct_ouverture, clics, pct_clics")
-      .then(({ data, error }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("mailing_campaigns")
+          .select("id, ouverts, pct_ouverture, clics, pct_clics");
         if (error) return;
         const map: Record<string, { ouverts: number; pctOuverture: number; clics: number; pctClics: number }> = {};
         (data ?? []).forEach((row: { id: string; ouverts?: number; pct_ouverture?: number; clics?: number; pct_clics?: number }) => {
@@ -224,8 +225,10 @@ export function MailingPage() {
           };
         });
         setCampaignStats(map);
-      })
-      .catch(() => {});
+      } catch {
+        // ignore stats errors
+      }
+    })();
   }, [activeTab, campaigns.length]);
 
   const clearCampaignForm = () => {
@@ -309,7 +312,7 @@ export function MailingPage() {
       const toInsert = before.replace(">", " " + marker + ">") + after;
       document.execCommand("insertHTML", false, toInsert);
       const inserted = el.querySelector(`[${marker}]`);
-      if (inserted) {
+      if (inserted && sel) {
         (inserted as HTMLElement).removeAttribute(marker);
         const r = document.createRange();
         r.setStart(inserted, 0);
