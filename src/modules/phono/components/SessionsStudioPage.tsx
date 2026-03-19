@@ -31,15 +31,12 @@ import {
 } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { frToIso, isoToFr } from "@/lib/date-format";
+import type { PhonoRole } from "@/lib/sidekick-store";
 
 type SessionType = "prise" | "essai" | "mix" | "mastering" | "autre";
 
-type ParticipantRole =
-  | "artiste_principal"
-  | "artiste_secondaire"
-  | "musicien"
-  | "chanteur"
-  | "ingenieur_du_son";
+type SessionParticipantRole = PhonoRole;
+type ParticipantRole = SessionParticipantRole | "musicien" | "chanteur";
 
 type ParticipantEntry = {
   id: number;
@@ -71,10 +68,22 @@ const SESSION_TYPES: { value: SessionType; label: string }[] = [
 const PARTICIPANT_ROLES: { value: ParticipantRole; label: string }[] = [
   { value: "artiste_principal", label: "Artiste principal" },
   { value: "artiste_secondaire", label: "Artiste secondaire" },
-  { value: "musicien", label: "Musicien" },
-  { value: "chanteur", label: "Chanteur" },
-  { value: "ingenieur_du_son", label: "Ingénieur du son" },
+  { value: "musicien_interprete", label: "Musicien interprète" },
+  { value: "chanteur_interprete", label: "Chanteur interprète" },
+  { value: "beatmaker", label: "Beatmaker" },
+  { value: "directeur_musical", label: "Directeur artistique" },
+  { value: "realisateur", label: "Réalisateur" },
+  { value: "compositeur", label: "Compositeur" },
+  { value: "ingenieur_mixage", label: "Ingé Mixage" },
+  { value: "ingenieur_mastering", label: "Ingé Mastering" },
 ];
+
+function normalizeParticipantRole(role: ParticipantRole): SessionParticipantRole {
+  if (role === "musicien") return "musicien_interprete";
+  if (role === "chanteur") return "chanteur_interprete";
+  if (role === "ingenieur_du_son") return "ingenieur_mixage";
+  return role;
+}
 
 function sessionTypeLabel(type: SessionType, other?: string): string {
   if (type === "autre" && other?.trim()) return other.trim();
@@ -82,7 +91,8 @@ function sessionTypeLabel(type: SessionType, other?: string): string {
 }
 
 function participantRoleLabel(role: ParticipantRole): string {
-  return PARTICIPANT_ROLES.find((r) => r.value === role)?.label ?? role;
+  const normalized = normalizeParticipantRole(role);
+  return PARTICIPANT_ROLES.find((r) => r.value === normalized)?.label ?? normalized;
 }
 
 function parseFrDate(frDate: string): Date | null {
@@ -189,7 +199,12 @@ export function SessionsStudioPage() {
       address: s.address ?? "",
       sessionType: s.sessionType ?? "prise",
       sessionTypeOther: s.sessionTypeOther ?? "",
-      participants: s.participants?.length ? [...s.participants] : [],
+      participants: s.participants?.length
+        ? s.participants.map((p) => ({
+            ...p,
+            role: normalizeParticipantRole(p.role),
+          }))
+        : [],
       note: s.note ?? "",
     });
     setEditingId(s.id);
@@ -467,7 +482,7 @@ export function SessionsStudioPage() {
       </div>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editingId !== null
@@ -585,40 +600,44 @@ export function SessionsStudioPage() {
                   </p>
                 ) : (
                   form.participants.map((p, i) => (
-                    <div key={p.id} className="flex flex-wrap items-center gap-2">
-                      <Input
-                        value={p.name}
-                        onChange={(e) =>
-                          updateParticipant(i, { name: e.target.value })
-                        }
-                        placeholder="Nom"
-                        className="h-8 flex-1 min-w-[100px]"
-                      />
-                      <Select
-                        value={p.role}
-                        onValueChange={(v: ParticipantRole) =>
-                          updateParticipant(i, { role: v })
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-[160px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PARTICIPANT_ROLES.map((r) => (
-                            <SelectItem key={r.value} value={r.value}>
-                              {r.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div key={p.id} className="flex w-full flex-nowrap items-center gap-2">
+                      <div className="basis-1/2 min-w-0">
+                        <Input
+                          value={p.name}
+                          onChange={(e) =>
+                            updateParticipant(i, { name: e.target.value })
+                          }
+                          placeholder="Nom"
+                          className="h-8 w-full"
+                        />
+                      </div>
+                      <div className="basis-1/2 min-w-0">
+                        <Select
+                          value={normalizeParticipantRole(p.role)}
+                          onValueChange={(v: ParticipantRole) =>
+                            updateParticipant(i, { role: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PARTICIPANT_ROLES.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {r.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                        className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
                         onClick={() => removeParticipant(i)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-5 w-5" />
                       </Button>
                     </div>
                   ))

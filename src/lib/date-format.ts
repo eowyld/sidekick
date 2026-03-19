@@ -42,3 +42,11 @@ export function frToIso(frDate: string): string {
     Number(day)
   ).padStart(2, "0")}`;
 }
+
+/** Affiche une date en DD/MM/YYYY (accepte stockage ISO ou DD/MM/YYYY). */
+export function toDisplayDate(dateStr: string | undefined): string {
+  if (!dateStr) return "";
+  const s = dateStr.trim();
+  if (s.includes("-")) return isoToFr(s);
+  return s;
+}

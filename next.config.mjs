@@ -8,6 +8,12 @@ const nextConfig = {
   reactStrictMode: true,
   turbopack: {
     root: path.resolve(__dirname)
+  },
+  async redirects() {
+    return [
+      { source: "/documents", destination: "/admin/documents", permanent: false },
+      { source: "/drive", destination: "/admin/documents", permanent: false }
+    ];
   }
 };
 

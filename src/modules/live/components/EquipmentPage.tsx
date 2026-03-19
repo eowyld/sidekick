@@ -387,11 +387,31 @@ export function EquipmentPage() {
                           </p>
                         )}
                         {items.length > 0 && (
-                          <ul className="mt-3 space-y-1 text-sm">
+                          <ul className="mt-3 space-y-2 text-sm">
                             {items.map((item) => (
-                              <li key={item.id}>
-                                {item.name} — Qté : {item.quantity}, État :{" "}
-                                {item.condition}
+                              <li
+                                key={item.id}
+                                className="flex items-center justify-between gap-3 rounded-md border bg-background/60 px-3 py-2"
+                              >
+                                <span className="font-semibold">{item.name}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="tabular-nums text-muted-foreground">
+                                    Qté : {item.quantity}
+                                  </span>
+                                  <span
+                                    className={
+                                      item.condition === "A réparer"
+                                        ? "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                                        : item.condition === "Moyen"
+                                          ? "rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                                          : item.condition === "Bon"
+                                            ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                                            : "rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"
+                                    }
+                                  >
+                                    {item.condition}
+                                  </span>
+                                </div>
                               </li>
                             ))}
                           </ul>

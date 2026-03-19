@@ -1,0 +1,3 @@
+{"runId":"delete-debug-boot","hypothesisId":"H0","location":"DocumentsPage.tsx:useEffectMount","message":"Documents page mounted","data":{},"timestamp":1771835331042}
+{"runId":"delete-debug-boot","hypothesisId":"H0","location":"DocumentsPage.tsx:useEffectMount","message":"Documents page mounted","data":{},"timestamp":1771835331042}
+{"runId":"post-fix-1","hypothesisId":"H1","location":"DocumentsPage.tsx:handleFileSelect","message":"handleFileSelect (no upload yet)","data":{"rawFileName":"Facture 1.pdf","stateUploadFileName":"","uploadDestinationFolder":"storage:72188668-6c55-4500-bd67-d825f6a8a441/Admin"},"timestamp":1771835367900}

@@ -16,7 +16,7 @@ const MONTH_NAMES = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
 ];
-const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const DAY_NAMES = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 export function DatePicker({
   value,
@@ -44,7 +44,7 @@ export function DatePicker({
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
     return { daysInMonth, startingDayOfWeek };
   };
 
@@ -130,12 +130,12 @@ export function DatePicker({
             className
           )}
         >
-          <Calendar className="mr-2 h-4 w-4 text-gray-700" />
+          <Calendar className="mr-2 h-4 w-4 text-[#F5F5F5]/70" />
           {value ? formatDisplayDate(value) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 bg-white text-foreground shadow-lg border border-gray-200"
+        className="w-auto border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] p-0 text-[#F5F5F5] shadow-lg"
         align="start"
       >
         <div className="p-3">
@@ -172,7 +172,7 @@ export function DatePicker({
                 {DAY_NAMES.map((day) => (
                   <div
                     key={day}
-                    className="text-center text-xs font-medium text-gray-600 h-8 flex items-center justify-center"
+                    className="flex h-8 items-center justify-center text-center text-xs font-medium text-[#F5F5F5]/60"
                   >
                     {day}
                   </div>
@@ -192,12 +192,12 @@ export function DatePicker({
                       key={day}
                       onClick={() => selectDate(day)}
                       className={cn(
-                        "h-8 w-8 rounded-md text-sm transition-colors hover:bg-gray-100",
-                        selected && "bg-indigo-600 text-white hover:bg-indigo-700",
+                        "h-8 w-8 rounded-md text-sm transition-colors hover:bg-[rgba(245,245,245,0.12)]",
+                        selected && "bg-[#F0FF00] text-[#101010] hover:bg-[#F0FF00]/90",
                         today &&
                           !selected &&
-                          "border border-indigo-600 text-indigo-600 font-semibold",
-                        !selected && !today && "text-gray-700"
+                          "border border-[#F0FF00] font-semibold text-[#F0FF00]",
+                        !selected && !today && "text-[#F5F5F5]/85"
                       )}
                     >
                       {day}
@@ -234,11 +234,11 @@ export function DatePicker({
                     type="button"
                     onClick={() => selectMonth(index)}
                     className={cn(
-                      "h-9 rounded-md text-sm transition-colors hover:bg-gray-100",
+                      "h-9 rounded-md text-sm transition-colors hover:bg-[rgba(245,245,245,0.12)]",
                       currentMonth.getMonth() === index &&
                         currentMonth.getFullYear() === yearView
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "text-gray-700"
+                        ? "bg-[#F0FF00] text-[#101010] hover:bg-[#F0FF00]/90"
+                        : "text-[#F5F5F5]/85"
                     )}
                   >
                     {name}

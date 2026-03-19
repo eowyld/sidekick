@@ -33,6 +33,7 @@ type RehearsalItem = {
   date: string;
   time: string;
   location: string;
+  city?: string;
   address?: string;
   note?: string;
   remunerations: RemunerationEntry[];
@@ -118,6 +119,7 @@ export function RehearsalsPage() {
     date: string;
     time: string;
     location: string;
+    city: string;
     address: string;
     note: string;
   }>({
@@ -125,6 +127,7 @@ export function RehearsalsPage() {
     date: "",
     time: "",
     location: "",
+    city: "",
     address: "",
     note: ""
   });
@@ -158,6 +161,7 @@ export function RehearsalsPage() {
       date: "",
       time: "",
       location: "",
+      city: "",
       address: "",
       note: ""
     });
@@ -171,6 +175,7 @@ export function RehearsalsPage() {
       date: r.date ? frToIso(r.date) : "",
       time: r.time,
       location: r.location,
+      city: r.city ?? "",
       address: r.address ?? "",
       note: r.note ?? ""
     });
@@ -201,6 +206,7 @@ export function RehearsalsPage() {
                 date,
                 time,
                 location: trimmedLocation,
+                city: form.city.trim() || undefined,
                 address: form.address.trim() || undefined,
                 note: form.note.trim() || undefined
               }
@@ -219,6 +225,7 @@ export function RehearsalsPage() {
           date,
           time,
           location: trimmedLocation,
+          city: form.city.trim() || undefined,
           address: form.address.trim() || undefined,
           note: form.note.trim() || undefined,
           remunerations: [],
@@ -359,6 +366,7 @@ export function RehearsalsPage() {
                       <th className="px-4 py-3 text-left font-medium">Date</th>
                       <th className="px-4 py-3 text-left font-medium">Heure</th>
                       <th className="px-4 py-3 text-left font-medium">Lieu</th>
+                      <th className="px-4 py-3 text-left font-medium">Ville</th>
                       <th className="px-4 py-3 text-left font-medium">Rémunération</th>
                       <th className="px-4 py-3 text-left font-medium">Matériel</th>
                       <th className="px-4 py-3 text-left font-medium">Note</th>
@@ -368,7 +376,7 @@ export function RehearsalsPage() {
                   <tbody>
                     {pastRehearsals.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                        <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                           Aucune répétition passée.
                         </td>
                       </tr>
@@ -390,6 +398,9 @@ export function RehearsalsPage() {
                                 <MapPin className="h-3.5 w-3.5" />
                               </a>
                             </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {r.city || <span className="text-muted-foreground">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="space-y-1">
@@ -512,6 +523,7 @@ export function RehearsalsPage() {
                       <th className="px-4 py-3 text-left font-medium">Date</th>
                       <th className="px-4 py-3 text-left font-medium">Heure</th>
                       <th className="px-4 py-3 text-left font-medium">Lieu</th>
+                      <th className="px-4 py-3 text-left font-medium">Ville</th>
                       <th className="px-4 py-3 text-left font-medium">Rémunération</th>
                       <th className="px-4 py-3 text-left font-medium">Matériel</th>
                       <th className="px-4 py-3 text-left font-medium">Note</th>
@@ -521,7 +533,7 @@ export function RehearsalsPage() {
                   <tbody>
                     {upcomingRehearsals.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                        <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                           Aucune répétition à venir.{" "}
                           <Button onClick={openAdd} variant="link" className="p-0 h-auto">
                             Ajouter une répétition
@@ -546,6 +558,9 @@ export function RehearsalsPage() {
                                 <MapPin className="h-3.5 w-3.5" />
                               </a>
                             </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {r.city || <span className="text-muted-foreground">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="space-y-1">
@@ -684,6 +699,16 @@ export function RehearsalsPage() {
                   setForm((prev) => ({ ...prev, location: e.target.value }))
                 }
                 placeholder="ex. Studio Bleu"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Ville</label>
+              <Input
+                value={form.city}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, city: e.target.value }))
+                }
+                placeholder="ex. Paris"
               />
             </div>
             <div className="grid gap-2">

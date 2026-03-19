@@ -2,120 +2,135 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
-import type { User } from "@supabase/supabase-js";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase";
+import { LogOut, Settings } from "lucide-react";
 
-function getInitials(user: User | null): string {
-  if (!user) return "—";
-  const name = user.user_metadata?.full_name ?? user.user_metadata?.name;
-  if (name && typeof name === "string") {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
-  const email = user.email ?? "";
-  const local = email.split("@")[0];
-  if (local.length >= 2) return local.slice(0, 2).toUpperCase();
-  return local.toUpperCase() || "—";
-}
-
-function getFirstName(user: User | null): string {
-  if (!user) return "—";
-  const name = user.user_metadata?.full_name ?? user.user_metadata?.name;
-  if (name && typeof name === "string") {
-    const parts = name.trim().split(/\s+/);
-    return parts[0] ?? "—";
-  }
-  return "—";
-}
-
-function getLastName(user: User | null): string {
-  if (!user) return "—";
-  const name = user.user_metadata?.full_name ?? user.user_metadata?.name;
-  if (name && typeof name === "string") {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return parts.slice(1).join(" ");
-    return "—";
-  }
-  return "—";
-}
+type HeaderUser = {
+  firstName: string | null;
+  initials: string;
+};
 
 export function Header() {
+  const [user, setUser] = useState<HeaderUser | null>(null);
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.replace("/");
-  }
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => setUser(session?.user ?? null)
-    );
-    return () => subscription.unsubscribe();
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }) => {
+        if (!user) {
+          setUser(null);
+          return;
+        }
+
+        const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+
+        // Essayer de récupérer un prénom depuis les métadonnées ou l'email
+        let firstName: string | null =
+          (meta.first_name as string | undefined) ??
+          (meta.firstname as string | undefined) ??
+          (meta.prenom as string | undefined) ??
+          null;
+
+        if (!firstName && typeof meta.full_name === "string") {
+          firstName = meta.full_name.split(" ")[0] || null;
+        }
+
+        if (!firstName && user.email) {
+          const local = user.email.split("@")[0];
+          firstName = local.split(/[._-]/)[0] || local;
+        }
+
+        if (firstName) {
+          firstName =
+            firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+        }
+
+        // Initiales : prénom + nom s'ils existent, sinon première lettre de l'email
+        let initials = "";
+        const rawFirst = (meta.first_name as string | undefined) ?? "";
+        const rawLast = (meta.last_name as string | undefined) ?? "";
+
+        if (rawFirst || rawLast) {
+          initials =
+            (rawFirst.trim()[0] || "").toUpperCase() +
+            (rawLast.trim()[0] || "").toUpperCase();
+        } else if (user.email) {
+          initials = user.email[0]?.toUpperCase() ?? "S";
+        } else {
+          initials = "SK";
+        }
+
+        setUser({
+          firstName,
+          initials
+        });
+      })
+      .catch(() => {
+        // Réseau ou Supabase indisponible : on affiche quand même les initiales par défaut
+        setUser({ firstName: null, initials: "?" });
+      });
   }, []);
 
-  const initials = getInitials(user);
-  const firstName = getFirstName(user);
-  const lastName = getLastName(user);
-  const email = user?.email ?? "—";
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  const handleOpenSettings = () => {
+    router.push("/settings");
+  };
 
   return (
-    <header className="flex items-center justify-end border-b bg-background/80 px-6 py-4 backdrop-blur">
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <span>Connecté</span>
+    <header className="flex items-center justify-between border-b border-[rgba(245,245,245,0.12)] bg-[rgba(16,16,16,0.78)] px-4 py-3 backdrop-blur-xl md:px-6">
+      <div>
+        <h1 className="text-lg font-semibold leading-tight tracking-tight text-[#F5F5F5]">
+          Sidekick
+        </h1>
+      </div>
+      <div className="flex items-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
-              title="Mon compte"
+              variant="outline"
+              size="sm"
+              className="flex h-8 w-8 items-center justify-center rounded-full border-[rgba(245,245,245,0.25)] bg-[#F0FF00] p-0 text-xs font-semibold text-[#101010] hover:bg-[#F0FF00]/90"
+              aria-label="Menu utilisateur"
             >
-              {initials}
-            </button>
+              {user?.initials ?? "?"}
+            </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-64 !bg-white dark:!bg-zinc-900 border shadow-xl"
-          >
-            <div className="space-y-3 p-3">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Prénom
-                </p>
-                <p className="text-sm">{firstName}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Nom</p>
-                <p className="text-sm">{lastName}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Email
-                </p>
-                <p className="text-sm break-all">{email}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={handleSignOut}
-              >
-                Déconnexion
-              </Button>
+          <DropdownMenuContent align="end" className="w-52 border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] text-[#F5F5F5]">
+            <div className="px-3 py-2 text-sm">
+              <p className="text-xs text-[#F5F5F5]/65">Bonjour</p>
+              <p className="font-medium">
+                {user?.firstName ?? "utilisateur"}
+              </p>
             </div>
+            <DropdownMenuItem
+              onClick={handleOpenSettings}
+              className="cursor-pointer flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              <span>Paramètres</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="cursor-pointer flex items-center gap-2 text-rose-300 focus:text-rose-300"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Se déconnecter</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

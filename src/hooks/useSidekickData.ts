@@ -28,22 +28,30 @@ function readStored(key: string): SidekickData {
  */
 export function useSidekickData() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [data, setData] = useState<SidekickData>(DEFAULT_SIDEKICK_DATA);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [data, setData] = useState<SidekickData>(() => {
+    // Première lecture synchronisée côté client pour éviter le flash d'état par défaut
+    // (préférences de modules, etc.) avant le chargement Supabase.
+    if (typeof window === "undefined") return DEFAULT_SIDEKICK_DATA;
+    const initialKey = getStorageKey(null);
+    return readStored(initialKey);
+  });
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id ?? null);
-      const key = getStorageKey(user?.id ?? null);
+    const applyUserPrefs = (uid: string | null) => {
+      setUserId(uid);
+      const key = getStorageKey(uid);
       setData(readStored(key));
+      setPreferencesReady(true);
+    };
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      applyUserPrefs(user?.id ?? null);
     });
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      const id = session?.user?.id ?? null;
-      setUserId(id);
-      const key = getStorageKey(id);
-      setData(readStored(key));
+      applyUserPrefs(session?.user?.id ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -51,16 +59,18 @@ export function useSidekickData() {
   const storageKey = getStorageKey(userId);
 
   const setValue = (value: SidekickData | ((prev: SidekickData) => SidekickData)) => {
-    const next = typeof value === "function" ? value(data) : value;
-    setData(next);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch (e) {
-        console.warn("Error writing sidekick-data:", e);
+    setData((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch (e) {
+          console.warn("Error writing sidekick-data:", e);
+        }
       }
-    }
+      return next;
+    });
   };
 
-  return { data, setData: setValue };
+  return { data, setData: setValue, preferencesReady };
 }

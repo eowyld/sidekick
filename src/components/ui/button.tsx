@@ -2,8 +2,8 @@ import type { ButtonHTMLAttributes, DetailedHTMLProps } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "outline" | "ghost" | "destructive" | "link";
-type Size = "xs" | "sm" | "md" | "lg";
+type Variant = "default" | "secondary" | "outline" | "ghost" | "destructive" | "link";
+type Size = "xs" | "sm" | "md" | "lg" | "icon";
 
 type ButtonProps = DetailedHTMLProps<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -17,20 +17,23 @@ type ButtonProps = DetailedHTMLProps<
 
 const variantClasses: Record<Variant, string> = {
   default:
-    "bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/60",
+    "bg-[#F0FF00] text-[#101010] hover:bg-[#F0FF00]/90 disabled:bg-[#F0FF00]/55",
+  secondary:
+    "bg-[rgba(245,245,245,0.12)] text-[#F5F5F5] hover:bg-[rgba(245,245,245,0.18)] disabled:bg-[rgba(245,245,245,0.08)]",
   outline:
-    "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-  ghost: "hover:bg-accent hover:text-accent-foreground",
+    "border border-[rgba(245,245,245,0.28)] bg-transparent text-[#F5F5F5] hover:bg-[rgba(245,245,245,0.08)]",
+  ghost: "text-[#F5F5F5]/82 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]",
   destructive:
-    "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-  link: "text-primary underline-offset-4 hover:underline"
+    "bg-rose-600 text-white hover:bg-rose-500",
+  link: "text-[#F0FF00] underline-offset-4 hover:underline"
 };
 
 const sizeClasses: Record<Size, string> = {
   xs: "h-7 px-2 text-xs",
   sm: "h-8 px-3 text-xs",
   md: "h-9 px-4 text-sm",
-  lg: "h-10 px-5 text-sm"
+  lg: "h-10 px-5 text-sm",
+  icon: "h-9 w-9 p-0"
 };
 
 export function Button({
@@ -46,7 +49,7 @@ export function Button({
     <Comp
       type={asChild ? undefined : type}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium ring-offset-[#101010] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0FF00]/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
         variantClasses[variant],
         sizeClasses[size],
         className

@@ -10,6 +10,91 @@ body {
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     sans-serif;
+  background: #101010;
+  color: #f5f5f5;
+}
+
+* {
+  border-color: rgba(245, 245, 245, 0.12);
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(240, 255, 0, 0.35);
+  color: #101010;
+}
+
+/* Harmonisation visuelle globale : modules sombres, texte clair */
+.bg-background {
+  background-color: #101010 !important;
+}
+
+.text-foreground {
+  color: #f5f5f5 !important;
+}
+
+.text-muted-foreground {
+  color: rgba(245, 245, 245, 0.7) !important;
+}
+
+.bg-card {
+  background-color: rgba(44, 44, 46, 0.72) !important;
+}
+
+.bg-muted {
+  background-color: rgba(245, 245, 245, 0.08) !important;
+}
+
+/* Hard override global: supprime les fonds blancs residuels dans tous les modules */
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-slate-50,
+.bg-slate-100,
+.bg-zinc-50,
+.bg-zinc-100,
+.bg-neutral-50,
+.bg-neutral-100 {
+  background-color: #101010 !important;
+  color: #f5f5f5 !important;
+}
+
+/* Popovers, dialogs et panneaux legacy qui injectent des styles clairs */
+[style*="background-color: #ffffff"],
+[style*="background-color:#ffffff"] {
+  background-color: rgba(44, 44, 46, 0.84) !important;
+  color: #f5f5f5 !important;
+  border-color: rgba(245, 245, 245, 0.18) !important;
+}
+
+/* Textes fonces legacy -> clair */
+.text-black,
+.text-gray-900,
+.text-gray-800,
+.text-slate-900,
+.text-zinc-900,
+.text-neutral-900 {
+  color: #f5f5f5 !important;
+}
+
+.text-gray-700,
+.text-gray-600,
+.text-slate-700,
+.text-zinc-700,
+.text-neutral-700 {
+  color: rgba(245, 245, 245, 0.8) !important;
+}
+
+/* Bordures claires legacy -> border dark translucide */
+.border-gray-200,
+.border-gray-300,
+.border-slate-200,
+.border-zinc-200,
+.border-neutral-200 {
+  border-color: rgba(245, 245, 245, 0.18) !important;
 }
 
 /* Surbrillance au survol des boutons "+ ajouter" (Répétitions) */

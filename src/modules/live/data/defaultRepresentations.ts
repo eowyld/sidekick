@@ -17,6 +17,7 @@ export type TourDate = {
   date: string;
   status: TourStatus;
   address: string;
+  organisateur?: string;
   timetable: TimetableItem[];
   transport: boolean;
   lodging: boolean;
@@ -42,6 +43,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: true,
     remuneration: true,
     equipment: false,
+    organisateur: "",
     note: "Super accueil, penser à revenir avec ingé son."
   },
   {
@@ -60,6 +62,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: false,
     remuneration: true,
     equipment: true,
+    organisateur: "",
     note: "Backline partagé avec autre groupe."
   },
   {
@@ -78,6 +81,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: true,
     remuneration: true,
     equipment: true,
+    organisateur: "",
     note: "Prévoir temps de chargement plus long."
   },
   {
@@ -96,6 +100,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: true,
     remuneration: true,
     equipment: true,
+    organisateur: "",
     note: "Prévoir captation vidéo."
   },
   {
@@ -110,6 +115,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: false,
     remuneration: false,
     equipment: false,
+    organisateur: "",
     note: "En attente de réponse programmateur."
   },
   {
@@ -128,6 +134,7 @@ export const defaultRepresentations: TourDate[] = [
     lodging: true,
     remuneration: true,
     equipment: true,
+    organisateur: "",
     note: "Prévoir merch supplémentaire (grosse jauge)."
   }
 ];

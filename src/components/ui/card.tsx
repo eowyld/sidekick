@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card text-card-foreground shadow-sm",
+        "rounded-2xl border border-[rgba(245,245,245,0.12)] bg-[rgba(44,44,46,0.72)] text-[#F5F5F5] shadow-xl backdrop-blur-xl",
         className
       )}
       {...props}
@@ -19,7 +19,7 @@ export function CardHeader({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col gap-1.5 border-b px-6 py-4", className)}
+      className={cn("flex flex-col gap-1.5 border-b border-[rgba(245,245,245,0.12)] px-6 py-4", className)}
       {...props}
     />
   );
@@ -43,7 +43,7 @@ export function CardDescription({
 }: HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm text-[#F5F5F5]/70", className)}
       {...props}
     />
   );

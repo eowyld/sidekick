@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -22,18 +23,24 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 type ContactFromModule = {
   id: number;
-  name: string;
-  role: string;
-  city: string;
-  email: string;
-  phone: string;
-  notes: string;
+  // Pour compatibilité avec le module Contacts:
+  // - certains enregistrements ont { firstName, lastName }
+  // - d'autres (anciens) ont un champ unique "name"
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  city?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
 };
 
 const defaultContactsForImport: ContactFromModule[] = [
   {
     id: 1,
-    name: "Théo Martin",
+    firstName: "Théo",
+    lastName: "Martin",
     role: "Tourneur",
     city: "Paris",
     email: "theo@agence-live.fr",
@@ -42,7 +49,8 @@ const defaultContactsForImport: ContactFromModule[] = [
   },
   {
     id: 2,
-    name: "Sarah Dupont",
+    firstName: "Sarah",
+    lastName: "Dupont",
     role: "Attachée de presse",
     city: "Lyon",
     email: "sarah@pr-horizon.com",
@@ -69,6 +77,7 @@ type ProspectionEntry = {
   phone: string;
   status: Status;
   notes?: string;
+  lastContact?: string;
 };
 
 const defaultEntries: ProspectionEntry[] = [
@@ -80,9 +89,26 @@ const defaultEntries: ProspectionEntry[] = [
     email: "contact@lacigale.fr",
     phone: "01 49 25 81 75",
     status: "En discussion",
-    notes: "Réponse attendue sous 2 semaines."
+    notes: "Réponse attendue sous 2 semaines.",
+    lastContact: "15/01/2025"
   }
 ];
+
+function frToIso(frDate: string): string {
+  if (!frDate) return "";
+  const parts = frDate.split("/");
+  if (parts.length !== 3) return frDate;
+  const [day, month, year] = parts;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function isoToFr(isoDate: string): string {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return isoDate;
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
+}
 
 export function ProspectionPage() {
   const [entries, setEntries] = useLocalStorage<ProspectionEntry[]>(
@@ -107,6 +133,16 @@ export function ProspectionPage() {
     defaultContactsForImport
   );
 
+  const getContactDisplayName = (c: ContactFromModule): string => {
+    const full =
+      [c.firstName, c.lastName].filter(Boolean).join(" ").trim() ||
+      (c.name ?? "").trim();
+    if (full) return full;
+    if (c.email && c.email.trim()) return c.email;
+    if (c.phone && c.phone.trim()) return c.phone;
+    return "Sans nom";
+  };
+
   useEffect(() => {
     if (contactAddedNotification === null) return;
     const t = setTimeout(() => setContactAddedNotification(null), 4000);
@@ -121,6 +157,7 @@ export function ProspectionPage() {
     phone: string;
     status: Status;
     notes: string;
+    lastContact: string;
   }>({
     venueName: "",
     city: "",
@@ -128,7 +165,8 @@ export function ProspectionPage() {
     email: "",
     phone: "",
     status: "À contacter",
-    notes: ""
+    notes: "",
+    lastContact: ""
   });
 
   const openAdd = () => {
@@ -139,7 +177,8 @@ export function ProspectionPage() {
       email: "",
       phone: "",
       status: "À contacter",
-      notes: ""
+      notes: "",
+      lastContact: ""
     });
     setEditingId(null);
     setDialogOpen(true);
@@ -153,7 +192,8 @@ export function ProspectionPage() {
       email: e.email,
       phone: e.phone,
       status: e.status,
-      notes: e.notes ?? ""
+      notes: e.notes ?? "",
+      lastContact: e.lastContact ? frToIso(e.lastContact) : ""
     });
     setEditingId(e.id);
     setDialogOpen(true);
@@ -166,6 +206,9 @@ export function ProspectionPage() {
     const email = form.email.trim();
     const phone = form.phone.trim();
     const notes = form.notes.trim();
+    const lastContactFr = form.lastContact.trim()
+      ? isoToFr(form.lastContact.trim())
+      : undefined;
 
     if (editingId !== null) {
       setEntries((prev) =>
@@ -179,7 +222,8 @@ export function ProspectionPage() {
                 email: email || "",
                 phone: phone || "",
                 status: form.status,
-                notes: notes || undefined
+                notes: notes || undefined,
+                lastContact: lastContactFr
               }
             : item
         )
@@ -196,7 +240,8 @@ export function ProspectionPage() {
           email: email || "",
           phone: phone || "",
           status: form.status,
-          notes: notes || undefined
+          notes: notes || undefined,
+          lastContact: lastContactFr
         },
         ...prev
       ]);
@@ -206,7 +251,8 @@ export function ProspectionPage() {
       if (contactName) {
         const nameNormalized = contactName.toLowerCase().trim();
         const alreadyExists = contactsList.some(
-          (c) => c.name.toLowerCase().trim() === nameNormalized
+          (c) =>
+            getContactDisplayName(c).toLowerCase().trim() === nameNormalized
         );
         if (!alreadyExists) {
           const nextContactId =
@@ -217,7 +263,8 @@ export function ProspectionPage() {
             ...prev,
             {
               id: nextContactId,
-              name: contactName,
+              // on stocke en format firstName / lastName pour rester compatible
+              firstName: contactName,
               role: "Programmateur de salle",
               city: city || "",
               email: email || "",
@@ -238,11 +285,12 @@ export function ProspectionPage() {
   };
 
   const selectContactFromImport = (contact: ContactFromModule) => {
+    const displayName = getContactDisplayName(contact);
     setForm((prev) => ({
       ...prev,
-      contact: contact.name,
-      email: contact.email,
-      phone: contact.phone
+      contact: displayName,
+      email: contact.email ?? "",
+      phone: contact.phone ?? ""
     }));
     setImportDialogOpen(false);
   };
@@ -284,6 +332,7 @@ export function ProspectionPage() {
               <th className="px-4 py-3 text-left font-medium">Contact</th>
               <th className="px-4 py-3 text-left font-medium">Email</th>
               <th className="px-4 py-3 text-left font-medium">Téléphone</th>
+              <th className="px-4 py-3 text-left font-medium">Dernier contact</th>
               <th className="px-4 py-3 text-left font-medium">Statut</th>
               <th className="px-4 py-3 text-left font-medium">Notes</th>
               <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -292,7 +341,7 @@ export function ProspectionPage() {
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                   Aucun lieu.{" "}
                   <Button onClick={openAdd} variant="link" className="p-0 h-auto">
                     Ajouter un lieu
@@ -308,8 +357,20 @@ export function ProspectionPage() {
                   <td className="px-4 py-3 font-medium">{item.venueName}</td>
                   <td className="px-4 py-3">{item.city || "—"}</td>
                   <td className="px-4 py-3">{item.contact || "—"}</td>
-                  <td className="px-4 py-3">{item.email || "—"}</td>
+                  <td className="px-4 py-3">
+                    {item.email ? (
+                      <a
+                        href={`mailto:${item.email}`}
+                        className="text-primary hover:underline"
+                      >
+                        {item.email}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3">{item.phone || "—"}</td>
+                  <td className="px-4 py-3">{item.lastContact || "—"}</td>
                   <td className="px-4 py-3">{item.status}</td>
                   <td className="max-w-[200px] px-4 py-3 text-muted-foreground">
                     {item.notes || "—"}
@@ -413,6 +474,16 @@ export function ProspectionPage() {
               />
             </div>
             <div className="grid gap-2">
+              <label className="text-sm font-medium">Dernier contact</label>
+              <DatePicker
+                value={form.lastContact}
+                onChange={(value) =>
+                  setForm((prev) => ({ ...prev, lastContact: value }))
+                }
+                placeholder="Sélectionner une date"
+              />
+            </div>
+            <div className="grid gap-2">
               <label className="text-sm font-medium">Statut</label>
               <Select
                 value={form.status}
@@ -455,44 +526,40 @@ export function ProspectionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Importer un contact (liste des contacts du module Contacts) */}
-      <Dialog
-        open={importDialogOpen}
-        onOpenChange={setImportDialogOpen}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogTitle>Choisir un contact</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Sélectionnez un contact pour remplir Nom, Email et Téléphone.
+      {/* Importer un contact (liste simple avec nom/prénom uniquement) */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogTitle>Importer un contact</DialogTitle>
+          <p className="text-sm text-muted-foreground mb-3">
+            Cliquez sur un nom pour remplir automatiquement Nom, Email et Téléphone.
           </p>
-          <div className="max-h-[320px] overflow-y-auto rounded-md border py-2">
-            {contactsList.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Aucun contact. Ajoutez-en dans le module Contacts.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {contactsList.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/50">
-                    <div className="min-w-0 flex-1 text-sm">
-                      <p className="font-medium">{c.name}</p>
-                      <p className="truncate text-muted-foreground">{c.email || "—"}</p>
-                      <p className="text-muted-foreground">{c.phone || "—"}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => selectContactFromImport(c)}
-                    >
-                      Sélectionner
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+          {contactsList.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              Aucun contact. Ajoutez-en dans le module Contacts.
+            </p>
+          ) : (
+            <ul className="max-h-[320px] overflow-y-auto rounded-md border">
+              {contactsList.map((c) => (
+                <li key={c.id} className="border-b last:border-0">
+                  <button
+                    type="button"
+                    className="flex w-full items-center px-4 py-2 text-sm hover:bg-muted/60"
+                    onClick={() => selectContactFromImport(c)}
+                  >
+                    <span className="truncate font-medium">
+                      {getContactDisplayName(c)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter className="mt-3">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setImportDialogOpen(false)}
+            >
               Fermer
             </Button>
           </DialogFooter>
@@ -528,14 +595,14 @@ export function ProspectionPage() {
       {/* Info popup : contact ajouté au module Contacts */}
       {contactAddedNotification && (
         <div
-          className="fixed bottom-4 right-4 z-50 animate-in fade-in slide-in-from-bottom-2 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
+          className="fixed bottom-4 right-4 z-50 animate-in fade-in slide-in-from-bottom-2 rounded-lg border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] px-4 py-3 text-[#F5F5F5] shadow-lg"
           role="status"
           aria-live="polite"
         >
-          <p className="text-sm font-medium text-gray-900">
+          <p className="text-sm font-medium text-[#F5F5F5]">
             Contact ajouté à la liste
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[#F5F5F5]/75">
             <span className="font-medium">{contactAddedNotification.name}</span> a été ajouté au module Contacts.
           </p>
         </div>

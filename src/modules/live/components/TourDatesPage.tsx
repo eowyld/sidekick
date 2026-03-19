@@ -16,6 +16,7 @@ import {
 import {
   Clock,
   MapPin,
+  Plus,
   TrainFront,
   Car,
   Plane,
@@ -155,6 +156,28 @@ export function TourDatesPage() {
     note: ""
   });
 
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState<{
+    city: string;
+    venue: string;
+    date: string;
+    status: TourStatus;
+    address: string;
+    organisateur: string;
+    note: string;
+  }>({
+    city: "",
+    venue: "",
+    date: "",
+    status: "Confirmée",
+    address: "",
+    organisateur: "",
+    note: ""
+  });
+  const [editingOrganisateur, setEditingOrganisateur] = useState<string>("");
+  const [editingCity, setEditingCity] = useState<string>("");
+  const [editingVenue, setEditingVenue] = useState<string>("");
+  const [editingAddress, setEditingAddress] = useState<string>("");
 
   const [dates, setDates] = useLocalStorage<TourDate[]>(
     "live:representations",
@@ -175,11 +198,23 @@ export function TourDatesPage() {
     setOpenSection(openSection === section ? null : section);
   };
 
+  const getRepresentationTitle = (date: TourDate) =>
+    [date.city, date.venue].filter(Boolean).join(" – ") || "Sans nom";
+
   const allDates = dates;
 
   const editingDate = editingId
     ? allDates.find((date) => date.id === editingId) ?? null
     : null;
+
+  useEffect(() => {
+    if (editingDate) {
+      setEditingOrganisateur(editingDate.organisateur ?? "");
+      setEditingCity(editingDate.city ?? "");
+      setEditingVenue(editingDate.venue ?? "");
+      setEditingAddress(editingDate.address ?? "");
+    }
+  }, [editingDate]);
 
   const optionsDate =
     optionsDialog.dateId != null
@@ -409,7 +444,7 @@ export function TourDatesPage() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.text(
-      `Note de frais – ${optionsDate.city} • ${optionsDate.venue}`,
+      `Note de frais – ${getRepresentationTitle(optionsDate)}`,
       10,
       20
     );
@@ -417,7 +452,7 @@ export function TourDatesPage() {
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     let y = 30;
-    doc.text(`Objet : ${optionsDate.city} – ${optionsDate.venue}`, 10, y);
+    doc.text(`Objet : ${getRepresentationTitle(optionsDate)}`, 10, y);
     y += 6;
     doc.text(`Date de l'événement : ${optionsDate.date}`, 10, y);
     y += 6;
@@ -454,20 +489,80 @@ export function TourDatesPage() {
     doc.setFont("helvetica", "bold");
     doc.text(`Montant total à rembourser : ${totalStr}`, 10, y);
 
-    const safeCity = optionsDate.city.replace(/[^a-z0-9\-]+/gi, "-");
+    const safeCity = getRepresentationTitle(optionsDate).replace(/[^a-z0-9\-]+/gi, "-") || "sans-nom";
     const fileName = `note-de-frais-${safeCity}-${today
       .toISOString()
       .slice(0, 10)}.pdf`;
     doc.save(fileName);
   };
 
+  const openAddDialog = () => {
+    const today = new Date();
+    const isoToday =
+      today.getFullYear() +
+      "-" +
+      String(today.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(today.getDate()).padStart(2, "0");
+    setAddForm({
+      city: "",
+      venue: "",
+      date: isoToday,
+      status: "Confirmée",
+      address: "",
+      organisateur: "",
+      note: ""
+    });
+    setIsAddDialogOpen(true);
+  };
+
+  const saveNewRepresentation = () => {
+    const nextId =
+      dates.length > 0 ? Math.max(...dates.map((d) => d.id)) + 1 : 1;
+    const dateStr = addForm.date.trim()
+      ? isoToFr(addForm.date)
+      : (() => {
+          const t = new Date();
+          return (
+            String(t.getDate()).padStart(2, "0") +
+            "/" +
+            String(t.getMonth() + 1).padStart(2, "0") +
+            "/" +
+            t.getFullYear()
+          );
+        })();
+    const newDate: TourDate = {
+      id: nextId,
+      city: addForm.city.trim(),
+      venue: addForm.venue.trim(),
+      date: dateStr,
+      status: addForm.status,
+      address: addForm.address.trim(),
+      organisateur: addForm.organisateur.trim() || undefined,
+      timetable: [],
+      transport: false,
+      lodging: false,
+      remuneration: false,
+      equipment: false,
+      note: addForm.note.trim() || undefined
+    };
+    setDates((prev) => [...prev, newDate]);
+    setIsAddDialogOpen(false);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold tracking-tight">Représentations</h1>
-        <p className="text-sm text-muted-foreground">
-          Gère tes représentations passées et à venir.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="mb-1 text-2xl font-semibold tracking-tight">Représentations</h1>
+          <p className="text-sm text-muted-foreground">
+            Gère tes représentations passées et à venir.
+          </p>
+        </div>
+        <Button onClick={openAddDialog}>
+          <Plus className="mr-2 h-4 w-4" />
+          Ajouter une représentation
+        </Button>
       </div>
 
       <div className="space-y-4">
@@ -499,15 +594,22 @@ export function TourDatesPage() {
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold">
-                              {date.city} – {date.venue}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="min-w-0 flex-1">
+                            {(date.venue || date.organisateur) ? (
+                              <p className="text-base font-bold leading-tight">
+                                {[date.venue, date.organisateur].filter(Boolean).join(" – ")}
+                              </p>
+                            ) : null}
+                            {date.city ? (
+                              <p className="mt-0.5 text-sm italic text-muted-foreground">
+                                {date.city}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-xs text-muted-foreground">
                               {date.date}
                             </p>
                           </div>
-                          <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs shrink-0">
                             {date.status}
                           </span>
                         </div>
@@ -516,7 +618,24 @@ export function TourDatesPage() {
                           <p className="text-xs font-medium uppercase text-muted-foreground">
                             Adresse
                           </p>
-                          <p className="text-xs">{date.address}</p>
+                          {date.address ? (
+                            <p className="text-xs flex items-center gap-1">
+                              <span className="truncate">{date.address}</span>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                  date.address
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Voir sur Google Maps"
+                              >
+                                <MapPin className="h-3.5 w-3.5" />
+                              </a>
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">—</p>
+                          )}
                         </div>
 
                         <div>
@@ -721,15 +840,22 @@ export function TourDatesPage() {
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold">
-                              {date.city} – {date.venue}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="min-w-0 flex-1">
+                            {(date.venue || date.organisateur) ? (
+                              <p className="text-base font-bold leading-tight">
+                                {[date.venue, date.organisateur].filter(Boolean).join(" – ")}
+                              </p>
+                            ) : null}
+                            {date.city ? (
+                              <p className="mt-0.5 text-sm italic text-muted-foreground">
+                                {date.city}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-xs text-muted-foreground">
                               {date.date}
                             </p>
                           </div>
-                          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
+                          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary shrink-0">
                             {date.status}
                           </span>
                         </div>
@@ -738,7 +864,24 @@ export function TourDatesPage() {
                           <p className="text-xs font-medium uppercase text-muted-foreground">
                             Adresse
                           </p>
-                          <p className="text-xs">{date.address}</p>
+                          {date.address ? (
+                            <p className="text-xs flex items-center gap-1">
+                              <span className="truncate">{date.address}</span>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                  date.address
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Voir sur Google Maps"
+                              >
+                                <MapPin className="h-3.5 w-3.5" />
+                              </a>
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">—</p>
+                          )}
                         </div>
 
                         <div>
@@ -911,17 +1054,13 @@ export function TourDatesPage() {
       {/* Dialog d’édition d’une date (hors timetable) */}
       <Dialog open={!!editingDate} onOpenChange={(open) => !open && setEditingId(null)}>
         <DialogContent
-          className="bg-white text-foreground"
-          style={{
-            backgroundColor: "#ffffff",
-            borderColor: "rgba(15,23,42,0.12)"
-          }}
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
           {editingDate && (
             <>
               <DialogHeader>
                 <DialogTitle>
-                  Modifier la date – {editingDate.city} • {editingDate.venue}
+                  Modifier la date – {getRepresentationTitle(editingDate)}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3 py-2 text-sm">
@@ -930,14 +1069,32 @@ export function TourDatesPage() {
                     <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                       Ville
                     </p>
-                    <Input defaultValue={editingDate.city} />
+                    <Input
+                      value={editingCity}
+                      onChange={(e) => setEditingCity(e.target.value)}
+                      placeholder="ex. Paris"
+                    />
                   </div>
                   <div>
                     <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                       Salle
                     </p>
-                    <Input defaultValue={editingDate.venue} />
+                    <Input
+                      value={editingVenue}
+                      onChange={(e) => setEditingVenue(e.target.value)}
+                      placeholder="ex. La Cigale"
+                    />
                   </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                    Organisateur
+                  </p>
+                  <Input
+                    value={editingOrganisateur}
+                    onChange={(e) => setEditingOrganisateur(e.target.value)}
+                    placeholder="ex. Production XYZ"
+                  />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
@@ -962,7 +1119,7 @@ export function TourDatesPage() {
                         setEditingStatus(e.target.value as TourStatus)
                       }
                     >
-                      {["Finalisée", "Passée", "Signée", "Confirmée", "En option"].map(
+                      {["En option", "Confirmée", "Signée", "Passée", "Finalisée"].map(
                         (status) => (
                           <option key={status} value={status}>
                             {status}
@@ -978,16 +1135,21 @@ export function TourDatesPage() {
                     Adresse
                   </p>
                   <div className="flex items-center gap-2">
-                    <Input defaultValue={editingDate.address} />
+                    <Input
+                      value={editingAddress}
+                      onChange={(e) => setEditingAddress(e.target.value)}
+                      placeholder="Adresse complète"
+                    />
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       className="whitespace-nowrap"
                       onClick={() => {
-                        if (!editingDate.address) return;
+                        const addr = editingAddress.trim();
+                        if (!addr) return;
                         const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                          editingDate.address
+                          addr
                         )}`;
                         if (typeof window !== "undefined") {
                           window.open(url, "_blank", "noopener,noreferrer");
@@ -1026,10 +1188,14 @@ export function TourDatesPage() {
                         d.id === editingId
                           ? {
                               ...d,
+                              city: editingCity.trim(),
+                              venue: editingVenue.trim(),
                               date: editingDateValue
                                 ? isoToFr(editingDateValue)
                                 : d.date,
-                              status: editingStatus
+                              status: editingStatus,
+                              address: editingAddress.trim(),
+                              organisateur: editingOrganisateur.trim() || undefined
                             }
                           : d
                       )
@@ -1045,6 +1211,131 @@ export function TourDatesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Ajouter une représentation */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
+        >
+          <DialogHeader>
+            <DialogTitle>Nouvelle représentation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                  Ville
+                </p>
+                <Input
+                  value={addForm.city}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  placeholder="ex. Paris"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                  Salle
+                </p>
+                <Input
+                  value={addForm.venue}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({ ...prev, venue: e.target.value }))
+                  }
+                  placeholder="ex. La Cigale"
+                />
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                Organisateur
+              </p>
+              <Input
+                value={addForm.organisateur}
+                onChange={(e) =>
+                  setAddForm((prev) => ({ ...prev, organisateur: e.target.value }))
+                }
+                placeholder="ex. Production XYZ"
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase text-muted-foreground">
+                  Date
+                </p>
+                <DatePicker
+                  value={addForm.date}
+                  onChange={(value) =>
+                    setAddForm((prev) => ({ ...prev, date: value }))
+                  }
+                  placeholder="Choisir une date"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                  Statut
+                </p>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={addForm.status}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      status: e.target.value as TourStatus
+                    }))
+                  }
+                >
+                  {["En option", "Confirmée", "Signée", "Passée", "Finalisée"].map(
+                    (status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                Adresse (optionnel)
+              </p>
+              <Input
+                value={addForm.address}
+                onChange={(e) =>
+                  setAddForm((prev) => ({ ...prev, address: e.target.value }))
+                }
+                placeholder="Adresse complète"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                Note (optionnel)
+              </p>
+              <Textarea
+                value={addForm.note}
+                onChange={(e) =>
+                  setAddForm((prev) => ({ ...prev, note: e.target.value }))
+                }
+                placeholder="Note"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddDialogOpen(false)}
+            >
+              Annuler
+            </Button>
+            <Button type="button" onClick={saveNewRepresentation}>
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog gestion Transport / Logement / Rémunération / Matériel */}
       <Dialog
         open={!!optionsDate && !!optionsDialog.type}
@@ -1053,17 +1344,13 @@ export function TourDatesPage() {
         }}
       >
         <DialogContent
-          className="bg-white text-foreground"
-          style={{
-            backgroundColor: "#ffffff",
-            borderColor: "rgba(15,23,42,0.12)"
-          }}
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
           {optionsDate && optionsDialog.type === "transport" && (
             <>
               <DialogHeader>
                 <DialogTitle>
-                  Transports – {optionsDate.city} • {optionsDate.venue}
+                  Transports – {getRepresentationTitle(optionsDate)}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
@@ -1072,7 +1359,7 @@ export function TourDatesPage() {
                     Nom de l&apos;événement
                   </p>
                   <p className="text-sm">
-                    {optionsDate.city} – {optionsDate.venue} ({optionsDate.date})
+                    {getRepresentationTitle(optionsDate)} ({optionsDate.date})
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Gérez les transports pour cet événement.
@@ -1249,7 +1536,7 @@ export function TourDatesPage() {
             <>
               <DialogHeader>
                 <DialogTitle>
-                  Logement – {optionsDate.city} • {optionsDate.venue}
+                  Logement – {getRepresentationTitle(optionsDate)}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
@@ -1258,7 +1545,7 @@ export function TourDatesPage() {
                     Nom de l&apos;événement
                   </p>
                   <p className="text-sm">
-                    {optionsDate.city} – {optionsDate.venue} ({optionsDate.date})
+                    {getRepresentationTitle(optionsDate)} ({optionsDate.date})
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Gérez les hébergements pour cet événement.
@@ -1453,7 +1740,7 @@ export function TourDatesPage() {
             <>
               <DialogHeader>
                 <DialogTitle>
-                  Matériel – {optionsDate.city} • {optionsDate.venue}
+                  Matériel – {getRepresentationTitle(optionsDate)}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
@@ -1533,11 +1820,7 @@ export function TourDatesPage() {
         }}
       >
         <DialogContent
-          className="bg-white text-foreground"
-          style={{
-            backgroundColor: "#ffffff",
-            borderColor: "rgba(15,23,42,0.12)"
-          }}
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
           {timetableDialogDateId !== null && (
             <>
@@ -1653,11 +1936,7 @@ export function TourDatesPage() {
         }}
       >
         <DialogContent
-          className="bg-white text-foreground"
-          style={{
-            backgroundColor: "#ffffff",
-            borderColor: "rgba(15,23,42,0.12)"
-          }}
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
           {documentDialogDateId !== null && (
             <>
