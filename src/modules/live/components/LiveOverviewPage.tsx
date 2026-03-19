@@ -270,8 +270,6 @@ export function LiveOverviewPage() {
       if (cancelled || !mapContainerRef.current) return;
 
       // Correction des icônes par défaut dans Next/Leaflet
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      // @ts-expect-error - Leaflet icon path hack
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl:
