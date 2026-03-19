@@ -333,13 +333,14 @@ export function IntermittenceDashboard({
                     fontSize: 12
                   }}
                   labelStyle={{ color: "#F9FAFB" }}
-                  formatter={(value: number) =>
-                    `${value.toLocaleString("fr-FR", {
+                  formatter={(value: number | string | undefined) => {
+                    const n = typeof value === "number" ? value : Number(value ?? 0);
+                    return `${n.toLocaleString("fr-FR", {
                       style: "currency",
                       currency: "EUR",
                       maximumFractionDigits: 0
-                    })}`
-                  }
+                    })}`;
+                  }}
                 />
                 <Legend
                   wrapperStyle={{ color: "#E5E7EB", fontSize: 11 }}
@@ -382,7 +383,10 @@ export function IntermittenceDashboard({
                     fontSize: 12
                   }}
                   labelStyle={{ color: "#F9FAFB" }}
-                  formatter={(value: number) => `${value.toFixed(1)} h`}
+                  formatter={(value: number | string | undefined) => {
+                    const n = typeof value === "number" ? value : Number(value ?? 0);
+                    return `${n.toFixed(1)} h`;
+                  }}
                 />
                 <Legend
                   wrapperStyle={{ color: "#E5E7EB", fontSize: 11 }}
