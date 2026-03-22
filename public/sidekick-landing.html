@@ -1,0 +1,1985 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SIDEKICK - Toute ta carrière musicale. Un seul endroit.</title>
+    <meta
+      name="description"
+      content="SIDEKICK centralise phono, publishing, royalties, mailing, marketing, organisation de tournée, administration et facturation pour les artistes de musique indépendants."
+    />
+
+    <style>
+      :root {
+        --bg0: #101010;
+        --bg1: #101010;
+        --card: rgba(22, 22, 34, 0.72);
+        --card2: rgba(22, 22, 34, 0.52);
+        --text: #f5f5f5;
+        --muted: rgba(245, 245, 245, 0.7);
+        --muted2: rgba(245, 245, 245, 0.46);
+        --border: rgba(245, 245, 245, 0.18);
+        --accent: #F0FF00;
+        --accent2: #22C55E;
+        --accentGlow: rgba(240, 255, 0, 0.32);
+        --warn: #fbbf24;
+        --shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+        --shadow2: 0 10px 26px rgba(0, 0, 0, 0.45);
+        --radius: 18px;
+        --radius2: 26px;
+
+        --space-1: 8px;
+        --space-2: 12px;
+        --space-3: 16px;
+        --space-4: 22px;
+        --space-5: 30px;
+        --space-6: 40px;
+        --space-7: 56px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: radial-gradient(1200px 700px at 25% -10%, rgba(34, 197, 94, 0.18), transparent 55%),
+          radial-gradient(900px 500px at 85% 10%, rgba(67, 56, 202, 0.18), transparent 55%),
+          linear-gradient(180deg, var(--bg0), var(--bg1));
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          "Apple Color Emoji", "Segoe UI Emoji";
+        line-height: 1.45;
+        overflow-x: hidden;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .wrap {
+        width: min(1200px, 100%);
+        margin: 0 auto;
+        padding: 0 var(--space-3);
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* Scroll-triggered reveals */
+      .reveal {
+        opacity: 0;
+        transform: translateY(12px);
+        transition: opacity 550ms ease, transform 550ms ease;
+        will-change: opacity, transform;
+      }
+      .reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Top bar */
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(10px);
+        background: rgba(5, 5, 7, 0.66);
+        border-bottom: 1px solid rgba(248, 250, 252, 0.08);
+      }
+      .topbarInner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 0;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .logoMark {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: radial-gradient(circle at 30% 20%, rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.08));
+        border: 1px solid rgba(34, 197, 94, 0.34);
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08);
+        position: relative;
+        overflow: hidden;
+      }
+      .logoMark:before {
+        content: "";
+        position: absolute;
+        inset: -40%;
+        background: conic-gradient(from 90deg, rgba(34, 197, 94, 0.0), rgba(34, 197, 94, 0.65), rgba(34, 197, 94, 0.0));
+        animation: spin 6s linear infinite;
+        opacity: 0.75;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .nav {
+        display: none;
+        gap: 18px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .nav a:hover {
+        color: var(--text);
+      }
+
+      @media (min-width: 860px) {
+        .nav {
+          display: flex;
+        }
+      }
+
+      .topActions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-weight: 700;
+        border: 1px solid rgba(248, 250, 252, 0.14);
+        background: rgba(22, 22, 34, 0.55);
+        color: var(--text);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+        cursor: pointer;
+        transition: transform 170ms ease, background 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+        user-select: none;
+      }
+      .btn:focus {
+        outline: none;
+      }
+      .btn:focus-visible {
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.22);
+        border-color: rgba(34, 197, 94, 0.65);
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .btnPrimary {
+        background: linear-gradient(
+          180deg,
+          rgba(240, 255, 0, 1),
+          rgba(240, 255, 0, 0.82)
+        );
+        border-color: rgba(240, 255, 0, 0.65);
+        color: #101010;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+      }
+      .btnPrimary:hover {
+        background: linear-gradient(
+          180deg,
+          rgba(240, 255, 0, 1),
+          rgba(240, 255, 0, 0.9)
+        );
+        box-shadow: 0 0 0 6px rgba(240, 255, 0, 0.12);
+      }
+
+      .btnGhost {
+        background: rgba(5, 5, 7, 0.25);
+        border-color: rgba(248, 250, 252, 0.18);
+        color: var(--text);
+      }
+      .btnGhost:hover {
+        background: rgba(5, 5, 7, 0.42);
+        border-color: rgba(240, 255, 0, 0.55);
+        box-shadow: 0 0 0 6px rgba(240, 255, 0, 0.10);
+      }
+
+      .btnLink {
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 700;
+      }
+
+      /* Hero */
+      .hero {
+        position: relative;
+        padding: var(--space-7) 0 var(--space-6);
+        overflow: clip;
+      }
+
+      .heroGrid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-5);
+        align-items: center;
+      }
+
+      @media (min-width: 960px) {
+        .heroGrid {
+          grid-template-columns: 1.1fr 0.9fr;
+        }
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(240, 255, 0, 0.35);
+        background: rgba(240, 255, 0, 0.10);
+        color: rgba(240, 255, 0, 0.95);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .headline {
+        margin: 14px 0 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          sans-serif;
+        font-weight: 900;
+        font-size: clamp(44px, 6.4vw, 78px);
+        line-height: 1.02;
+        letter-spacing: 0.01em;
+      }
+      .headline .accent {
+        color: var(--accent2);
+        text-shadow: 0 0 30px var(--accentGlow);
+      }
+
+      .subhead {
+        margin: 18px 0 0;
+        color: var(--muted);
+        max-width: 56ch;
+        font-size: 16px;
+      }
+
+      .ctaRow {
+        margin-top: 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .heroMeta {
+        margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        color: var(--muted2);
+        font-size: 13px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.35);
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.95);
+        box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.14);
+      }
+
+      /* Waveform background */
+      .waveWrap {
+        position: relative;
+        border-radius: var(--radius2);
+        background: linear-gradient(180deg, rgba(22, 22, 34, 0.35), rgba(22, 22, 34, 0.12));
+        border: 1px solid rgba(248, 250, 252, 0.10);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        min-height: 360px;
+      }
+
+      .waveWrap canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.84;
+      }
+
+      .waveOverlay {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(650px 300px at 65% 25%, rgba(34, 197, 94, 0.26), transparent 60%),
+          radial-gradient(500px 250px at 30% 10%, rgba(67, 56, 202, 0.20), transparent 60%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.60));
+        pointer-events: none;
+      }
+
+      .dashboardHint {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        top: 12px;
+        padding: 14px;
+        border-radius: 22px;
+        border: 1px solid rgba(248, 250, 252, 0.10);
+        background: rgba(7, 7, 11, 0.35);
+        backdrop-filter: blur(10px);
+      }
+
+      .dashTop {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .dashTitle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: rgba(248, 250, 252, 0.86);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .dashDots {
+        display: inline-flex;
+        gap: 8px;
+      }
+      .dashDots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(248, 250, 252, 0.16);
+      }
+
+      .dashGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .miniCard {
+        border-radius: 16px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.42);
+        padding: 12px;
+      }
+      .miniLabel {
+        font-size: 11px;
+        color: rgba(248, 250, 252, 0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        font-weight: 700;
+      }
+      .miniValue {
+        margin-top: 8px;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+      .miniValue .up {
+        color: var(--accent2);
+        text-shadow: 0 0 22px var(--accentGlow);
+      }
+
+      .dashBars {
+        grid-column: 1 / -1;
+        border-radius: 16px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.42);
+        padding: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+      .dashBars:before {
+        content: "";
+        position: absolute;
+        inset: -20% -10%;
+        background: radial-gradient(circle at 30% 20%, rgba(34, 197, 94, 0.30), transparent 55%);
+        opacity: 0.65;
+      }
+      .dashBarsInner {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 92px;
+      }
+      .bar {
+        width: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(34, 197, 94, 0.95), rgba(34, 197, 94, 0.22));
+        opacity: 0.95;
+        transform-origin: bottom;
+        animation: bounce 1600ms ease-in-out infinite;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: scaleY(0.55);
+        }
+        50% {
+          transform: scaleY(1);
+        }
+      }
+
+      .dashBottom {
+        margin-top: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        color: rgba(248, 250, 252, 0.62);
+        font-size: 12px;
+      }
+
+      /* Sections */
+      section {
+        padding: var(--space-7) 0;
+      }
+      .sectionTitle {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          sans-serif;
+        font-size: clamp(30px, 3.2vw, 48px);
+        margin: 0;
+        letter-spacing: 0.02em;
+        font-weight: 900;
+      }
+      .sectionIntro {
+        margin: 12px 0 0;
+        color: var(--muted);
+        max-width: 72ch;
+        font-size: 15px;
+      }
+
+      /* Problem grid */
+      .grid2 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1fr;
+        margin-top: 22px;
+      }
+      @media (min-width: 860px) {
+        .grid2 {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .gridCards {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+        margin-top: 26px;
+      }
+      @media (min-width: 700px) {
+        .gridCards {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (min-width: 1040px) {
+        .gridCards {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .card {
+        border-radius: var(--radius);
+        background: rgba(22, 22, 34, 0.50);
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        box-shadow: var(--shadow2);
+        padding: 18px;
+        transition: transform 170ms ease, border-color 170ms ease, background 170ms ease;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(34, 197, 94, 0.45);
+        background: rgba(22, 22, 34, 0.60);
+      }
+
+      .cardTitle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+      }
+      .cardTitle svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+        color: var(--accent2);
+        filter: drop-shadow(0 0 18px rgba(34, 197, 94, 0.25));
+      }
+      .cardText {
+        margin-top: 12px;
+        color: rgba(248, 250, 252, 0.66);
+        font-size: 14px;
+      }
+
+      /* Modules */
+      .moduleLayout {
+        margin-top: 24px;
+        position: relative;
+      }
+
+      .moduleCanvasLines {
+        position: absolute;
+        inset: -30px -20px -30px -20px;
+        pointer-events: none;
+        opacity: 0.35;
+      }
+
+      .moduleGrid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 700px) {
+        .moduleGrid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (min-width: 1040px) {
+        .moduleGrid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .moduleCard {
+        padding: 18px;
+        border-radius: var(--radius);
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.52);
+        cursor: pointer;
+        transition: transform 170ms ease, border-color 170ms ease, background 170ms ease;
+        position: relative;
+        overflow: hidden;
+      }
+      .moduleCard:hover {
+        transform: translateY(-2px);
+        border-color: rgba(34, 197, 94, 0.55);
+        background: rgba(22, 22, 34, 0.66);
+      }
+
+      .moduleCard:before {
+        content: "";
+        position: absolute;
+        left: -30%;
+        top: -20%;
+        width: 120%;
+        height: 80%;
+        background: radial-gradient(circle at 20% 30%, rgba(34, 197, 94, 0.25), transparent 52%);
+        opacity: 0;
+        transition: opacity 170ms ease;
+      }
+      .moduleCard:hover:before {
+        opacity: 1;
+      }
+
+      .moduleTop {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        position: relative;
+      }
+
+      .moduleIcon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 16px;
+        background: rgba(34, 197, 94, 0.10);
+        border: 1px solid rgba(34, 197, 94, 0.30);
+        box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.06);
+      }
+      .moduleIcon svg {
+        width: 20px;
+        height: 20px;
+        color: var(--accent2);
+        filter: drop-shadow(0 0 18px rgba(34, 197, 94, 0.25));
+      }
+
+      .moduleName {
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        font-size: 16px;
+      }
+      .moduleDesc {
+        margin-top: 10px;
+        color: rgba(248, 250, 252, 0.66);
+        font-size: 14px;
+      }
+
+      .moduleHover {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(248, 250, 252, 0.10);
+      }
+      .moduleHover p {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.72);
+        font-size: 13px;
+      }
+      .moduleHover .hint {
+        display: none;
+      }
+      .moduleCard:hover .hint {
+        display: block;
+      }
+
+      /* Feature deep dive */
+      .featureGrid {
+        margin-top: 24px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 920px) {
+        .featureGrid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .featureCard {
+        padding: 18px;
+      }
+
+      .mock {
+        margin-top: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(7, 7, 11, 0.28);
+        overflow: hidden;
+      }
+
+      .mockTop {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(248, 250, 252, 0.10);
+        color: rgba(248, 250, 252, 0.70);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .mockDots span {
+        width: 10px;
+        height: 10px;
+        display: inline-block;
+        border-radius: 999px;
+        background: rgba(248, 250, 252, 0.16);
+        margin-left: 6px;
+      }
+      .mockBody {
+        padding: 14px;
+      }
+      .mockRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-radius: 14px;
+        border: 1px solid rgba(248, 250, 252, 0.10);
+        background: rgba(22, 22, 34, 0.44);
+        padding: 12px 12px;
+        margin-bottom: 10px;
+      }
+      .mockRow strong {
+        font-size: 13px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        background: rgba(34, 197, 94, 0.10);
+        color: rgba(34, 197, 94, 0.95);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      /* Social proof */
+      .proofGrid {
+        margin-top: 24px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 900px) {
+        .proofGrid {
+          grid-template-columns: 1.2fr 0.8fr;
+          align-items: start;
+        }
+      }
+
+      .testimonials {
+        border-radius: var(--radius2);
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.50);
+        padding: 18px;
+      }
+
+      .testHead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .testHead p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .carousel {
+        margin-top: 14px;
+        display: grid;
+        gap: 12px;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(260px, 1fr);
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 10px;
+      }
+
+      .quoteCard {
+        scroll-snap-align: start;
+        border-radius: 18px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(7, 7, 11, 0.22);
+        padding: 16px;
+      }
+      .quoteStars {
+        display: inline-flex;
+        gap: 6px;
+        color: var(--warn);
+        margin-bottom: 10px;
+      }
+      .quoteText {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.78);
+        font-size: 14px;
+      }
+      .quoteBy {
+        margin-top: 14px;
+        color: rgba(248, 250, 252, 0.66);
+        font-size: 13px;
+      }
+      .quoteBy strong {
+        color: rgba(248, 250, 252, 0.92);
+      }
+
+      .stats {
+        border-radius: var(--radius2);
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(22, 22, 34, 0.50);
+        padding: 18px;
+      }
+
+      .statsGrid {
+        margin-top: 16px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      @media (min-width: 420px) {
+        .statsGrid {
+          grid-template-columns: repeat(1, 1fr);
+        }
+      }
+
+      .stat {
+        border-radius: 16px;
+        border: 1px solid rgba(248, 250, 252, 0.10);
+        background: rgba(7, 7, 11, 0.22);
+        padding: 14px;
+      }
+      .stat .big {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          sans-serif;
+        font-size: 36px;
+        letter-spacing: 0.02em;
+        font-weight: 900;
+      }
+      .stat .small {
+        margin-top: 6px;
+        color: rgba(248, 250, 252, 0.62);
+        font-size: 13px;
+      }
+
+      .logos {
+        margin-top: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .logoBadge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(7, 7, 11, 0.22);
+        color: rgba(248, 250, 252, 0.74);
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        cursor: default;
+      }
+      .logoBadge span {
+        color: var(--accent2);
+        margin-right: 6px;
+      }
+
+      /* Pricing */
+      .pricingGrid {
+        margin-top: 24px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 920px) {
+        .pricingGrid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .plan {
+        padding: 18px;
+        position: relative;
+      }
+      .plan .price {
+        margin-top: 10px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          sans-serif;
+        font-size: 46px;
+        letter-spacing: 0.02em;
+        font-weight: 900;
+      }
+      .plan .desc {
+        margin-top: 8px;
+        color: rgba(248, 250, 252, 0.64);
+        font-size: 14px;
+      }
+      .plan ul {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+      }
+      .plan li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        color: rgba(248, 250, 252, 0.76);
+        font-size: 14px;
+      }
+      .tick {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        background: rgba(34, 197, 94, 0.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+      .tick svg {
+        width: 12px;
+        height: 12px;
+        color: var(--accent2);
+      }
+
+      .planHot {
+        border-color: rgba(34, 197, 94, 0.55);
+        background: linear-gradient(
+          180deg,
+          rgba(34, 197, 94, 0.14),
+          rgba(22, 22, 34, 0.58)
+        );
+      }
+      .planHot:after {
+        content: "MOST POPULAR";
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(34, 197, 94, 0.45);
+        background: rgba(34, 197, 94, 0.14);
+        color: rgba(34, 197, 94, 0.95);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+      }
+
+      /* Final CTA */
+      .finalCta {
+        padding: var(--space-7) 0;
+      }
+      .ctaShell {
+        border-radius: 28px;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        background:
+          radial-gradient(900px 460px at 10% 10%, rgba(34, 197, 94, 0.22), transparent 60%),
+          radial-gradient(650px 320px at 90% 20%, rgba(67, 56, 202, 0.20), transparent 58%),
+          rgba(7, 7, 11, 0.22);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .ctaShellInner {
+        padding: 22px;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 980px) {
+        .ctaShellInner {
+          grid-template-columns: 1.1fr 0.9fr;
+          align-items: center;
+        }
+      }
+
+      .ctaHeadline {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          sans-serif;
+        font-size: clamp(38px, 5vw, 64px);
+        margin: 0;
+        letter-spacing: 0.02em;
+        font-weight: 900;
+      }
+
+      .ctaCopy {
+        margin-top: 12px;
+        color: rgba(248, 250, 252, 0.72);
+        max-width: 56ch;
+      }
+
+      .formCard {
+        border-radius: 22px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: rgba(5, 5, 7, 0.25);
+        padding: 16px;
+      }
+
+      form label {
+        display: block;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        font-size: 13px;
+        color: rgba(248, 250, 252, 0.85);
+      }
+
+      .inputRow {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      input[type="email"] {
+        flex: 1 1 220px;
+        min-width: 0;
+        border-radius: 14px;
+        border: 1px solid rgba(248, 250, 252, 0.16);
+        background: rgba(22, 22, 34, 0.42);
+        color: var(--text);
+        padding: 12px 14px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 170ms ease, box-shadow 170ms ease;
+      }
+      input[type="email"]::placeholder {
+        color: rgba(248, 250, 252, 0.42);
+      }
+      input[type="email"]:focus {
+        border-color: rgba(34, 197, 94, 0.65);
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.20);
+      }
+
+      .finePrint {
+        margin-top: 12px;
+        color: rgba(248, 250, 252, 0.56);
+        font-size: 12px;
+      }
+      .status {
+        margin-top: 12px;
+        font-size: 13px;
+        color: rgba(248, 250, 252, 0.76);
+      }
+      .status.ok {
+        color: rgba(52, 211, 153, 0.95);
+      }
+      .status.bad {
+        color: rgba(251, 191, 36, 0.95);
+      }
+
+      /* Footer */
+      footer {
+        padding: 22px 0 60px;
+        color: rgba(248, 250, 252, 0.52);
+        font-size: 12px;
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+        .bar {
+          animation: none;
+        }
+        .logoMark:before {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <script>
+      // Cette page HTML est une version statique historique.
+      // On la redirige vers la landing Next.js pour afficher la version à jour.
+      (function () {
+        try {
+          window.location.replace("/#get-access");
+        } catch (e) {
+          // no-op
+        }
+      })();
+    </script>
+    <header class="topbar" role="banner">
+      <div class="wrap topbarInner">
+        <a class="brand" href="#top" aria-label="SIDEKICK home">
+          <span class="logoMark" aria-hidden="true"></span>
+          <span>SID<span style="color: var(--accent2)">E</span>KICK</span>
+        </a>
+
+        <nav class="nav" aria-label="Page sections">
+          <a href="#problem">Problème</a>
+          <a href="#modules">Modules</a>
+          <a href="#features">Fonctionnalités</a>
+          <a href="#proof">Confiance</a>
+          <a href="#pricing">Tarifs</a>
+        </nav>
+
+        <div class="topActions">
+          <a class="btn btnGhost btnLink" href="/login" aria-label="Connexion">
+            Connexion
+          </a>
+          <a class="btn btnPrimary btnLink" href="#get-access" aria-label="Démarrer gratuitement">
+            Démarrer gratuitement
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <div id="top"></div>
+
+    <!-- 1. HERO -->
+    <main>
+      <section class="hero" aria-label="Héros">
+        <div class="wrap">
+          <div class="heroGrid">
+            <div class="reveal">
+              <div class="kicker">Gestion de carrière musicale, prête pour le studio</div>
+              <h1 class="headline">
+                Toute ta carrière musicale.
+                <br />
+                <span class="accent">Un seul endroit.</span>
+              </h1>
+              <p class="subhead">
+                Arrête de jongler avec 12 outils. SIDEKICK centralise phono, publishing, royalties, mailing, marketing, organisation de tournée, administration et facturation comme les artistes bossent vraiment.
+              </p>
+
+              <div class="ctaRow" role="group" aria-label="Primary actions">
+                <a class="btn btnPrimary" href="#get-access" aria-label="Démarrer gratuitement">
+                  Démarrer gratuitement
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </a>
+              </div>
+
+              <div class="heroMeta" aria-label="Trust hints">
+                <div class="pill">
+                  <span class="dot" aria-hidden="true"></span>
+                  Pensé pour les artistes indépendants (sans label requis)
+                </div>
+                <div class="pill">
+                  <span class="dot" style="background: rgba(251,191,36,0.95); box-shadow: 0 0 0 6px rgba(251,191,36,0.14);" aria-hidden="true"></span>
+                  Mise en place rapide. Des décisions claires en quelques jours, pas en mois.
+                </div>
+              </div>
+            </div>
+
+            <!-- Visual: waveform + dashboard hint -->
+            <div class="waveWrap reveal" aria-hidden="true">
+              <canvas id="waveform"></canvas>
+              <div class="waveOverlay"></div>
+              <div class="dashboardHint" role="presentation">
+                <div class="dashTop">
+                  <div class="dashTitle">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M4 12h4l2-7 4 14 2-7h4" />
+                    </svg>
+                    TABLEAU DE BORD SIDEKICK
+                  </div>
+                  <div class="dashDots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+
+                <div class="dashGrid">
+                  <div class="miniCard">
+                    <div class="miniLabel">Prochain versement</div>
+                    <div class="miniValue">
+                      42<span class="up">%</span>
+                    </div>
+                  </div>
+                  <div class="miniCard">
+                    <div class="miniLabel">Module actif</div>
+                    <div class="miniValue">PHONO</div>
+                  </div>
+
+                  <div class="dashBars">
+                    <div class="miniLabel" style="margin-bottom: 10px; position: relative;">Energie du signal</div>
+                    <div class="dashBarsInner">
+                      <div class="bar" style="height: 34px; animation-delay: 0ms;"></div>
+                      <div class="bar" style="height: 66px; animation-delay: 100ms;"></div>
+                      <div class="bar" style="height: 52px; animation-delay: 180ms;"></div>
+                      <div class="bar" style="height: 78px; animation-delay: 260ms;"></div>
+                      <div class="bar" style="height: 46px; animation-delay: 320ms;"></div>
+                      <div class="bar" style="height: 88px; animation-delay: 410ms;"></div>
+                      <div class="bar" style="height: 58px; animation-delay: 520ms;"></div>
+                      <div class="bar" style="height: 72px; animation-delay: 610ms;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dashBottom">
+                  <span>ISRC + métadonnées</span>
+                  <span style="color: rgba(34, 197, 94, 0.95); font-weight: 800;">&bull; prêt</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. PROBLEM SECTION -->
+      <section id="problem" aria-label="Problème">
+        <div class="wrap">
+          <div class="reveal">
+            <h2 class="sectionTitle">Tu reconnais ça ?</h2>
+            <p class="sectionIntro">
+              Tu fais le taf. Les outils font le reste. Sauf que là, le reste est cassé : fragmenté, silencieux, et toujours à un clic de devenir le bazar.
+            </p>
+          </div>
+
+          <div class="gridCards">
+            <article class="card reveal" role="article" aria-label="Pain point 1">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 4h16v16H4z" />
+                  <path d="M8 8h8" />
+                  <path d="M8 12h6" />
+                  <path d="M8 16h4" />
+                </svg>
+                Le casse-tête des royalties
+              </div>
+              <p class="cardText">Les relevés de royalties planqués dans 5 emails différents. Tu les retrouves quand tu t&apos;arrêtes enfin… enfin.</p>
+            </article>
+
+            <article class="card reveal" role="article" aria-label="Pain point 2">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M8 6h13" />
+                  <path d="M4 6h.01" />
+                  <path d="M8 12h13" />
+                  <path d="M4 12h.01" />
+                  <path d="M8 18h13" />
+                  <path d="M4 18h.01" />
+                </svg>
+                Tournée vs budget
+              </div>
+              <p class="cardText">Les dates de tournée dans une app de notes, le budget dans Excel. Rien ne colle. Tout arrive en retard.</p>
+            </article>
+
+            <article class="card reveal" role="article" aria-label="Pain point 3">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M10 2H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V12" />
+                  <path d="m22 2-10 10" />
+                  <path d="M15 2h7v7" />
+                </svg>
+                L&apos;enfer des versions
+              </div>
+              <p class="cardText">Tu ne sais plus quelle version du titre tu as envoyée au label. Stems ? Métadonnées ? Bon courage.</p>
+            </article>
+
+            <article class="card reveal" role="article" aria-label="Pain point 4">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 7h-9" />
+                  <path d="M20 12h-9" />
+                  <path d="M20 17h-9" />
+                  <path d="M4 7h.01" />
+                  <path d="M4 12h.01" />
+                  <path d="M4 17h.01" />
+                </svg>
+                Factures : la chasse aux dinos
+              </div>
+              <p class="cardText">Ton modèle de facture vient d&apos;un Word de 2019. L&apos;admin ressemble à des heures non payées.</p>
+            </article>
+
+            <article class="card reveal" role="article" aria-label="Pain point 5">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 12h-4l-2 7-4-14-2 7H2" />
+                </svg>
+                Des idées sans structure
+              </div>
+              <p class="cardText">Tu prépares la prochaine sortie… puis ça meurt dans les onglets. Marketing, mailing, tâches — déconnectés.</p>
+            </article>
+
+            <article class="card reveal" role="article" aria-label="Pain point 6">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 1v22" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Coincé entre tout le monde
+              </div>
+              <p class="cardText">Studios, producteurs, managers, salles… Tu stockes les contacts au hasard. La chaîne casse.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. SOLUTION / MODULES OVERVIEW -->
+      <section id="modules" aria-label="Modules">
+        <div class="wrap">
+          <div class="reveal">
+            <h2 class="sectionTitle">Tout est au même endroit</h2>
+            <p class="sectionIntro">
+              Phono, publishing, royalties, mailing, marketing, organisation, administration, facturation, contacts. Intégré dès le départ.
+            </p>
+          </div>
+
+          <div class="moduleLayout reveal">
+            <svg class="moduleCanvasLines" viewBox="0 0 1200 600" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M160 150 C 240 240, 310 260, 420 220 S 620 120, 720 200 S 980 420, 1100 300" stroke="rgba(34,197,94,0.45)" stroke-width="1.2" fill="none" />
+              <path d="M110 380 C 240 320, 360 350, 460 390 S 680 510, 780 430 S 980 310, 1120 430" stroke="rgba(248,250,252,0.18)" stroke-width="1.2" fill="none" />
+              <path d="M520 90 C 540 160, 600 170, 640 230 S 700 320, 700 420" stroke="rgba(67,56,202,0.22)" stroke-width="1.0" fill="none" />
+            </svg>
+
+            <div class="moduleGrid" role="list" aria-label="Cartes des modules">
+              <!-- 1 PHONO -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module phono">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2v20" />
+                      <path d="M17 6h-5" />
+                      <path d="M17 18h-5" />
+                      <path d="M7 6h5" />
+                      <path d="M7 18h5" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">PHONO</div>
+                    <div class="miniLabel" style="margin-top: 6px;">enregistrements + catalogue</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Gère tes enregistrements, tes métadonnées ISRC, les liens de distribution, les versions et les revenus dans un seul enregistrement.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : les versions du titre restent connectées aux streams et aux paiements.</p>
+                </div>
+              </div>
+
+              <!-- 2 PUBLISHING -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module publishing">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 19.5V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14.5" />
+                      <path d="M8 7h8" />
+                      <path d="M8 11h8" />
+                      <path d="M8 15h6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">PUBLISHING</div>
+                    <div class="miniLabel" style="margin-top: 6px;">splits + statut PRO</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Compositions, splits de droits, statut d&apos;inscription PRO et la prochaine étape à faire.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : chaque composition garde la logique des splits attachée.</p>
+                </div>
+              </div>
+
+              <!-- 3 ROYALTIES -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module royalties">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 1v22" />
+                      <path d="M17 6H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">ROYALTIES</div>
+                    <div class="miniLabel" style="margin-top: 6px;">CSV + suivi</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Importe tes relevés CSV et suis les revenus par titre, plateforme et pays.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : tu vois d&apos;un coup d&apos;œil ce qui est payé vs en attente.</p>
+                </div>
+              </div>
+
+              <!-- 4 MAILING -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module mailing">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h16v16H4z" />
+                      <path d="m22 6-10 7L2 6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">MAILING</div>
+                    <div class="miniLabel" style="margin-top: 6px;">audience + campagnes</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Campagnes newsletter et gestion d&apos;audience pour les sorties qui reviennent.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : les campagnes sont connectées aux sorties à venir.</p>
+                </div>
+              </div>
+
+              <!-- 5 MARKETING -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module marketing">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <path d="M7 10h10" />
+                      <path d="M12 3v7" />
+                      <path d="M3 15l3-6 3 6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">MARKETING</div>
+                    <div class="miniLabel" style="margin-top: 6px;">calendrier + suivi</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Calendrier de contenus social et suivi des campagnes pour ta prochaine fenêtre de sortie.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : les tâches s&apos;alignent sur tes deadlines de contenu.</p>
+                </div>
+              </div>
+
+              <!-- 6 ORGANIZATION -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module organisation">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 3h18v18H3z" />
+                      <path d="M7 7h10" />
+                      <path d="M7 11h10" />
+                      <path d="M7 15h6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">ORGANIZATION</div>
+                    <div class="miniLabel" style="margin-top: 6px;">tournées + tâches</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Planifie la tournée, organise le studio et garde les tâches sous contrôle. Plus rien ne se perd.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : le calendrier intelligent t&apos;aide à optimiser ta semaine.</p>
+                </div>
+              </div>
+
+              <!-- 7 ADMINISTRATION -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module administration">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 1 3 5v6c0 5 3 10 9 11 6-1 9-6 9-11V5l-9-4z" />
+                      <path d="M9 12l2 2 4-5" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">ADMINISTRATION</div>
+                    <div class="miniLabel" style="margin-top: 6px;">statuts + règles</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Gère auto-entrepreneur et statut intermittent : sans avoir besoin d&apos;un comptable à chaque étape.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : des rappels gardent ton statut légal sous contrôle.</p>
+                </div>
+              </div>
+
+              <!-- 8 INVOICING -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module facturation">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 2h9l3 3v17H6V2z" />
+                      <path d="M14 2v4h4" />
+                      <path d="M9 12h6" />
+                      <path d="M9 16h6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">INVOICING</div>
+                    <div class="miniLabel" style="margin-top: 6px;">modèles + aperçu</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Crée tes factures et suis ton aperçu financier sans rituels de tableur.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : des modèles de factures modernes, pas un Word de 2019.</p>
+                </div>
+              </div>
+
+              <!-- 9 CONTACTS -->
+              <div class="moduleCard" role="listitem" tabindex="0" aria-label="Module contacts">
+                <div class="moduleTop">
+                  <div class="moduleIcon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="8.5" cy="7" r="4" />
+                      <path d="M20 8v6" />
+                      <path d="M23 11h-6" />
+                    </svg>
+                  </div>
+                  <div style="text-align:right;">
+                    <div class="moduleName">CONTACTS</div>
+                    <div class="miniLabel" style="margin-top: 6px;">réseau</div>
+                  </div>
+                </div>
+                <div class="moduleDesc">Studios, producteurs, managers, salles. Garde les relations intactes, pas disparues.</div>
+                <div class="moduleHover">
+                  <p class="hint">Au survol : l&apos;historique des contacts se connecte à tes sorties et tes tournées.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. FEATURE DEEP DIVE (3 highlighted) -->
+      <section id="features" aria-label="Approfondissement des fonctionnalités">
+        <div class="wrap">
+          <div class="reveal">
+            <h2 class="sectionTitle">Pensé pour la façon dont les artistes travaillent</h2>
+            <p class="sectionIntro">
+              Pas une admin corporate. Pas un CRM générique. Ici, ta carrière ressemble à un process de production : planifié, suivi, et à toi.
+            </p>
+          </div>
+
+          <div class="featureGrid">
+            <article class="card featureCard reveal" aria-label="Calendrier intelligent et tâches">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M7 2v3" />
+                  <path d="M17 2v3" />
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M3 10h18" />
+                  <path d="M8 14h2" />
+                  <path d="M14 14h2" />
+                </svg>
+                Gère ton temps, optimise ton travail
+              </div>
+              <div class="cardText">
+                Le calendrier intelligent et les tâches alignent ta semaine sur les sorties, les répétitions et les deadlines.
+              </div>
+
+              <div class="mock" aria-hidden="true">
+                <div class="mockTop">
+                  <div>Calendrier intelligent</div>
+                  <div class="mockDots"><span></span><span></span><span></span></div>
+                </div>
+                <div class="mockBody">
+                  <div class="mockRow">
+                    <strong>Ven - Vérifs de sortie</strong>
+                    <span class="badge">rappels auto</span>
+                  </div>
+                  <div class="mockRow">
+                    <strong>Dim - Répétition + budget</strong>
+                    <span class="badge" style="border-color: rgba(251,191,36,0.45); background: rgba(251,191,36,0.10); color: rgba(251,191,36,0.95);">priorité</span>
+                  </div>
+                  <div class="mockRow" style="margin-bottom:0;">
+                    <strong>Ensuite : préparation factures</strong>
+                    <span class="badge">prêt</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="card featureCard reveal" aria-label="Contrôle total du catalogue">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m21 16-4 4-5-5-4 4-3-3 4-4-5-5 4-4 5 5 4-4 3 3-4 4 5 5z" />
+                </svg>
+                Contrôle total du catalogue
+              </div>
+              <div class="cardText">
+                ISRC, métadonnées, versions, stems et liens de distribution dans un seul enregistrement. Streams et revenus restent connectés.
+              </div>
+
+              <div class="mock" aria-hidden="true">
+                <div class="mockTop">
+                  <div>Enregistrement Phono</div>
+                  <div class="mockDots"><span></span><span></span><span></span></div>
+                </div>
+                <div class="mockBody">
+                  <div class="mockRow">
+                    <strong>Titre</strong>
+                    <span class="badge">ISRC verrouillé</span>
+                  </div>
+                  <div class="mockRow">
+                    <strong>Versions</strong>
+                    <span class="badge">stems + mixes</span>
+                  </div>
+                  <div class="mockRow" style="margin-bottom:0;">
+                    <strong>Distribution</strong>
+                    <span class="badge">liens + paiements</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="card featureCard reveal" aria-label="Admin pensée pour toi">
+              <div class="cardTitle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 1v22" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                L&apos;admin pensée pour toi
+              </div>
+              <div class="cardText">
+                Statut auto-entrepreneur, factures et budget de tournée sans ambiance “cabinets comptables”.
+              </div>
+
+              <div class="mock" aria-hidden="true">
+                <div class="mockTop">
+                  <div>Administration</div>
+                  <div class="mockDots"><span></span><span></span><span></span></div>
+                </div>
+                <div class="mockBody">
+                  <div class="mockRow">
+                    <strong>Statut</strong>
+                    <span class="badge">vérifié</span>
+                  </div>
+                  <div class="mockRow">
+                    <strong>Facture</strong>
+                    <span class="badge">modèle mis à jour</span>
+                  </div>
+                  <div class="mockRow" style="margin-bottom:0;">
+                    <strong>Budget tournée</strong>
+                    <span class="badge">sous contrôle</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SOCIAL PROOF / TRUST SECTION -->
+      <section id="proof" aria-label="Preuve sociale">
+        <div class="wrap">
+          <div class="reveal">
+            <h2 class="sectionTitle">La confiance fait partie du son</h2>
+            <p class="sectionIntro">
+              Témoignages fictifs pour l&apos;instant. Tu remplaces noms, citations et vrais logos quand tu les as. La structure est prête pour convertir.
+            </p>
+          </div>
+
+          <div class="proofGrid">
+            <div class="testimonials reveal">
+              <div class="testHead">
+                <div>
+                  <div class="kicker" style="margin-bottom: 10px;">Témoignages</div>
+                  <h3 style="margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; font-size: 38px; letter-spacing: 0.02em; font-weight: 900;">Des artistes, pas des clients.</h3>
+                </div>
+                <p>Frictions réelles, victoires réelles.</p>
+              </div>
+
+              <div class="carousel" aria-label="Carrousel de témoignages">
+                <figure class="quoteCard" style="margin:0;">
+                  <div class="quoteStars" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  </div>
+                  <p class="quoteText">
+                    &quot;Maia avait ses relevés de royalties dans cinq endroits. SIDEKICK a tout ramené au même endroit. Le meilleur ? Je sais enfin quoi faire après.&quot;
+                  </p>
+                  <figcaption class="quoteBy">
+                    <strong>Maia</strong> - Auteur-compositeur, Paris
+                  </figcaption>
+                </figure>
+
+                <figure class="quoteCard" style="margin:0;">
+                  <div class="quoteStars" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  </div>
+                  <p class="quoteText">
+                    &quot;Kaelan gère ses sorties comme des sessions. SIDEKICK fait pareil : chaque module se connecte, rien ne disparaît.&quot;
+                  </p>
+                  <figcaption class="quoteBy">
+                    <strong>Kaelan</strong> - Producteur, Lyon
+                  </figcaption>
+                </figure>
+
+                <figure class="quoteCard" style="margin:0;">
+                  <div class="quoteStars" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  </div>
+                  <p class="quoteText">
+                    &quot;J&apos;ai arrêté de switcher entre les onglets. Mon calendrier de prod, mes factures et mes streams — ensemble.&quot;
+                  </p>
+                  <figcaption class="quoteBy">
+                    <strong>Romy</strong> - Artiste indie, Marseille
+                  </figcaption>
+                </figure>
+              </div>
+            </div>
+
+            <aside class="stats reveal" aria-label="Stats de confiance">
+              <div class="kicker">Stats</div>
+              <div class="statsGrid">
+                <div class="stat">
+                  <div class="big">X</div>
+                  <div class="small">artistes intégrés</div>
+                </div>
+                <div class="stat">
+                  <div class="big">X</div>
+                  <div class="small">titres gérés</div>
+                </div>
+                <div class="stat">
+                  <div class="big">X</div>
+                  <div class="small">paiements de royalties suivis</div>
+                </div>
+                <div class="stat">
+                  <div class="big">X</div>
+                  <div class="small">campagnes marketing enregistrées</div>
+                </div>
+              </div>
+
+              <div style="margin-top: 18px;">
+                <div class="miniLabel" style="margin-bottom: 10px;">Plateformes compatibles</div>
+                <div class="logos" aria-label="Logos de plateformes (logos fictifs)">
+                  <div class="logoBadge"><span>&bull;</span>Spotify</div>
+                  <div class="logoBadge"><span>&bull;</span>DistroKid</div>
+                  <div class="logoBadge"><span>&bull;</span>TuneCore</div>
+                  <div class="logoBadge"><span>&bull;</span>SACEM</div>
+                  <div class="logoBadge"><span>&bull;</span>Brevo</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. PRICING TEASER -->
+      <section id="pricing" aria-label="Aperçu des tarifs">
+        <div class="wrap">
+          <div class="reveal">
+            <h2 class="sectionTitle">Des prix simples. Pas de deal avec un label.</h2>
+            <p class="sectionIntro">
+              Paliers fictifs pour l&apos;instant. On pourra affiner le texte quand tu définis les limites de chaque formule.
+            </p>
+          </div>
+
+          <div class="pricingGrid">
+            <article class="card plan reveal" aria-label="Formule gratuite">
+              <div class="miniLabel">GRATUIT</div>
+              <div class="price">0</div>
+              <div class="desc">Commence à organiser tes sorties et tes workflows d&apos;admin de base.</div>
+              <ul>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Modules clés : phono + tâches</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Aperçus d&apos;import + modèles</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Boucle de retours communauté</span></li>
+              </ul>
+            </article>
+
+            <article class="card plan planHot reveal" aria-label="Formule Pro">
+              <div class="miniLabel">PRO</div>
+              <div class="price">$19</div>
+              <div class="desc">Pour semi-pro à pro : suivi des royalties et workflows publishing complets.</div>
+              <ul>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Import CSV des royalties + suivi des revenus</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Splits publishing + statut PRO</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Mailing + planification marketing</span></li>
+              </ul>
+            </article>
+
+            <article class="card plan reveal" aria-label="Formule Studio">
+              <div class="miniLabel">STUDIO</div>
+              <div class="price">On en parle</div>
+              <div class="desc">Pour les équipes et plus de volume : réseau de contacts et planification de tournée avancée.</div>
+              <ul>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Réseau de contacts avancé</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Workflows d&apos;admin prêts pour l&apos;équipe</span></li>
+                <li><span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Onboarding prioritaire</span></li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. FINAL CTA -->
+      <section class="finalCta" id="get-access" aria-label="Dernier appel à l'action">
+        <div class="wrap">
+          <div class="ctaShell">
+            <div class="ctaShellInner">
+              <div class="reveal">
+                <div class="kicker">Accès en avant-première</div>
+                <h2 class="ctaHeadline">Tes outils méritent mieux.</h2>
+                <p class="ctaCopy">
+                  Reçois les mises à jour produit et l&apos;accès en avant-première. Pas besoin de label. Pas de théâtre d&apos;onboarding corporate.
+                </p>
+                <div class="finePrint">Gratuit au départ. Pas de carte bancaire.</div>
+              </div>
+
+              <div class="formCard reveal" aria-label="Formulaire de collecte d'email">
+                <form id="earlyAccessForm">
+                  <label for="email">Email</label>
+                  <div class="inputRow">
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      inputmode="email"
+                      autocomplete="email"
+                      placeholder="toi@domaine.com"
+                      required
+                      aria-describedby="emailStatus"
+                    />
+                    <button class="btn btnPrimary" type="submit" aria-label="Demander l'accès anticipé">
+                      Recevoir l'accès anticipé
+                    </button>
+                  </div>
+                  <div id="emailStatus" class="status" role="status" aria-live="polite"></div>
+                  <div class="finePrint">
+                    En demandant l&apos;accès, tu acceptes de recevoir des mises à jour produit. Tu peux te désinscrire quand tu veux.
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <footer>
+            SIDEKICK est une plateforme tout-en-un de gestion de carrière pensée pour les artistes de musique indépendants. Ceci est un test de landing front-end : connecte-la à ton backend quand tu es prêt.
+          </footer>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var waveform = document.getElementById("waveform");
+        if (!waveform) return;
+
+        var ctx = waveform.getContext("2d");
+        var dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        var w = 0;
+        var h = 0;
+        var bars = [];
+        var rafId = null;
+
+        function resize() {
+          var rect = waveform.getBoundingClientRect();
+          w = Math.floor(rect.width);
+          h = Math.floor(rect.height);
+          waveform.width = Math.floor(w * dpr);
+          waveform.height = Math.floor(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          var count = Math.max(48, Math.floor(w / 10));
+          bars = new Array(count).fill(0).map(function () {
+            return { cur: 0.2, target: 0.6 };
+          });
+        }
+
+        function tick() {
+          rafId = window.requestAnimationFrame(tick);
+          ctx.clearRect(0, 0, w, h);
+
+          // Background glow
+          var g = ctx.createRadialGradient(w * 0.65, h * 0.15, 10, w * 0.65, h * 0.15, Math.max(w, h));
+          g.addColorStop(0, "rgba(34,197,94,0.22)");
+          g.addColorStop(0.35, "rgba(34,197,94,0.08)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+
+          var paddingTop = h * 0.16;
+          var mid = h * 0.52;
+          var maxBarH = h * 0.52;
+
+          // Animate bars with smoothing
+          for (var i = 0; i < bars.length; i++) {
+            var item = bars[i];
+            if (Math.random() < 0.035) {
+              item.target = 0.15 + Math.random() * 0.95;
+            }
+            item.cur += (item.target - item.cur) * 0.06;
+          }
+
+          var barW = w / bars.length;
+          for (var j = 0; j < bars.length; j++) {
+            var val = bars[j].cur;
+            var barH = paddingTop + val * maxBarH;
+            var x = j * barW;
+
+            var grad = ctx.createLinearGradient(x, mid - barH, x, mid + barH);
+            grad.addColorStop(0, "rgba(34,197,94,0.95)");
+            grad.addColorStop(0.55, "rgba(34,197,94,0.28)");
+            grad.addColorStop(1, "rgba(248,250,252,0.12)");
+            ctx.fillStyle = grad;
+
+            // mirrored waveform bars
+            var yTop = mid - barH * 0.42;
+            ctx.fillRect(x, yTop, Math.max(1, barW * 0.72), barH);
+            ctx.fillRect(x, mid + (barH * 0.04), Math.max(1, barW * 0.72), barH * 0.42);
+          }
+
+          // Subtle scanline
+          ctx.fillStyle = "rgba(255,255,255,0.02)";
+          for (var k = 0; k < 8; k++) {
+            var yy = (h * 0.12) + k * (h * 0.09);
+            ctx.fillRect(0, yy, w, 1);
+          }
+        }
+
+        function start() {
+          resize();
+          if (rafId) window.cancelAnimationFrame(rafId);
+          tick();
+        }
+
+        window.addEventListener("resize", function () {
+          resize();
+        });
+        start();
+
+        // IntersectionObserver reveal
+        var prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (!prefersReduced && "IntersectionObserver" in window) {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add("is-visible");
+                  io.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.12 }
+          );
+
+          var nodes = document.querySelectorAll(".reveal");
+          nodes.forEach(function (n) {
+            io.observe(n);
+          });
+        } else {
+          var all = document.querySelectorAll(".reveal");
+          all.forEach(function (n) {
+            n.classList.add("is-visible");
+          });
+        }
+
+        // Email form (frontend-only)
+        var form = document.getElementById("earlyAccessForm");
+        var emailInput = document.getElementById("email");
+        var statusEl = document.getElementById("emailStatus");
+        if (form && emailInput && statusEl) {
+          var emailRe = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+          form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var v = (emailInput.value || "").trim();
+
+            if (!emailRe.test(v)) {
+              statusEl.textContent = "Entre une adresse email valide, s&apos;il te plaît.";
+              statusEl.className = "status bad";
+              return;
+            }
+
+            statusEl.textContent = "Parfait. Tu es bien sur la liste d&apos;accès anticipé (placeholder).";
+            statusEl.className = "status ok";
+            // In production: send to your API endpoint here.
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>
+

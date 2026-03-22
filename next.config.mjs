@@ -12,7 +12,12 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/documents", destination: "/admin/documents", permanent: false },
-      { source: "/drive", destination: "/admin/documents", permanent: false }
+      { source: "/drive", destination: "/admin/documents", permanent: false },
+      {
+        source: "/sidekick-landing.html",
+        destination: "/?early-access=1",
+        permanent: false
+      }
     ];
   }
 };

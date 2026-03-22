@@ -32,7 +32,7 @@ export default function LandingTestPage() {
                 className="gap-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400"
                 asChild
               >
-                <Link href="/(auth)/login">
+                <Link href="/login">
                   Commencer en 3 minutes
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -43,7 +43,7 @@ export default function LandingTestPage() {
                 className="border-slate-600 bg-slate-900/60 text-slate-50 hover:bg-slate-900"
                 asChild
               >
-                <Link href="/(app)/dashboard">Voir l&apos;espace de travail</Link>
+                <Link href="/dashboard">Voir l&apos;espace de travail</Link>
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-slate-400">
@@ -214,7 +214,7 @@ export default function LandingTestPage() {
               className="w-full gap-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400 sm:w-auto"
               asChild
             >
-              <Link href="/(auth)/login">
+              <Link href="/login">
                 Créer mon espace Sidekick
                 <ArrowRight className="h-4 w-4" />
               </Link>
