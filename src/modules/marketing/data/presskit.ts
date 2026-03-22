@@ -30,6 +30,8 @@ export type PresskitCover = {
   id: string;
   title: string;
   imageUrl: string;
+  /** Nom du fichier importé pour l'image (optionnel). */
+  imageFileName?: string;
   link: string;
 };
 
@@ -43,7 +45,15 @@ export type PresskitRealisation = {
 export type PresskitProfile = {
   artistTitle: string;
   hook: string;
+  /** Logo de l'artiste (URL ou data URL après import). */
+  artistLogoUrl?: string;
+  /** Nom du fichier importé pour le logo (optionnel). */
+  artistLogoFileName?: string;
+  /** Affichage du nom: soit texte (Nom d'artiste), soit logo, soit les deux. */
+  artistDisplayMode?: "name" | "logo" | "both";
   mainPhotoUrl: string;
+  /** Nom du fichier importé pour la photo principale (optionnel). */
+  mainPhotoFileName?: string;
   bio: string;
   socials: PresskitSocials;
   contact: PresskitContact;
@@ -62,7 +72,11 @@ function makeId() {
 export const DEFAULT_PRESSKIT_PROFILE: PresskitProfile = {
   artistTitle: "",
   hook: "",
+  artistLogoUrl: "",
+  artistLogoFileName: "",
+  artistDisplayMode: "name",
   mainPhotoUrl: "",
+  mainPhotoFileName: "",
   bio: "",
   socials: {
     instagram: "",
@@ -86,6 +100,7 @@ export const DEFAULT_PRESSKIT_PROFILE: PresskitProfile = {
     id: makeId(),
     title: "",
     imageUrl: "",
+    imageFileName: "",
     link: "",
   })),
   latest: [

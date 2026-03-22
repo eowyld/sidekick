@@ -6,7 +6,6 @@ import {
   Facebook,
   Instagram,
   Mail,
-  MessageCircle,
   Music2
 } from "lucide-react";
 import { decodePresskitFromShare } from "@/modules/marketing/lib/presskit-share";
@@ -59,9 +58,22 @@ export function PresskitViewClient({ payloadParam, payloadDirect }: Props) {
       <article className="mx-auto max-w-2xl px-4 py-16 md:py-20">
         <div className="flex flex-col gap-12 md:gap-14">
           <header className="space-y-3">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-              {profile.artistTitle || "Artiste"}
-            </h1>
+            {((profile.artistDisplayMode ?? "name") === "name" ||
+              (profile.artistDisplayMode ?? "name") === "both") && (
+              <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
+                {profile.artistTitle || "Nom d'artiste"}
+              </h1>
+            )}
+            {((profile.artistDisplayMode ?? "name") === "logo" ||
+              (profile.artistDisplayMode ?? "name") === "both") &&
+              profile.artistLogoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profile.artistLogoUrl}
+                  alt="Logo artiste"
+                  className="h-24 w-24 rounded-xl border bg-background object-cover"
+                />
+              )}
             {profile.hook && (
               <p className="text-xl text-muted-foreground md:text-2xl">{profile.hook}</p>
             )}
@@ -255,7 +267,13 @@ export function PresskitViewClient({ payloadParam, payloadDirect }: Props) {
                     className="inline-flex h-16 w-16 items-center justify-center rounded-full border hover:bg-muted/50"
                     title="Contacter sur WhatsApp"
                   >
-                    <MessageCircle className="h-7 w-7" />
+                    {/* Icône WhatsApp (PNG) pour éviter les soucis de rendu SVG dans le PDF */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/whatsapp-icon.png"
+                      alt="WhatsApp"
+                      className="h-7 w-7"
+                    />
                   </a>
                 )}
               </div>
