@@ -576,6 +576,16 @@ const SECTOR_CONFIG: Record<
   }
 };
 
+const DEFAULT_SECTOR_FILTERS = {
+  live: false,
+  phono: false,
+  admin: false,
+  marketing: false,
+  edition: false,
+  revenus: false,
+  other: true
+} satisfies Record<CalendarSector, boolean>;
+
 export function GlobalCalendarPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -589,15 +599,15 @@ export function GlobalCalendarPage() {
     return d;
   });
 
-  const [sectorFilters, setSectorFilters] = useState<Record<CalendarSector, boolean>>({
-    live: enabledModules.live,
-    phono: enabledModules.phono,
-    admin: enabledModules.admin,
-    marketing: enabledModules.marketing,
-    edition: enabledModules.edition,
-    revenus: enabledModules.revenus,
-    other: true
-  });
+  const [sectorFilters, setSectorFilters] = useLocalStorage<Record<
+    CalendarSector,
+    boolean
+  >>("calendar:sector-filters", DEFAULT_SECTOR_FILTERS);
+
+  const sectorFiltersSafe = useMemo(
+    () => ({ ...DEFAULT_SECTOR_FILTERS, ...sectorFilters }),
+    [sectorFilters]
+  );
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -606,6 +616,31 @@ export function GlobalCalendarPage() {
   const [newEventSector, setNewEventSector] = useState<CalendarSector>("other");
   const [newEventTime, setNewEventTime] = useState("");
   const [newEventPlace, setNewEventPlace] = useState("");
+
+  // Si un secteur vient d'être désactivé, on évite de garder une valeur "ancienne"
+  // dans le formulaire de création (sinon on peut créer un événement dans un secteur caché).
+  useEffect(() => {
+    if (!preferencesReady) return;
+    if (newEventSector === "other") return;
+    const allowed =
+      (newEventSector === "live" && enabledModules.live) ||
+      (newEventSector === "phono" && enabledModules.phono) ||
+      (newEventSector === "admin" && enabledModules.admin) ||
+      (newEventSector === "marketing" && enabledModules.marketing) ||
+      (newEventSector === "edition" && enabledModules.edition) ||
+      (newEventSector === "revenus" && enabledModules.revenus);
+
+    if (!allowed) setNewEventSector("other");
+  }, [
+    preferencesReady,
+    newEventSector,
+    enabledModules.live,
+    enabledModules.phono,
+    enabledModules.admin,
+    enabledModules.marketing,
+    enabledModules.edition,
+    enabledModules.revenus
+  ]);
 
   const [representations] = useLocalStorage<TourDateItem[]>(
     "live:representations",
@@ -665,8 +700,10 @@ export function GlobalCalendarPage() {
 
   const filteredEvents = useMemo(
     () =>
-      preferencesReady ? allEvents.filter((e) => sectorFilters[e.sector]) : [],
-    [allEvents, sectorFilters, preferencesReady]
+      preferencesReady
+        ? allEvents.filter((e) => sectorFiltersSafe[e.sector])
+        : [],
+    [allEvents, sectorFiltersSafe, preferencesReady]
   );
 
   const year = currentDate.getFullYear();
@@ -702,6 +739,7 @@ export function GlobalCalendarPage() {
   useEffect(() => {
     // Synchronise les filtres avec les modules activés : un module désactivé est toujours masqué.
     setSectorFilters((prev) => ({
+      ...DEFAULT_SECTOR_FILTERS,
       ...prev,
       live: enabledModules.live ? prev.live : false,
       phono: enabledModules.phono ? prev.phono : false,
@@ -875,7 +913,15 @@ export function GlobalCalendarPage() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  return (
+  return !preferencesReady ? (
+    <div className="p-6 space-y-4">
+      <div className="animate-pulse space-y-2">
+        <div className="h-6 w-40 rounded bg-muted" />
+        <div className="h-4 w-64 rounded bg-muted" />
+      </div>
+      <div className="h-[480px] w-full rounded-lg border border-border bg-muted/40" />
+    </div>
+  ) : (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -937,9 +983,12 @@ export function GlobalCalendarPage() {
           if (sector === "edition" && !sidekickData.preferences.enabledModules.edition) return null;
           if (sector === "revenus" && !sidekickData.preferences.enabledModules.revenus) return null;
           const config = SECTOR_CONFIG[sector];
-          const isActive = sectorFilters[sector];
+          const isActive = sectorFiltersSafe[sector];
           const toggle = () =>
-            setSectorFilters((prev) => ({ ...prev, [sector]: !prev[sector] }));
+            setSectorFilters((prev) => {
+              const merged = { ...DEFAULT_SECTOR_FILTERS, ...prev };
+              return { ...merged, [sector]: !merged[sector] };
+            });
           return (
             <button
               key={sector}
@@ -1311,12 +1360,12 @@ export function GlobalCalendarPage() {
                 value={newEventSector}
                 onChange={(e) => setNewEventSector(e.target.value as CalendarSector)}
               >
-                <option value="live">Live</option>
-                <option value="phono">Phono</option>
-                <option value="admin">Admin</option>
-                <option value="marketing">Marketing</option>
-                <option value="edition">Edition</option>
-                <option value="revenus">Revenus</option>
+                {enabledModules.live && <option value="live">Live</option>}
+                {enabledModules.phono && <option value="phono">Phono</option>}
+                {enabledModules.admin && <option value="admin">Admin</option>}
+                {enabledModules.marketing && <option value="marketing">Marketing</option>}
+                {enabledModules.edition && <option value="edition">Edition</option>}
+                {enabledModules.revenus && <option value="revenus">Revenus</option>}
                 <option value="other">Autre</option>
               </select>
             </div>
@@ -1730,5 +1779,5 @@ export function GlobalCalendarPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

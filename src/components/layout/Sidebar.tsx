@@ -22,7 +22,8 @@ const navItems = [
 const adminSubItems = [
   { href: "/admin", label: "Vue d'ensemble" },
   { href: "/admin/statuts", label: "Mes statuts" },
-  { href: "/admin/demarches", label: "Mes démarches" }
+  { href: "/admin/demarches", label: "Mes démarches" },
+  { href: "/admin/contrats", label: "Mes contrats" }
 ];
 
 const beforeLive = ["/dashboard", "/calendar", "/tasks", "/contacts"];
@@ -58,15 +59,17 @@ const marketingSubItems = [
 ];
 
 export function Sidebar() {
-  const { data } = useSidekickData();
-  const enabled = data.preferences?.enabledModules ?? {
-    live: true,
-    phono: true,
-    admin: true,
-    marketing: true,
-    edition: true,
-    revenus: true
-  };
+  const { data, preferencesReady } = useSidekickData();
+  const enabled = preferencesReady
+    ? data.preferences?.enabledModules
+    : {
+        live: false,
+        phono: false,
+        admin: false,
+        marketing: false,
+        edition: false,
+        revenus: false
+      };
   const [collapsed, setCollapsed] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const [incomesOpen, setIncomesOpen] = useState(false);

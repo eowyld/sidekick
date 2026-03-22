@@ -161,8 +161,15 @@ export function DocumentsPage() {
   const [globalSearchContents, setGlobalSearchContents] = useState<StorageContentsResult | null>(null);
   const [isLoadingGlobalSearch, setIsLoadingGlobalSearch] = useState(false);
   const loadingPathRef = useRef<string | null>(null);
+  const globalSearchUserIdRef = useRef<string | null>(null);
   const globalSearchTimeoutRef = useRef<number | null>(null);
   const uploadToastTimeoutRef = useRef<number | null>(null);
+
+  const invalidateGlobalSearch = useCallback(() => {
+    globalSearchUserIdRef.current = null;
+    setGlobalSearchContents(null);
+    setIsLoadingGlobalSearch(false);
+  }, []);
 
   const searchLower = searchQuery.trim().toLowerCase();
   const storageUsedPercent = Math.min(
@@ -279,14 +286,32 @@ export function DocumentsPage() {
 
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q || !userId || !isStorageView) {
-      setGlobalSearchContents(null);
+    if (!userId || !isStorageView) {
+      invalidateGlobalSearch();
       if (globalSearchTimeoutRef.current) {
         window.clearTimeout(globalSearchTimeoutRef.current);
         globalSearchTimeoutRef.current = null;
       }
       return;
     }
+
+    if (!q) {
+      setIsLoadingGlobalSearch(false);
+      if (globalSearchTimeoutRef.current) {
+        window.clearTimeout(globalSearchTimeoutRef.current);
+        globalSearchTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // If the user changes, the cached inventory must be invalidated.
+    if (globalSearchUserIdRef.current !== userId) {
+      invalidateGlobalSearch();
+    }
+
+    // If inventory is already loaded for this user, do not re-fetch on each keystroke.
+    if (globalSearchContents && globalSearchUserIdRef.current === userId) return;
+
     if (globalSearchTimeoutRef.current) {
       window.clearTimeout(globalSearchTimeoutRef.current);
     }
@@ -294,12 +319,14 @@ export function DocumentsPage() {
       globalSearchTimeoutRef.current = null;
       let cancelled = false;
       setIsLoadingGlobalSearch(true);
-      setGlobalSearchContents(null);
       (async () => {
         try {
           const supabase = createClient();
           const result = await listAllStorageContents(supabase, userId!);
-          if (!cancelled) setGlobalSearchContents(result);
+          if (!cancelled) {
+            globalSearchUserIdRef.current = userId!;
+            setGlobalSearchContents(result);
+          }
         } catch {
           if (!cancelled) setGlobalSearchContents({ folders: [], files: [] });
         } finally {
@@ -313,7 +340,7 @@ export function DocumentsPage() {
         globalSearchTimeoutRef.current = null;
       }
     };
-  }, [searchQuery, userId, isStorageView]);
+  }, [searchQuery, userId, isStorageView, globalSearchContents, invalidateGlobalSearch]);
 
   useEffect(() => {
     if (!userId) {
@@ -543,6 +570,8 @@ export function DocumentsPage() {
             ? path.slice(0, path.lastIndexOf("/"))
             : userId ?? "";
           await loadStorageContents(parentPath);
+          await refetch();
+          invalidateGlobalSearch();
           setCurrentFolderId((prev) =>
             prev === renameTarget!.item.id
               ? (parentPath ? `${STORAGE_FOLDER_PREFIX}${parentPath}/${renameValue.trim()}` : null)
@@ -550,6 +579,8 @@ export function DocumentsPage() {
           );
         } else {
           await updateFolderById(renameTarget.item.id, renameValue.trim());
+          await refetch();
+          invalidateGlobalSearch();
         }
         setSubmitSuccess("Dossier renommé.");
       } else {
@@ -557,11 +588,15 @@ export function DocumentsPage() {
           const path = renameTarget.item.id.slice("storage-file:".length);
           await renameStorageFileAtPath(path, renameValue.trim());
           if (storagePath) await loadStorageContents(storagePath);
+          await refetch();
+          invalidateGlobalSearch();
           setSubmitSuccess("Fichier renommé.");
         } else {
           await updateDocumentById(renameTarget.item.id, {
             title: renameValue.trim()
           });
+          await refetch();
+          invalidateGlobalSearch();
           setSubmitSuccess("Document renommé.");
         }
       }
@@ -594,8 +629,12 @@ export function DocumentsPage() {
         if (inDeleted) setCurrentFolderId(parentId);
         const refreshPath = parentId == null ? (userId ?? "") : parentId.slice(STORAGE_FOLDER_PREFIX.length);
         await loadStorageContents(refreshPath);
+        await refetch();
+        invalidateGlobalSearch();
       } else {
         await deleteFolderById(id);
+        await refetch();
+        invalidateGlobalSearch();
         if (currentFolderId === id) setCurrentFolderId(null);
       }
       setSubmitSuccess("Dossier supprimé.");
@@ -613,9 +652,13 @@ export function DocumentsPage() {
         const path = id.slice("storage-file:".length);
         await deleteStorageFileAtPath(path);
         if (storagePath) await loadStorageContents(storagePath);
+        await refetch();
+        invalidateGlobalSearch();
         setSubmitSuccess("Fichier supprimé.");
       } else {
         await deleteDocumentById(id);
+        await refetch();
+        invalidateGlobalSearch();
         setSubmitSuccess("Document supprimé.");
       }
       setTimeout(() => setSubmitSuccess(null), 3000);
@@ -635,6 +678,8 @@ export function DocumentsPage() {
       if (isStorageView && storagePath) {
         await loadStorageContents(storagePath);
       }
+      await refetch();
+      invalidateGlobalSearch();
       if (uploadDialogOpen) {
         await loadAllAvailableFolders();
       }
@@ -734,6 +779,8 @@ export function DocumentsPage() {
       if (isStorageView && storagePath) {
         await loadStorageContents(storagePath);
       }
+      await refetch();
+      invalidateGlobalSearch();
 
       setSubmitSuccess("Fichier ajouté avec succès.");
       setUploadToast({
@@ -775,8 +822,10 @@ export function DocumentsPage() {
       if (isStorageView && storagePath) {
         loadingPathRef.current = null;
         await loadStorageContents(storagePath);
+        invalidateGlobalSearch();
       } else {
         await refetch();
+        invalidateGlobalSearch();
       }
       setSubmitSuccess("Contenu rechargé.");
       setTimeout(() => setSubmitSuccess(null), 3000);

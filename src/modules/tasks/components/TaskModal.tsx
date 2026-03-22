@@ -54,33 +54,37 @@ interface TaskModalProps {
   onClose: () => void;
   onSave: (task: TaskFormData) => void;
   task: TaskFormData | null;
+  allowedSectors: TaskSector[];
 }
 
-export function TaskModal({ open, onClose, onSave, task }: TaskModalProps) {
+export function TaskModal({ open, onClose, onSave, task, allowedSectors }: TaskModalProps) {
   const [formData, setFormData] = useState<TaskFormData>({
     title: "",
     description: "",
     deadline: "",
-    sector: "Live"
+    sector: allowedSectors[0] ?? "Live"
   });
 
   useEffect(() => {
     if (task) {
+      const safeSector = allowedSectors.includes(task.sector as TaskSector)
+        ? (task.sector as TaskSector)
+        : allowedSectors[0] ?? (task.sector as TaskSector);
       setFormData({
         title: task.title,
         description: task.description,
         deadline: task.deadline,
-        sector: task.sector
+        sector: safeSector
       });
     } else {
       setFormData({
         title: "",
         description: "",
         deadline: "",
-        sector: "Live"
+        sector: allowedSectors[0] ?? "Live"
       });
     }
-  }, [task, open]);
+  }, [task, open, allowedSectors]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +156,7 @@ export function TaskModal({ open, onClose, onSave, task }: TaskModalProps) {
                   <SelectValue placeholder="Sélectionner le secteur" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TASK_SECTORS.map((sector) => (
+                  {allowedSectors.map((sector) => (
                     <SelectItem key={sector} value={sector}>
                       {sector}
                     </SelectItem>

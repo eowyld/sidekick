@@ -5,13 +5,14 @@ import {
   ExternalLink,
   Facebook,
   FileDown,
+  Eye,
   Instagram,
   Link2,
   Mail,
-  MessageCircle,
   Music2,
   Plus,
   Share2,
+  X,
   Trash2
 } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -32,6 +33,7 @@ import {
   type PresskitProfile,
   type StreamingPlatformKey
 } from "@/modules/marketing/data/presskit";
+import { PresskitViewClient } from "../../../../app/presskit/view/PresskitViewClient";
 
 function makeId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -65,8 +67,67 @@ function buildWhatsAppLink(value: string) {
   return `https://wa.me/${digits.replace(/^\+/, "")}`;
 }
 
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      resolve(value);
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImageFile(
+  file: File,
+  options: { maxDimension: number; quality: number }
+): Promise<string> {
+  const { maxDimension, quality } = options;
+  if (typeof window === "undefined") return "";
+
+  // Keep a fast fallback if canvas APIs are unavailable.
+  if (typeof document === "undefined" || !document.createElement) {
+    return fileToDataUrl(file);
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img: HTMLImageElement = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("Image load failed"));
+      i.src = objectUrl;
+    });
+
+    const { naturalWidth: w, naturalHeight: h } = img;
+    if (!w || !h) return fileToDataUrl(file);
+
+    const scale = Math.min(1, maxDimension / Math.max(w, h));
+    const targetW = Math.max(1, Math.round(w * scale));
+    const targetH = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return fileToDataUrl(file);
+
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+    // Convert to JPEG to significantly reduce payload size.
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return fileToDataUrl(file);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export function PresskitPage() {
   const mainPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const artistLogoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const presskitPreviewRef = useRef<HTMLDivElement | null>(null);
   const [presskit, setPresskit] = useLocalStorage<PresskitProfile>(
@@ -76,6 +137,11 @@ export function PresskitPage() {
   const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [presskitShareUrl, setPresskitShareUrl] = useState<string | null>(null);
+  const [artistLogoFileName, setArtistLogoFileName] = useState<string>("");
+  const [mainPhotoFileName, setMainPhotoFileName] = useState<string>("");
+  const [coverFileNames, setCoverFileNames] = useState<Record<string, string>>({});
+  const lastAutoSyncModeRef = useRef<string | null>(null);
+  const autoSyncTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch("/api/presskit/my-slug", { credentials: "include" })
@@ -86,28 +152,45 @@ export function PresskitPage() {
       .catch(() => {});
   }, []);
 
+  // Auto-sync du payload quand on change le mode d'affichage (NOM vs LOGO)
+  // pour que la page partagée soit à jour sans avoir à recoller le lien.
+  useEffect(() => {
+    if (!presskitShareUrl) return;
+
+    const mode = presskit.artistDisplayMode ?? "name";
+    if (lastAutoSyncModeRef.current === mode) return;
+
+    if (autoSyncTimerRef.current) {
+      window.clearTimeout(autoSyncTimerRef.current);
+    }
+
+    autoSyncTimerRef.current = window.setTimeout(async () => {
+      try {
+        await fetch("/api/presskit/shorten", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payload: presskit })
+        });
+        lastAutoSyncModeRef.current = mode;
+      } catch {
+        // Silencieux : la copie de lien reste l'option fiable.
+      }
+    }, 350);
+
+    return () => {
+      if (autoSyncTimerRef.current) window.clearTimeout(autoSyncTimerRef.current);
+    };
+  }, [presskit.artistDisplayMode, presskitShareUrl]);
+
   const handleCopyShareLink = async () => {
-    const copyAndNotify = (url: string) => {
-      navigator.clipboard.writeText(url);
+    const copyAndNotify = async (url: string) => {
+      // Le navigateur peut refuser l'accès clipboard (permissions / contexte HTTPS).
+      // On await pour bien capturer les erreurs.
+      await navigator.clipboard.writeText(url);
       setShareMessage("Lien copié.");
       setTimeout(() => setShareMessage(null), 3000);
     };
-
-    if (presskitShareUrl) {
-      copyAndNotify(presskitShareUrl);
-      fetch("/api/presskit/shorten", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: presskit })
-      })
-        .then((res) => res.json())
-        .then((data: { url?: string }) => {
-          if (data?.url) setPresskitShareUrl(data.url);
-        })
-        .catch(() => {});
-      return;
-    }
 
     setShareMessage("Génération du lien...");
     try {
@@ -122,7 +205,23 @@ export function PresskitPage() {
       const url = data.url;
       if (!url) throw new Error("Réponse invalide");
       setPresskitShareUrl(url);
-      copyAndNotify(url);
+      try {
+        await copyAndNotify(url);
+      } catch (e) {
+        // Fallback très simple si l'API clipboard échoue.
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        setShareMessage("Lien copié.");
+        setTimeout(() => setShareMessage(null), 3000);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Impossible de créer le lien. Réessaie.";
       setShareMessage(msg);
@@ -133,27 +232,92 @@ export function PresskitPage() {
   const handleDownloadPdf = async () => {
     const el = document.getElementById("presskit-preview");
     if (!el) return;
+
     try {
-      const { jsPDF } = require("jspdf") as typeof import("jspdf");
+      const { jsPDF } = (await import("jspdf/dist/jspdf.umd.min.js")) as unknown as typeof import("jspdf");
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      await doc.html(el, {
-        callback: () => doc.save("presskit.pdf"),
-        x: 10,
-        y: 10,
-        width: 190,
-        windowWidth: 800
-      });
-      setShareMessage("PDF téléchargé.");
-      setTimeout(() => setShareMessage(null), 3000);
+
+      const pdfWidthMm = 210;
+      const pdfHeightMm = 297;
+
+      const rect = el.getBoundingClientRect();
+      const widthPx = Math.max(1, rect.width);
+      const heightPx = Math.max(1, rect.height);
+
+      // Estimation mm générés si on rend avec width A4.
+      const currentHeightMm = (heightPx * pdfWidthMm) / widthPx;
+      const scaleFactor = Math.min(1, pdfHeightMm / currentHeightMm);
+
+      // Scale temporaire pour tenir sur une page A4 (export visuel).
+      // Note : doc.html + html2canvas produit une image ; les liens cliquables dans le PDF
+      // ne sont pas fiables sans un moteur PDF dédié — les liens restent actifs sur la page web.
+      const prevTransform = el.style.transform;
+      const prevTransformOrigin = el.style.transformOrigin;
+      const prevWidth = (el as HTMLElement).style.width;
+
+      el.style.transform = `scale(${scaleFactor})`;
+      el.style.transformOrigin = "top left";
+      el.style.width = `${widthPx}px`;
+
+      try {
+        await doc.html(el, {
+          callback: () => {
+            doc.save("presskit.pdf");
+            setShareMessage("PDF téléchargé.");
+            setTimeout(() => setShareMessage(null), 3000);
+          },
+          x: 0,
+          y: 0,
+          width: pdfWidthMm,
+          windowWidth: Math.round(widthPx * scaleFactor),
+          margin: [0, 0, 0, 0],
+          autoPaging: false,
+          html2canvas: {
+            useCORS: true,
+            allowTaint: true,
+            foreignObjectRendering: false
+          }
+        });
+      } finally {
+        el.style.transform = prevTransform;
+        el.style.transformOrigin = prevTransformOrigin;
+        el.style.width = prevWidth;
+      }
     } catch {
-      setShareMessage("Erreur lors du téléchargement du PDF.");
-      setTimeout(() => setShareMessage(null), 3000);
+      try {
+        const { jsPDF } = (await import("jspdf/dist/jspdf.umd.min.js")) as unknown as typeof import("jspdf");
+        const doc2 = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const rect2 = el.getBoundingClientRect();
+        const widthPx2 = Math.max(1, rect2.width);
+
+        await doc2.html(el, {
+          x: 0,
+          y: 0,
+          width: 210,
+          windowWidth: Math.round(widthPx2),
+          margin: [0, 0, 0, 0],
+          autoPaging: "text",
+          html2canvas: {
+            useCORS: true,
+            allowTaint: true,
+            foreignObjectRendering: false
+          },
+          callback: () => {
+            doc2.save("presskit.pdf");
+          }
+        });
+        setShareMessage("PDF téléchargé (secours).");
+        setTimeout(() => setShareMessage(null), 3000);
+      } catch {
+        setShareMessage("Erreur lors du téléchargement du PDF.");
+        setTimeout(() => setShareMessage(null), 3000);
+      }
     }
   };
 
   const updateCover = (
     index: number,
-    key: "title" | "imageUrl" | "link",
+    key: "title" | "imageUrl" | "imageFileName" | "link",
     value: string
   ) => {
     setPresskit((prev) => {
@@ -198,28 +362,66 @@ export function PresskitPage() {
     }));
   };
 
-  const resetPresskit = () => setPresskit(DEFAULT_PRESSKIT_PROFILE);
-
-  const handleMainPhotoUpload = (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = typeof reader.result === "string" ? reader.result : "";
-      if (!value) return;
-      setPresskit((prev) => ({ ...prev, mainPhotoUrl: value }));
-    };
-    reader.readAsDataURL(file);
+  const resetPresskit = () => {
+    setPresskit(DEFAULT_PRESSKIT_PROFILE);
+    setArtistLogoFileName("");
+    setMainPhotoFileName("");
+    setCoverFileNames({});
   };
 
-  const handleCoverUpload = (index: number, file: File | null) => {
+  const handleMainPhotoUpload = async (file: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = typeof reader.result === "string" ? reader.result : "";
-      if (!value) return;
-      updateCover(index, "imageUrl", value);
-    };
-    reader.readAsDataURL(file);
+    setMainPhotoFileName(file.name);
+
+    const value = await compressImageFile(file, { maxDimension: 1200, quality: 0.72 });
+    if (!value) return;
+    setPresskit((prev) => ({ ...prev, mainPhotoUrl: value, mainPhotoFileName: file.name }));
+  };
+
+  const handleArtistLogoUpload = async (file: File | null) => {
+    if (!file) return;
+    setArtistLogoFileName(file.name);
+
+    const value = await compressImageFile(file, { maxDimension: 600, quality: 0.72 });
+    if (!value) return;
+    setPresskit((prev) => ({ ...prev, artistLogoUrl: value, artistLogoFileName: file.name }));
+  };
+
+  const handleCoverUpload = async (index: number, file: File | null) => {
+    if (!file) return;
+    const coverId = presskit.covers[index]?.id;
+    if (coverId) {
+      setCoverFileNames((prev) => ({ ...prev, [coverId]: file.name }));
+    }
+
+    const value = await compressImageFile(file, { maxDimension: 900, quality: 0.72 });
+    if (!value) return;
+    updateCover(index, "imageUrl", value);
+    updateCover(index, "imageFileName", file.name);
+  };
+
+  const removeMainPhoto = () => {
+    setPresskit((prev) => ({ ...prev, mainPhotoUrl: "", mainPhotoFileName: "" }));
+    setMainPhotoFileName("");
+  };
+
+  const removeArtistLogo = () => {
+    setPresskit((prev) => ({
+      ...prev,
+      artistLogoUrl: "",
+      artistDisplayMode: "name",
+      artistLogoFileName: ""
+    }));
+    setArtistLogoFileName("");
+  };
+
+  const removeCoverImage = (index: number) => {
+    const coverId = presskit.covers[index]?.id;
+    updateCover(index, "imageUrl", "");
+    updateCover(index, "imageFileName", "");
+    if (coverId) {
+      setCoverFileNames((prev) => ({ ...prev, [coverId]: "" }));
+    }
   };
 
   const generateStreamingLinks = async () => {
@@ -349,7 +551,7 @@ export function PresskitPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="artist-title">Titre de l&apos;artiste</Label>
+              <Label htmlFor="artist-title">Nom d&apos;artiste</Label>
               <Input
                 id="artist-title"
                 value={presskit.artistTitle}
@@ -373,16 +575,159 @@ export function PresskitPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="artist-logo">Logo artiste</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="artist-logo"
+                  className="flex-1"
+                  value={
+                    artistLogoFileName || presskit.artistLogoFileName
+                      ? artistLogoFileName || presskit.artistLogoFileName || ""
+                      : presskit.artistLogoUrl?.startsWith("data:")
+                        ? "Fichier importé"
+                        : presskit.artistLogoUrl
+                          ? presskit.artistLogoUrl
+                          : ""
+                  }
+                  readOnly={
+                    Boolean(
+                      artistLogoFileName ||
+                        presskit.artistLogoFileName ||
+                        presskit.artistLogoUrl?.startsWith("data:")
+                    )
+                  }
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    if (
+                      artistLogoFileName ||
+                      presskit.artistLogoFileName ||
+                      presskit.artistLogoUrl?.startsWith("data:")
+                    )
+                      return;
+                    setPresskit((prev) => ({
+                      ...prev,
+                      artistLogoUrl: nextValue,
+                      artistLogoFileName: ""
+                    }));
+                    setArtistLogoFileName("");
+                  }}
+                  placeholder="Colle le lien du logo (URL) ou importe un fichier"
+                />
+                {presskit.artistLogoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={removeArtistLogo}
+                    title="Supprimer"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+                <input
+                  ref={artistLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleArtistLogoUpload(e.target.files?.[0] ?? null);
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => artistLogoInputRef.current?.click()}
+                >
+                  Importer
+                </Button>
+              </div>
+
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPresskit((prev) => {
+                      const current = prev.artistDisplayMode ?? "name";
+                      const hasLogo = Boolean(prev.artistLogoUrl);
+
+                      // Cycle: Nom -> Nom+Logo -> Logo -> Nom
+                      let next: "name" | "logo" | "both" = current as "name" | "logo" | "both";
+                      if (current === "name") next = hasLogo ? "both" : "name";
+                      else if (current === "both") next = hasLogo ? "logo" : "name";
+                      else if (current === "logo") next = "name";
+
+                      if ((next === "logo" || next === "both") && !hasLogo) return prev;
+                      return { ...prev, artistDisplayMode: next };
+                    });
+                  }}
+                  disabled={
+                    (presskit.artistDisplayMode ?? "name") === "name" && !presskit.artistLogoUrl
+                  }
+                  className="gap-2"
+                >
+                  <Eye
+                    className={`h-4 w-4 ${
+                      (presskit.artistDisplayMode ?? "name") === "name"
+                        ? "opacity-60"
+                        : "text-primary"
+                    }`}
+                  />
+                  {(() => {
+                    const mode = presskit.artistDisplayMode ?? "name";
+                    if (mode === "name") return "Afficher : Nom";
+                    if (mode === "both") return "Afficher : Nom + logo";
+                    return "Afficher : Logo";
+                  })()}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="main-photo">Photo principale</Label>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <Input
                   id="main-photo"
-                  value={presskit.mainPhotoUrl}
-                  onChange={(e) =>
-                    setPresskit((prev) => ({ ...prev, mainPhotoUrl: e.target.value }))
+                  className="flex-1"
+                  value={
+                    mainPhotoFileName || presskit.mainPhotoFileName
+                      ? mainPhotoFileName || presskit.mainPhotoFileName || ""
+                      : presskit.mainPhotoUrl?.startsWith("data:")
+                        ? "Fichier importé"
+                        : presskit.mainPhotoUrl
                   }
-                  placeholder="https://... ou importer depuis l'ordinateur"
+                  readOnly={
+                    Boolean(mainPhotoFileName || presskit.mainPhotoFileName) ||
+                    presskit.mainPhotoUrl?.startsWith("data:")
+                  }
+                  onChange={(e) => {
+                    const isImported =
+                      Boolean(mainPhotoFileName || presskit.mainPhotoFileName) ||
+                      presskit.mainPhotoUrl?.startsWith("data:");
+                    if (isImported) return;
+                    const nextValue = e.target.value;
+                    setMainPhotoFileName("");
+                    setPresskit((prev) => ({
+                      ...prev,
+                      mainPhotoUrl: nextValue,
+                      mainPhotoFileName: ""
+                    }));
+                  }}
+                  placeholder="Colle le lien de l'image (URL) ou importe un fichier"
                 />
+                {presskit.mainPhotoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={removeMainPhoto}
+                    title="Supprimer"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
                 <input
                   ref={mainPhotoInputRef}
                   type="file"
@@ -530,47 +875,83 @@ export function PresskitPage() {
 
             <div className="space-y-3">
               <Label>3 covers (titre + lien)</Label>
-              {presskit.covers.slice(0, 3).map((cover, index) => (
-                <div key={cover.id} className="rounded-md border p-3">
-                  <p className="mb-2 text-xs text-muted-foreground">Case {index + 1}</p>
-                  <div className="space-y-2">
-                    <Input
-                      value={cover.title}
-                      onChange={(e) => updateCover(index, "title", e.target.value)}
-                      placeholder="Titre"
-                    />
-                    <Input
-                      value={cover.imageUrl}
-                      onChange={(e) => updateCover(index, "imageUrl", e.target.value)}
-                      placeholder="URL de cover"
-                    />
-                    <input
-                      ref={(el) => {
-                        coverInputRefs.current[index] = el;
-                      }}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        handleCoverUpload(index, e.target.files?.[0] ?? null);
-                        e.currentTarget.value = "";
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => coverInputRefs.current[index]?.click()}
-                    >
-                      Importer
-                    </Button>
-                    <Input
-                      value={cover.link}
-                      onChange={(e) => updateCover(index, "link", e.target.value)}
-                      placeholder="Lien vers la réalisation"
-                    />
+              {presskit.covers.slice(0, 3).map((cover, index) => {
+                const coverId = cover.id;
+                const fileName = coverFileNames[coverId] || cover.imageFileName || "";
+                const coverIsDataUrl = Boolean(
+                  cover.imageUrl && cover.imageUrl.startsWith("data:")
+                );
+                const coverDisplay = fileName
+                  ? fileName
+                  : coverIsDataUrl
+                    ? "Fichier importé"
+                    : cover.imageUrl;
+                const isFileImported = Boolean(fileName || coverIsDataUrl);
+
+                return (
+                  <div key={cover.id} className="rounded-md border p-3">
+                    <p className="mb-2 text-xs text-muted-foreground">Case {index + 1}</p>
+                    <div className="space-y-2">
+                      <Input
+                        value={cover.title}
+                        onChange={(e) => updateCover(index, "title", e.target.value)}
+                        placeholder="Titre"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className="flex-1"
+                          value={coverDisplay}
+                          readOnly={isFileImported}
+                          onChange={(e) => {
+                            if (isFileImported) return;
+                            updateCover(index, "imageUrl", e.target.value);
+                            updateCover(index, "imageFileName", "");
+                            setCoverFileNames((prev) => ({ ...prev, [coverId]: "" }));
+                          }}
+                          placeholder="URL de cover (ou importer)"
+                        />
+                        {cover.imageUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeCoverImage(index)}
+                            title="Supprimer"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        ref={(el) => {
+                          coverInputRefs.current[index] = el;
+                        }}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          handleCoverUpload(index, e.target.files?.[0] ?? null);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => coverInputRefs.current[index]?.click()}
+                        >
+                          Importer
+                        </Button>
+                      </div>
+                      <Input
+                        value={cover.link}
+                        onChange={(e) => updateCover(index, "link", e.target.value)}
+                        placeholder="Lien vers la réalisation"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="space-y-3">
@@ -666,193 +1047,10 @@ export function PresskitPage() {
             <div
               id="presskit-preview"
               ref={presskitPreviewRef}
-              className="flex flex-col gap-8 rounded-lg border bg-card p-5"
-            >
-              <div className="space-y-3">
-                <h2 className="text-2xl font-semibold tracking-tight">
-                  {presskit.artistTitle || "Titre de l'artiste"}
-                </h2>
-                <p className="text-lg text-muted-foreground">
-                  {presskit.hook || "Phrase d'accroche..."}
-                </p>
-              </div>
-
-              <div className="overflow-hidden rounded-lg border">
-                {presskit.mainPhotoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={presskit.mainPhotoUrl}
-                    alt="Photo principale"
-                    className="h-64 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-64 items-center justify-center bg-muted text-sm text-muted-foreground">
-                    Photo principale
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">Bio</h3>
-                <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                  {presskit.bio || "La bio apparaîtra ici..."}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">Réseaux sociaux</h3>
-                <div className="flex flex-wrap gap-2">
-                  {presskit.socials.instagram && (
-                    <a
-                      href={presskit.socials.instagram}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-                    >
-                      <Instagram className="h-4 w-4" />
-                      Instagram
-                    </a>
-                  )}
-                  {presskit.socials.facebook && (
-                    <a
-                      href={presskit.socials.facebook}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-                    >
-                      <Facebook className="h-4 w-4" />
-                      Facebook
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">Liens d&apos;écoute</h3>
-                <div className="flex flex-wrap gap-2">
-                  {STREAMING_PLATFORMS.map((platform) => {
-                    const url = presskit.streamingLinks?.[platform.key];
-                    if (!url) return null;
-                    return (
-                      <a
-                        key={platform.key}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-                      >
-                        <Music2 className="h-4 w-4" />
-                        {platform.label}
-                      </a>
-                    );
-                  })}
-                  {(presskit.customStreamingLinks || []).map((item) => {
-                    if (!item.url) return null;
-                    return (
-                      <a
-                        key={item.id}
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        {item.label || "Lien"}
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-lg font-medium">Dernières sorties</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {presskit.covers.slice(0, 3).map((cover) => (
-                    <a
-                      key={cover.id}
-                      href={cover.link || "#"}
-                      target={cover.link ? "_blank" : undefined}
-                      rel={cover.link ? "noreferrer" : undefined}
-                      className="group overflow-hidden rounded-md border"
-                    >
-                      <div className="aspect-square bg-muted">
-                        {cover.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={cover.imageUrl}
-                            alt={cover.title || "Cover"}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                            Cover
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between gap-2 border-t px-2 py-2">
-                        <span className="truncate text-xs font-medium">
-                          {cover.title || "Titre"}
-                        </span>
-                        {cover.link && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-lg font-medium">Dernières réalisations</h3>
-                <div className="space-y-2">
-                  {presskit.latest.map((item) => (
-                    <div key={item.id} className="rounded-md border p-3">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <p className="font-medium">{item.title || "Réalisation"}</p>
-                        {item.link && (
-                          <a
-                            href={item.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            Ouvrir
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground">{item.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">Contact</h3>
-                <div className="flex flex-wrap gap-3">
-                  {presskit.contact?.email && (
-                    <a
-                      href={`mailto:${presskit.contact.email}`}
-                      className="inline-flex h-14 w-14 items-center justify-center rounded-full border hover:bg-muted/50"
-                      title="Contacter par email"
-                    >
-                      <Mail className="h-6 w-6" />
-                    </a>
-                  )}
-                  {presskit.contact?.whatsapp && buildWhatsAppLink(presskit.contact.whatsapp) && (
-                    <a
-                      href={buildWhatsAppLink(presskit.contact.whatsapp)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-14 w-14 items-center justify-center rounded-full border hover:bg-muted/50"
-                      title="Contacter sur WhatsApp"
-                    >
-                      <MessageCircle className="h-6 w-6" />
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
+          className="p-0 m-0 bg-background"
+        >
+          <PresskitViewClient payloadDirect={presskit} />
+        </div>
           </CardContent>
         </Card>
       </div>

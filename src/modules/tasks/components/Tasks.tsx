@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpDown,
   BookOpen,
@@ -65,7 +65,7 @@ function formatDeadline(deadline?: string): string {
 }
 
 export function Tasks() {
-  const { data, setData } = useSidekickData();
+  const { data, setData, preferencesReady } = useSidekickData();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("deadline");
@@ -73,31 +73,47 @@ export function Tasks() {
   const [quickTitle, setQuickTitle] = useState("");
   const [quickSector, setQuickSector] = useState<TaskSector>("Live");
   const [quickDeadline, setQuickDeadline] = useState("");
-  const enabled = data.preferences?.enabledModules ?? {
-    live: true,
-    phono: true,
-    admin: true,
-    marketing: true,
-    edition: true,
-    revenus: true
-  };
+  const enabled = preferencesReady
+    ? data.preferences?.enabledModules
+    : {
+        live: false,
+        phono: false,
+        admin: false,
+        marketing: false,
+        edition: false,
+        revenus: false
+      };
 
-  const visibleSectors: TaskSector[] = TASK_SECTORS.filter((sector) => {
-    if (sector === "Live") return enabled.live;
-    if (sector === "Phono") return enabled.phono;
-    if (sector === "Admin") return enabled.admin;
-    if (sector === "Marketing") return enabled.marketing;
-    if (sector === "Edition") return enabled.edition;
-    if (sector === "Revenus") return enabled.revenus;
-    return true;
-  });
+  const visibleSectors: TaskSector[] = useMemo(() => {
+    return TASK_SECTORS.filter((sector) => {
+      if (sector === "Live") return enabled.live;
+      if (sector === "Phono") return enabled.phono;
+      if (sector === "Admin") return enabled.admin;
+      if (sector === "Marketing") return enabled.marketing;
+      if (sector === "Edition") return enabled.edition;
+      if (sector === "Revenus") return enabled.revenus;
+      return true;
+    });
+  }, [enabled.live, enabled.phono, enabled.admin, enabled.marketing, enabled.edition, enabled.revenus]);
 
-  const todos = (data.tasks ?? []).map((task) => ({
-    ...task,
-    description: task.description ?? "",
-    deadline: task.deadline ?? "",
-    sector: (task.sector ?? "Admin") as TaskSector
-  }));
+  // Si le quick sector actuel devient invisible (module désactivé), on le corrige.
+  useEffect(() => {
+    if (visibleSectors.length === 0) return;
+    if (!visibleSectors.includes(quickSector)) {
+      setQuickSector(visibleSectors[0]);
+    }
+  }, [visibleSectors, quickSector]);
+
+  const todos = useMemo(
+    () =>
+      (data.tasks ?? []).map((task) => ({
+        ...task,
+        description: task.description ?? "",
+        deadline: task.deadline ?? "",
+        sector: (task.sector ?? "Admin") as TaskSector
+      })),
+    [data.tasks]
+  );
 
   const editingTask = useMemo(() => {
     if (!editingId) return null;
@@ -416,6 +432,7 @@ export function Tasks() {
         }}
         onSave={handleSave}
         task={editingTask}
+        allowedSectors={visibleSectors}
       />
     </div>
   );
