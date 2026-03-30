@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { Toaster } from "sonner";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -18,6 +19,7 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
         <Header />
         <main className="flex-1 bg-background p-6">{children}</main>
       </div>
+      <Toaster richColors theme="dark" />
     </div>
   );
 }
@@ -29,4 +31,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </AuthGuard>
   );
 }
-
