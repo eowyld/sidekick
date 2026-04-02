@@ -72,11 +72,24 @@ export function ICalSyncPanel({ allEvents }: Props) {
     if (!user) { setSaving(false); return; }
 
     setMigrating(true);
-    await fetch("/api/calendar/migrate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ events: allEvents }),
-    });
+    if (allEvents.length > 0) {
+      // Supprimer les anciens événements puis réinsérer (évite le pb de l'index partiel)
+      await supabase.from("calendar_events").delete().eq("user_id", user.id);
+      const rows = allEvents.map((e) => ({
+        user_id: user.id,
+        date: e.dateKey,
+        time: e.time ?? null,
+        label: e.label,
+        sub_label: e.subLabel ?? null,
+        sector: e.sector,
+        type: e.type,
+        place: e.place ?? null,
+        source_module: e.id.split("-")[0] ?? "custom",
+        source_id: e.id,
+        updated_at: new Date().toISOString(),
+      }));
+      await supabase.from("calendar_events").insert(rows);
+    }
     setMigrating(false);
 
     const { data } = await supabase
