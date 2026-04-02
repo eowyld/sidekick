@@ -13,8 +13,11 @@ import {
   Megaphone,
   BookOpen,
   Trash2,
-  Pencil
+  Pencil,
+  Share2
 } from "lucide-react";
+
+import { ICalSyncPanel } from "./ICalSyncPanel";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -616,6 +619,7 @@ export function GlobalCalendarPage() {
   const [newEventSector, setNewEventSector] = useState<CalendarSector>("other");
   const [newEventTime, setNewEventTime] = useState("");
   const [newEventPlace, setNewEventPlace] = useState("");
+  const [syncPanelOpen, setSyncPanelOpen] = useState(false);
 
   // Si un secteur vient d'être désactivé, on évite de garder une valeur "ancienne"
   // dans le formulaire de création (sinon on peut créer un événement dans un secteur caché).
@@ -967,8 +971,26 @@ export function GlobalCalendarPage() {
               Aujourd&apos;hui
             </Button>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSyncPanelOpen((v) => !v)}
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Sync
+          </Button>
         </div>
       </div>
+
+      {syncPanelOpen && (
+        <div className="mb-4 rounded-xl border border-white/10 bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white">Synchronisation calendrier</h3>
+            <Button variant="ghost" size="sm" onClick={() => setSyncPanelOpen(false)}>Fermer</Button>
+          </div>
+          <ICalSyncPanel allEvents={allEvents} />
+        </div>
+      )}
 
       {/* Filtre par secteur */}
       <div className="flex flex-wrap items-center gap-2">
