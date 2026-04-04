@@ -19,7 +19,8 @@ export function getStorageKey(userId: string | null): string {
 export interface Todo {
   id: string;
   title: string;
-  done: boolean;
+  status: "todo" | "in_progress" | "done"; // remplace done: boolean
+  todayFocus: boolean;
   description?: string;
   deadline?: string;
   sector?:
@@ -111,14 +112,88 @@ export interface Profile {
 }
 
 // --- Edition ---
+
+export type PersonRole = "author" | "composer" | "arranger" | "adapter";
+
+/** Une personne impliquée dans l'œuvre (peut avoir plusieurs rôles) */
+export interface Person {
+  id: string;
+  firstName: string;
+  name: string;
+  pseudonym: string;
+  roles: PersonRole[];
+}
+
+/** Une part dans la distribution interne d'une catégorie */
+export interface SplitEntry {
+  personId: string; // référence à Person.id
+  pct: number;      // 0–100, la somme de tous les SplitEntry d'une catégorie doit = 100
+}
+
+/** Clés SACEM — read-only, jamais modifiées par l'utilisateur */
+export interface SacemRepartition {
+  authors: number;    // % du total attribué aux auteurs
+  composers: number;  // % du total attribué aux compositeurs
+  publishers: number; // % du total attribué aux éditeurs
+}
+
+/** Un éditeur externe (société d'édition) — distinct des personnes physiques */
+export interface EditionPublisher {
+  id: string;
+  name: string;
+  coad: string; // Code international COAD
+  pct: number;  // part dans la distribution éditeurs (sum = 100)
+}
+
 export interface Work {
   id: string;
+  artistName: string;
   title: string;
-  [key: string]: unknown;
+  status: "in-progress" | "finalized" | "registered-sacem" | "accepted-sacem";
+
+  persons: Person[];
+
+  // Niveau 1 — clés SACEM (affichage uniquement)
+  depRepartition: SacemRepartition;  // DEP par défaut : 33.33 / 33.33 / 33.33
+  drmRepartition: SacemRepartition;  // DRM par défaut : 25 / 25 / 50
+
+  // Niveau 2 — distribution interne par catégorie (sum = 100 chacune)
+  splitsAuthors: SplitEntry[];
+  splitsComposers: SplitEntry[];
+  selfPublished: boolean;           // si true → l'artiste perçoit 100% de la part éditeurs
+  externalPublishers: EditionPublisher[]; // éditeurs externes si selfPublished = false
+
+  iswc: string;
+  firstExploitationDate: string;
+  genre: string;
+  duration: string;
+  files: { sheet?: string; lyrics?: string; audio?: string };
+  exploitationTypes: ("streaming" | "live" | "sync" | "cover")[];
+  firstBroadcaster: string;
+  worldwideRights: boolean;
+  territories: string[];
+  notes: string;
 }
-export interface SyncState {
-  lastSync?: string;
-  [key: string]: unknown;
+
+export interface Exploitant {
+  id: string;
+  company: string;
+  project: "film" | "serie" | "pub" | "jeu-video" | "media" | "";
+  date: string;
+  status: "sent" | "discussing" | "accepted" | "refused" | "";
+  notes: string;
+}
+
+export interface SyncData {
+  workId: string;
+  status: "not-ready" | "to-prepare" | "sync-ready" | "exploited";
+  moods: string[];
+  tempo: string;
+  pitchShort: string;
+  usageContext: string;
+  themes: string[];
+  privateLinks: string[];
+  exploitants: Exploitant[];
 }
 
 // --- Incomes ---
@@ -288,7 +363,7 @@ export interface SidekickData {
   };
   edition: {
     works: Work[];
-    sync: SyncState;
+    sync: Record<string, SyncData>;
   };
   incomes: {
     royalties: IncomeItem[];
@@ -321,6 +396,15 @@ export interface SidekickData {
       marketing: boolean;
       edition: boolean;
       revenus: boolean;
+    };
+    aiTaskInstructions?: {
+      general?: string;
+      live?: string;
+      phono?: string;
+      admin?: string;
+      marketing?: string;
+      edition?: string;
+      revenus?: string;
     };
   };
 }
@@ -381,7 +465,8 @@ export const DEFAULT_SIDEKICK_DATA: SidekickData = {
       marketing: true,
       edition: true,
       revenus: true
-    }
+    },
+    aiTaskInstructions: {}
   }
 };
 
@@ -395,7 +480,14 @@ export function mergeWithDefaults(
   return {
     ...DEFAULT_SIDEKICK_DATA,
     ...partial,
-    tasks: Array.isArray(partial.tasks) ? partial.tasks : DEFAULT_SIDEKICK_DATA.tasks,
+    tasks: Array.isArray(partial.tasks)
+      ? partial.tasks.map((t: Todo & { done?: boolean }) => ({
+          ...t,
+          // Migration: ancien format done: boolean → status
+          status: t.status ?? (t.done ? "done" : "todo"),
+          todayFocus: t.todayFocus ?? false,
+        }))
+      : DEFAULT_SIDEKICK_DATA.tasks,
     admin: {
       ...DEFAULT_SIDEKICK_DATA.admin,
       ...partial.admin,
@@ -407,7 +499,19 @@ export function mergeWithDefaults(
     calendar: { ...DEFAULT_SIDEKICK_DATA.calendar, ...partial.calendar },
     contacts: { ...DEFAULT_SIDEKICK_DATA.contacts, ...partial.contacts },
     dashboard: { ...DEFAULT_SIDEKICK_DATA.dashboard, ...partial.dashboard },
-    edition: { ...DEFAULT_SIDEKICK_DATA.edition, ...partial.edition },
+    edition: {
+      ...DEFAULT_SIDEKICK_DATA.edition,
+      ...partial.edition,
+      works: Array.isArray(partial.edition?.works)
+        ? partial.edition.works
+        : DEFAULT_SIDEKICK_DATA.edition.works,
+      sync:
+        partial.edition?.sync &&
+        typeof partial.edition.sync === "object" &&
+        !Array.isArray(partial.edition.sync)
+          ? (partial.edition.sync as Record<string, SyncData>)
+          : DEFAULT_SIDEKICK_DATA.edition.sync,
+    },
     incomes: { ...DEFAULT_SIDEKICK_DATA.incomes, ...partial.incomes },
     live: { ...DEFAULT_SIDEKICK_DATA.live, ...partial.live },
     marketing: { ...DEFAULT_SIDEKICK_DATA.marketing, ...partial.marketing },
