@@ -313,7 +313,7 @@ export function DashboardPage() {
   const [customEvents] = useLocalStorage<CustomCalendarItem[]>("calendar:custom-events", []);
 
   const todaysTasks = data.tasks
-    .filter((t) => !t.done)
+    .filter((t) => t.status !== "done")
     .map((t) => ({
       ...t,
       description: t.description ?? "",
@@ -321,7 +321,7 @@ export function DashboardPage() {
       sector: t.sector ?? "Admin"
     }))
     .slice(0, 5);
-  const completedTasksCount = data.tasks.filter((t) => t.done).length;
+  const completedTasksCount = data.tasks.filter((t) => t.status === "done").length;
   const sidekickLevel = Math.floor(completedTasksCount / 10) + 1;
   const sidekickLevelProgressRaw = completedTasksCount % 10;
   const sidekickXpPercent = Math.min(
