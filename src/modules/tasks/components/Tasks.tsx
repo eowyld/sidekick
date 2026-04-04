@@ -14,6 +14,7 @@ import type { Todo } from "@/lib/sidekick-store";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { TaskModal, type TaskFormData, type TaskSector } from "./TaskModal";
 import { TodayPanel } from "./TodayPanel";
 import { BacklogPanel } from "./BacklogPanel";
@@ -270,6 +271,47 @@ export function Tasks() {
         task={editingTask}
         allowedSectors={allowedSectors}
       />
+
+      <details className="rounded-lg border border-border bg-card/40 p-4">
+        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+          ⚙️ Instructions IA (personnaliser les suggestions)
+        </summary>
+        <div className="mt-4 space-y-3">
+          {(
+            [
+              { key: "general", label: "Général" },
+              ...(enabledModules.live ? [{ key: "live", label: "Live" }] : []),
+              ...(enabledModules.phono ? [{ key: "phono", label: "Phono" }] : []),
+              ...(enabledModules.admin ? [{ key: "admin", label: "Admin" }] : []),
+              ...(enabledModules.marketing ? [{ key: "marketing", label: "Marketing" }] : []),
+              ...(enabledModules.edition ? [{ key: "edition", label: "Édition" }] : []),
+              ...(enabledModules.revenus ? [{ key: "revenus", label: "Revenus" }] : []),
+            ] as { key: string; label: string }[]
+          ).map(({ key, label }) => (
+            <div key={key} className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {label}
+              </label>
+              <Input
+                placeholder={`Instructions pour ${label}...`}
+                value={aiInstructions[key] ?? ""}
+                onChange={(e) => {
+                  setData((prev) => ({
+                    ...prev,
+                    preferences: {
+                      ...prev.preferences,
+                      aiTaskInstructions: {
+                        ...prev.preferences.aiTaskInstructions,
+                        [key]: e.target.value,
+                      },
+                    },
+                  }));
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
