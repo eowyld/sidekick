@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, memo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type { Work, Person, PersonRole, SplitEntry, SacemRepartition, EditionPublisher } from "@/lib/sidekick-store";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -1307,6 +1308,8 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
 
 export function WorksPage() {
   const { data, setData } = useSidekickData();
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get("projectId");
   const works = data.edition.works;
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -1334,6 +1337,18 @@ export function WorksPage() {
     if (!isSplitValid(newWork)) { toast.error("La répartition interne doit totaliser 100% pour chaque catégorie."); return; }
     const work: Work = { ...newWork, id: crypto.randomUUID() };
     setData((prev) => ({ ...prev, edition: { ...prev.edition, works: [...prev.edition.works, work] } }));
+    if (projectIdParam) {
+      setData((prev) => ({
+        ...prev,
+        projects: {
+          projects: prev.projects.projects.map((p) =>
+            p.id === projectIdParam
+              ? { ...p, linkedWorks: [...new Set([...p.linkedWorks, work.id])], updatedAt: new Date().toISOString() }
+              : p
+          ),
+        },
+      }));
+    }
     setIsAddOpen(false);
     setNewWork(DEFAULT_WORK);
     toast.success(`« ${work.title} » ajoutée au catalogue.`);

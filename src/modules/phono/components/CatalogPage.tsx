@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type {
   Track,
@@ -348,6 +349,8 @@ function formatTracklistForCopy(items: PodcastTracklistItem[]): string {
 
 export function CatalogPage() {
   const { data, setData } = useSidekickData();
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get("projectId");
   const [tab, setTab] = useState<"tracks" | "albums" | "podcasts">("albums");
   const [draft, setDraft] = useState<TrackDraft>(defaultTrack());
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
@@ -403,7 +406,20 @@ export function CatalogPage() {
 
   const addTrackFromDraft = () => {
     if (!isDraftComplete) return;
-    setTracks((prev) => [...prev, { id: newId(), ...draft } as Track]);
+    const trackId = newId();
+    setTracks((prev) => [...prev, { id: trackId, ...draft } as Track]);
+    if (projectIdParam) {
+      setData((prev) => ({
+        ...prev,
+        projects: {
+          projects: prev.projects.projects.map((p) =>
+            p.id === projectIdParam
+              ? { ...p, linkedTracks: [...new Set([...p.linkedTracks, trackId])], updatedAt: new Date().toISOString() }
+              : p
+          ),
+        },
+      }));
+    }
     setDraft(defaultTrack());
     setNewTrackDialogOpen(false);
   };
