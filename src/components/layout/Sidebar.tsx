@@ -2,80 +2,263 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PanelLeft, PanelLeftClose } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  CalendarDays,
+  CheckSquare,
+  Users,
+  Music2,
+  BookOpen,
+  Mic2,
+  Megaphone,
+  DollarSign,
+  Briefcase,
+  FileText,
+  ChevronDown,
+  PanelLeft,
+  PanelLeftClose,
+  Settings,
+  FolderKanban,
+} from "lucide-react";
 import { useSidekickData } from "@/hooks/useSidekickData";
 
 const SIDEBAR_COLLAPSED_KEY = "sidekick-sidebar-collapsed";
 
-const navItems = [
-  { href: "/dashboard", label: "Tableau de bord" },
-  { href: "/calendar", label: "Calendrier" },
-  { href: "/tasks", label: "Tâches" },
-  { href: "/contacts", label: "Contacts" },
-  { href: "/phono", label: "Phono" },
-  { href: "/edition", label: "Edition" },
-  { href: "/marketing", label: "Marketing" },
-  { href: "/incomes", label: "Revenus" }
+// ─── Données de navigation ───────────────────────────────────────────────────
+
+const groupOrganisation = [
+  { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+  { href: "/calendar", label: "Calendrier", icon: CalendarDays },
+  { href: "/tasks", label: "Tâches", icon: CheckSquare },
+  { href: "/contacts", label: "Contacts", icon: Users },
 ];
 
-const adminSubItems = [
-  { href: "/admin", label: "Vue d'ensemble" },
-  { href: "/admin/statuts", label: "Mes statuts" },
-  { href: "/admin/demarches", label: "Mes démarches" },
-  { href: "/admin/contrats", label: "Mes contrats" }
+const groupMusique = [
+  {
+    label: "Projets",
+    icon: FolderKanban,
+    key: "projects",
+    href: "/projects",
+    sub: [
+      { href: "/projects", label: "Projets actifs" },
+      { href: "/projects/archives", label: "Anciens projets" },
+    ],
+  },
+  {
+    label: "Phono",
+    icon: Music2,
+    key: "phono",
+    href: "/phono",
+    sub: [
+      { href: "/phono", label: "Vue d'ensemble" },
+      { href: "/phono/catalogue", label: "Catalogue" },
+      { href: "/phono/sessions-studio", label: "Sessions Studio" },
+    ],
+  },
+  {
+    label: "Édition",
+    icon: BookOpen,
+    key: "edition",
+    href: "/edition",
+    sub: [
+      { href: "/edition", label: "Catalogue" },
+      { href: "/edition/sync", label: "Synchronisation" },
+    ],
+  },
+  {
+    label: "Live",
+    icon: Mic2,
+    key: "live",
+    href: "/live",
+    sub: [
+      { href: "/live", label: "Vue d'ensemble" },
+      { href: "/live/representations", label: "Représentations" },
+      { href: "/live/repetitions", label: "Répétitions" },
+      { href: "/live/prospection", label: "Prospection" },
+      { href: "/live/materiel", label: "Matériel" },
+    ],
+  },
 ];
 
-const beforeLive = ["/dashboard", "/calendar", "/tasks", "/contacts"];
-
-const liveSubItems = [
-  { href: "/live", label: "Vue d'ensemble" },
-  { href: "/live/representations", label: "Représentations" },
-  { href: "/live/repetitions", label: "Répétitions" },
-  { href: "/live/prospection", label: "Prospection" },
-  { href: "/live/materiel", label: "Matériel" }
+const groupBusiness = [
+  {
+    label: "Revenus",
+    icon: DollarSign,
+    key: "revenus",
+    href: "/incomes",
+    sub: [
+      { href: "/incomes", label: "Vue d'ensemble" },
+      { href: "/incomes/facturation", label: "Facturation" },
+      { href: "/incomes/royalties", label: "Royalties" },
+      { href: "/incomes/droits-auteur", label: "Droits d'auteur" },
+      { href: "/incomes/droits-voisins", label: "Droits voisins" },
+      { href: "/incomes/intermittence", label: "Intermittence" },
+    ],
+  },
+  {
+    label: "Marketing",
+    icon: Megaphone,
+    key: "marketing",
+    href: "/marketing",
+    sub: [
+      { href: "/marketing", label: "Vue d'ensemble" },
+      { href: "/marketing/publications", label: "Publications" },
+      { href: "/marketing/mailing", label: "Mailing" },
+      { href: "/marketing/presskit", label: "Presskit" },
+    ],
+  },
+  {
+    label: "Admin",
+    icon: Briefcase,
+    key: "admin",
+    href: "/admin",
+    sub: [
+      { href: "/admin", label: "Vue d'ensemble" },
+      { href: "/admin/statuts", label: "Mes statuts" },
+      { href: "/admin/demarches", label: "Mes démarches" },
+      { href: "/admin/contrats", label: "Mes contrats" },
+    ],
+  },
 ];
 
-const incomesSubItems = [
-  { href: "/incomes", label: "Vue d'ensemble" },
-  { href: "/incomes/facturation", label: "Facturation" },
-  { href: "/incomes/royalties", label: "Royalties" },
-  { href: "/incomes/droits-auteur", label: "Droits d'auteur" },
-  { href: "/incomes/droits-voisins", label: "Droits voisins" },
-  { href: "/incomes/intermittence", label: "Intermittence" }
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const phonoSubItems = [
-  { href: "/phono", label: "Vue d'ensemble" },
-  { href: "/phono/catalogue", label: "Catalogue" },
-  { href: "/phono/sessions-studio", label: "Sessions Studio" }
-];
+function isActive(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname === href || pathname.startsWith(href + "/");
+}
 
-const marketingSubItems = [
-  { href: "/marketing", label: "Vue d'ensemble" },
-  { href: "/marketing/publications", label: "Publications" },
-  { href: "/marketing/mailing", label: "Mailing" },
-  { href: "/marketing/presskit", label: "Presskit" }
-];
+// ─── Composants internes ─────────────────────────────────────────────────────
+
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  pathname: string;
+}) {
+  const active = isActive(pathname, href);
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+        active
+          ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
+          : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
+      }`}
+    >
+      <Icon size={16} className="shrink-0" />
+      {label}
+    </Link>
+  );
+}
+
+function NavGroup({
+  label,
+  icon: Icon,
+  moduleKey,
+  href,
+  sub,
+  enabled,
+  pathname,
+  open,
+  onToggle,
+}: {
+  label: string;
+  icon: React.ElementType;
+  moduleKey: string;
+  href: string;
+  sub: { href: string; label: string }[];
+  enabled: boolean;
+  pathname: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const groupActive = pathname === href || pathname.startsWith(href + "/");
+
+  if (!enabled) {
+    return (
+      <Link
+        href={href}
+        className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+          groupActive
+            ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
+            : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
+        }`}
+      >
+        <Icon size={16} className="shrink-0" />
+        {label}
+      </Link>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-[13px] text-left transition-colors duration-150 ${
+          groupActive && !open
+            ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
+            : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
+        }`}
+      >
+        <Icon size={16} className="shrink-0" />
+        <span className="flex-1">{label}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="ml-[18px] mt-0.5 mb-1 space-y-0.5 border-l border-[rgba(245,245,245,0.08)] pl-3">
+          {sub.map((item) => {
+            const subActive = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block py-1 text-[12px] transition-colors duration-150 ${
+                  subActive
+                    ? "text-[#F0FF00] font-medium"
+                    : "text-[#F5F5F5]/50 hover:text-[#F5F5F5]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-1 mt-4 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30 first:mt-0">
+      {children}
+    </p>
+  );
+}
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
   const { data, preferencesReady } = useSidekickData();
+  const pathname = usePathname();
+
   const enabled = preferencesReady
     ? data.preferences?.enabledModules
-    : {
-        live: false,
-        phono: false,
-        admin: false,
-        marketing: false,
-        edition: false,
-        revenus: false
-      };
+    : { live: false, phono: false, admin: false, marketing: false, edition: false, revenus: false };
+
   const [collapsed, setCollapsed] = useState(false);
-  const [liveOpen, setLiveOpen] = useState(false);
-  const [incomesOpen, setIncomesOpen] = useState(false);
-  const [phonoOpen, setPhonoOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [marketingOpen, setMarketingOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -93,215 +276,112 @@ export function Sidebar() {
     });
   };
 
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   return (
     <aside
-      className={`flex h-screen flex-col border-r border-[rgba(245,245,245,0.12)] bg-[#101010] transition-[width] duration-200 ${
-        collapsed ? "w-16 px-2" : "w-64 px-4"
-      } py-6 text-[#F5F5F5] shadow-[inset_-1px_0_0_rgba(245,245,245,0.08)]`}
+      className={`flex h-screen flex-col border-r border-[rgba(245,245,245,0.08)] bg-[#101010] transition-[width] duration-200 ${
+        collapsed ? "w-16 px-2" : "w-64 px-3"
+      } py-5 text-[#F5F5F5]`}
     >
+      {/* Header */}
       <div
-        className={`mb-6 flex items-center gap-2 ${
-          collapsed ? "justify-center" : "justify-between"
+        className={`mb-6 flex items-center ${
+          collapsed ? "justify-center" : "justify-between px-1"
         }`}
       >
         {!collapsed && (
-          <span className="text-xl font-semibold tracking-tight">Sidekick</span>
+          <span className="text-[15px] font-bold uppercase tracking-[0.18em] text-[#F0FF00]">
+            Sidekick
+          </span>
         )}
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
           onClick={toggleCollapsed}
-          className="shrink-0"
           title={collapsed ? "Ouvrir le menu" : "Réduire le menu"}
+          className="flex h-7 w-7 shrink-0 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
         >
-          {collapsed ? (
-            <PanelLeft className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </Button>
+          {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+        </button>
       </div>
+
+      {/* Nav */}
       {!collapsed && (
-      <nav className="flex flex-1 flex-col space-y-1 text-sm text-[#F5F5F5]/75">
-        <div className="space-y-1">
-        {navItems
-          .filter((item) => beforeLive.includes(item.href))
-          .map((item) => (
+        <nav className="flex flex-1 flex-col overflow-y-auto">
+          {/* ORGANISATION */}
+          <SectionLabel>Organisation</SectionLabel>
+          <div className="space-y-0.5">
+            {groupOrganisation.map((item) => (
+              <NavLink key={item.href} {...item} pathname={pathname} />
+            ))}
+          </div>
+
+          {/* BUSINESS */}
+          <SectionLabel>Business</SectionLabel>
+          <div className="space-y-0.5">
+            {groupBusiness.map((item) => (
+              <NavGroup
+                key={item.key}
+                label={item.label}
+                icon={item.icon}
+                moduleKey={item.key}
+                href={item.href}
+                sub={item.sub}
+                enabled={!!enabled?.[item.key as keyof typeof enabled]}
+                pathname={pathname}
+                open={!!openGroups[item.key]}
+                onToggle={() => toggleGroup(item.key)}
+              />
+            ))}
+          </div>
+
+          {/* MUSIQUE */}
+          <SectionLabel>Musique</SectionLabel>
+          <div className="space-y-0.5">
+            {groupMusique.map((item) => (
+              <NavGroup
+                key={item.key}
+                label={item.label}
+                icon={item.icon}
+                moduleKey={item.key}
+                href={item.href}
+                sub={item.sub}
+                enabled={!!enabled?.[item.key as keyof typeof enabled]}
+                pathname={pathname}
+                open={!!openGroups[item.key]}
+                onToggle={() => toggleGroup(item.key)}
+              />
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div className="mt-auto border-t border-[rgba(245,245,245,0.08)] pt-4 space-y-0.5">
             <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-2 py-1.5 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
+              href="/admin/documents"
+              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+                isActive(pathname, "/admin/documents")
+                  ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
+                  : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
+              }`}
             >
-              {item.label}
+              <FileText size={16} className="shrink-0" />
+              Documents
             </Link>
-          ))}
-
-        {/* Live avec sous-menu */}
-        {enabled.live && (
-          <>
-            <button
-              type="button"
-              onClick={() => setLiveOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-            >
-              <span>Live</span>
-              <span className="text-xs">{liveOpen ? "▾" : "▸"}</span>
-            </button>
-            {liveOpen && (
-              <div className="mb-1 space-y-0.5 pl-4">
-                {liveSubItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-2 py-1 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Phono avec sous-menu */}
-        {enabled.phono && (
-          <>
-            <button
-              type="button"
-              onClick={() => setPhonoOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-            >
-              <span>Phono</span>
-              <span className="text-xs">{phonoOpen ? "▾" : "▸"}</span>
-            </button>
-            {phonoOpen && (
-              <div className="mb-1 space-y-0.5 pl-4">
-                {phonoSubItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-2 py-1 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Admin avec sous-menu */}
-        {enabled.admin && (
-          <>
-            <button
-              type="button"
-              onClick={() => setAdminOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-            >
-              <span>Admin</span>
-              <span className="text-xs">{adminOpen ? "▾" : "▸"}</span>
-            </button>
-            {adminOpen && (
-              <div className="mb-1 space-y-0.5 pl-4">
-                {adminSubItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-2 py-1 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Marketing avec sous-menu */}
-        {enabled.marketing && (
-          <>
-            <button
-              type="button"
-              onClick={() => setMarketingOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-            >
-              <span>Marketing</span>
-              <span className="text-xs">{marketingOpen ? "▾" : "▸"}</span>
-            </button>
-            {marketingOpen && (
-              <div className="mb-1 space-y-0.5 pl-4">
-                {marketingSubItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-2 py-1 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Liens entre Phono et Revenus (Edition) */}
-        {navItems
-          .filter(
-            (item) =>
-              !beforeLive.includes(item.href) &&
-              item.href !== "/incomes" &&
-              item.href !== "/phono" &&
-              item.href !== "/marketing"
-          )
-          .filter((item) => !(item.href === "/phono" && !enabled.phono))
-          .filter((item) => !(item.href === "/edition" && !enabled.edition))
-          .map((item) => (
             <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-2 py-1.5 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
+              href="/settings"
+              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+                isActive(pathname, "/settings")
+                  ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
+                  : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
+              }`}
             >
-              {item.label}
+              <Settings size={16} className="shrink-0" />
+              Paramètres
             </Link>
-          ))}
-
-        {/* Revenus avec sous-menu */}
-        {enabled.revenus && (
-          <>
-            <button
-              type="button"
-              onClick={() => setIncomesOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-            >
-              <span>Revenus</span>
-              <span className="text-xs">{incomesOpen ? "▾" : "▸"}</span>
-            </button>
-            {incomesOpen && (
-              <div className="mb-1 space-y-0.5 pl-4">
-                {incomesSubItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-2 py-1 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        </div>
-        <div className="mt-auto border-t border-[rgba(245,245,245,0.12)] pt-4">
-          <Link
-            href="/admin/documents"
-            className="block rounded-md px-2 py-1.5 hover:bg-[rgba(245,245,245,0.08)] hover:text-[#F5F5F5]"
-          >
-            Documents
-          </Link>
-        </div>
-      </nav>
+          </div>
+        </nav>
       )}
     </aside>
   );
