@@ -2051,6 +2051,26 @@ export function CatalogPage() {
                             <p className="mt-0.5 text-sm text-muted-foreground">
                               {track.mainArtist || "—"}
                             </p>
+                            {(() => {
+                              const trackProjects = (data.projects?.projects ?? []).filter(
+                                (p) => p.linkedTracks.includes(track.id)
+                              );
+                              if (trackProjects.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {trackProjects.map((p) => (
+                                    <a
+                                      key={p.id}
+                                      href={`/projects/${p.id}`}
+                                      className="px-1.5 py-0.5 rounded text-[10px] bg-[#F0FF00]/10 text-[#F0FF00]/60 hover:text-[#F0FF00] border border-[#F0FF00]/20 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {p.title}
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-1">
