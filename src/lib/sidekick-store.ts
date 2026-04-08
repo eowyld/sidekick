@@ -32,6 +32,7 @@ export interface Todo {
     | "Revenus"
     | "Autre";
   createdAt?: string;
+  subtasks?: { id: string; title: string; done: boolean }[];
 }
 
 // --- Admin ---
@@ -173,6 +174,7 @@ export interface Work {
   worldwideRights: boolean;
   territories: string[];
   notes: string;
+  linkedTrackIds?: string[];
 }
 
 export interface Exploitant {
@@ -240,6 +242,35 @@ export interface MarketingEvent {
   [key: string]: unknown;
 }
 
+// --- Projects ---
+export interface ProjectMember {
+  contactId: string | null;
+  name: string;
+  role: string;
+}
+
+export type ProjectStatus = "idea" | "in_progress" | "paused" | "done" | "archived";
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string;
+  status: ProjectStatus;
+  cover: string;
+  images: string[];
+  sectors: ("phono" | "edition" | "live")[];
+  members: ProjectMember[];
+  linkedAlbums: string[];
+  linkedTracks: string[];
+  linkedSessions: string[];
+  linkedWorks: string[];
+  linkedTourDates: string[];
+  linkedRehearsals: string[];
+  createdAt: string;
+  updatedAt: string;
+  notes: string;
+}
+
 // --- Phono ---
 export type PhonoRole =
   | "artiste_principal"
@@ -276,6 +307,7 @@ export interface Track {
   notes: string;
   status?: ReleaseStatus;
   cover?: string;
+  linkedWorkId?: string;
   [key: string]: unknown;
 }
 
@@ -388,6 +420,9 @@ export interface SidekickData {
     sessions: Session[];
     podcasts: Podcast[];
   };
+  projects: {
+    projects: Project[];
+  };
   preferences: {
     enabledModules: {
       live: boolean;
@@ -396,6 +431,7 @@ export interface SidekickData {
       marketing: boolean;
       edition: boolean;
       revenus: boolean;
+      projects: boolean;
     };
     aiTaskInstructions?: {
       general?: string;
@@ -457,6 +493,9 @@ export const DEFAULT_SIDEKICK_DATA: SidekickData = {
     sessions: [],
     podcasts: []
   },
+  projects: {
+    projects: [],
+  },
   preferences: {
     enabledModules: {
       live: true,
@@ -464,7 +503,8 @@ export const DEFAULT_SIDEKICK_DATA: SidekickData = {
       admin: true,
       marketing: true,
       edition: true,
-      revenus: true
+      revenus: true,
+      projects: true,
     },
     aiTaskInstructions: {}
   }
@@ -516,6 +556,13 @@ export function mergeWithDefaults(
     live: { ...DEFAULT_SIDEKICK_DATA.live, ...partial.live },
     marketing: { ...DEFAULT_SIDEKICK_DATA.marketing, ...partial.marketing },
     phono: { ...DEFAULT_SIDEKICK_DATA.phono, ...partial.phono },
+    projects: {
+      ...DEFAULT_SIDEKICK_DATA.projects,
+      ...partial.projects,
+      projects: Array.isArray(partial.projects?.projects)
+        ? partial.projects.projects
+        : DEFAULT_SIDEKICK_DATA.projects.projects,
+    },
     preferences: {
       ...DEFAULT_SIDEKICK_DATA.preferences,
       ...partial.preferences,
