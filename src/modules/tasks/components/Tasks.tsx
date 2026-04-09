@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import {
   DndContext,
@@ -12,6 +12,7 @@ import {
 } from "@dnd-kit/core";
 import type { Todo } from "@/lib/sidekick-store";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { useTasksData } from "@/hooks/useTasksData";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { TaskCard } from "./TaskCard";
 
 export function Tasks() {
   const { data, setData } = useSidekickData();
+  const { tasks, setTasks, loading } = useTasksData();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -34,18 +36,33 @@ export function Tasks() {
     });
   }, []);
 
+  // Auto-promote overdue/due-today tasks — runs once after tasks are loaded
+  const promotedRef = useRef(false);
+  useEffect(() => {
+    if (promotedRef.current || tasks.length === 0 || loading) return;
+    promotedRef.current = true;
+    const today = new Date().toISOString().slice(0, 10);
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.deadline && t.deadline <= today && !t.todayFocus && t.status !== "done"
+          ? { ...t, todayFocus: true }
+          : t
+      )
+    );
+  }, [tasks, loading, setTasks]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const todos = useMemo(
     () =>
-      (data.tasks ?? []).map((t) => ({
+      tasks.map((t) => ({
         ...t,
         status: (t.status ?? "todo") as Todo["status"],
         todayFocus: t.todayFocus ?? false,
       })),
-    [data.tasks]
+    [tasks]
   );
 
   const todayTasks = useMemo(
@@ -55,6 +72,11 @@ export function Tasks() {
 
   const backlogTasks = useMemo(
     () => todos.filter((t) => !t.todayFocus && t.status !== "done"),
+    [todos]
+  );
+
+  const doneTasks = useMemo(
+    () => todos.filter((t) => t.status === "done"),
     [todos]
   );
 
@@ -70,28 +92,15 @@ export function Tasks() {
   // --- Handlers ---
 
   const handleStatusChange = (id: string, status: Todo["status"]) => {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => (t.id === id ? { ...t, status } : t)),
-    }));
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
   };
 
   const handleAddToToday = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === id ? { ...t, todayFocus: true } : t
-      ),
-    }));
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, todayFocus: true } : t)));
   };
 
   const handleRemoveFromToday = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === id ? { ...t, todayFocus: false } : t
-      ),
-    }));
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, todayFocus: false } : t)));
   };
 
   const handleEdit = (id: string) => {
@@ -100,18 +109,14 @@ export function Tasks() {
   };
 
   const handleDelete = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.filter((t) => t.id !== id),
-    }));
+    setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleSave = (taskData: TaskFormData) => {
     if (!taskData.title.trim()) return;
     if (editingId) {
-      setData((prev) => ({
-        ...prev,
-        tasks: prev.tasks.map((t) =>
+      setTasks((prev) =>
+        prev.map((t) =>
           t.id === editingId
             ? {
                 ...t,
@@ -119,10 +124,11 @@ export function Tasks() {
                 description: taskData.description.trim(),
                 deadline: taskData.deadline,
                 sector: taskData.sector,
+                subtasks: taskData.subtasks,
               }
             : t
-        ),
-      }));
+        )
+      );
     } else {
       const newTask: Todo = {
         id: crypto.randomUUID(),
@@ -132,12 +138,48 @@ export function Tasks() {
         description: taskData.description.trim(),
         deadline: taskData.deadline,
         sector: taskData.sector,
+        subtasks: taskData.subtasks,
         createdAt: new Date().toISOString(),
       };
-      setData((prev) => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+      setTasks((prev) => [...prev, newTask]);
     }
     setEditingId(null);
     setModalOpen(false);
+  };
+
+  const handleSubtaskToggle = (taskId: string, subtaskId: string, done: boolean) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, subtasks: (t.subtasks ?? []).map((s) => s.id === subtaskId ? { ...s, done } : s) }
+          : t
+      )
+    );
+  };
+
+  const handleSubtaskAdd = (taskId: string, title: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, subtasks: [...(t.subtasks ?? []), { id: crypto.randomUUID(), title, done: false }] }
+          : t
+      )
+    );
+  };
+
+  const handleSubtaskRename = (taskId: string, subtaskId: string, title: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              subtasks: title.trim()
+                ? (t.subtasks ?? []).map((s) => s.id === subtaskId ? { ...s, title: title.trim() } : s)
+                : (t.subtasks ?? []).filter((s) => s.id !== subtaskId),
+            }
+          : t
+      )
+    );
   };
 
   const handleAddSuggestion = (title: string, sector: string) => {
@@ -149,7 +191,7 @@ export function Tasks() {
       sector: sector as TaskSector,
       createdAt: new Date().toISOString(),
     };
-    setData((prev) => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+    setTasks((prev) => [...prev, newTask]);
   };
 
   // --- Drag & Drop ---
@@ -175,6 +217,7 @@ export function Tasks() {
       description: t.description ?? "",
       deadline: t.deadline ?? "",
       sector: (t.sector ?? "Admin") as TaskSector,
+      subtasks: t.subtasks ?? [],
     } satisfies TaskFormData;
   }, [editingId, todos]);
 
@@ -203,10 +246,10 @@ export function Tasks() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="mb-1 text-2xl font-semibold tracking-tight">Tâches</h1>
-          <p className="text-sm text-muted-foreground">
-            Organise ton travail par focus quotidien et backlog.
-          </p>
+          <h1 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40 mb-1">
+            Organisation
+          </h1>
+          <p className="text-xl font-bold tracking-tight text-[#F5F5F5]">Tâches</p>
         </div>
         <Button
           onClick={() => {
@@ -232,6 +275,9 @@ export function Tasks() {
             onRemoveFromToday={handleRemoveFromToday}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onSubtaskToggle={handleSubtaskToggle}
+            onSubtaskAdd={handleSubtaskAdd}
+            onSubtaskRename={handleSubtaskRename}
           />
           <BacklogPanel
             tasks={backlogTasks}
@@ -261,6 +307,26 @@ export function Tasks() {
         </DragOverlay>
       </DndContext>
 
+      {doneTasks.length > 0 ? (
+        <details className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)] p-4">
+          <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40 hover:text-[#F5F5F5]/60 transition-colors">
+            Terminées — {doneTasks.length}
+          </summary>
+          <div className="mt-3 flex flex-col divide-y divide-[rgba(245,245,245,0.05)]">
+            {doneTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                context="done"
+                onStatusChange={handleStatusChange}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
       <TaskModal
         open={modalOpen}
         onClose={() => {
@@ -272,9 +338,9 @@ export function Tasks() {
         allowedSectors={allowedSectors}
       />
 
-      <details className="rounded-lg border border-border bg-card/40 p-4">
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-          ⚙️ Instructions IA (personnaliser les suggestions)
+      <details className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)] p-4">
+        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40 hover:text-[#F5F5F5]/60 transition-colors">
+          Instructions IA — personnaliser les suggestions
         </summary>
         <div className="mt-4 space-y-3">
           {(
@@ -289,7 +355,7 @@ export function Tasks() {
             ] as { key: string; label: string }[]
           ).map(({ key, label }) => (
             <div key={key} className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#F5F5F5]/40">
                 {label}
               </label>
               <Input
