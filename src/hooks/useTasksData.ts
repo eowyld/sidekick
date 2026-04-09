@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import type { Todo } from "@/lib/sidekick-store";
 
-// Mapping Supabase row → Todo
 function rowToTodo(row: Record<string, unknown>): Todo {
   return {
     id: row.id as string,
@@ -19,7 +18,6 @@ function rowToTodo(row: Record<string, unknown>): Todo {
   };
 }
 
-// Mapping Todo → Supabase row (sans user_id — ajouté à l'insert)
 function todoToRow(todo: Todo): Record<string, unknown> {
   return {
     id: todo.id,
@@ -39,14 +37,15 @@ export function useTasksData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Chargement initial
   useEffect(() => {
+    let alive = true;
     const supabase = createClient();
     supabase
       .from("user_tasks")
       .select("*")
       .order("created_at", { ascending: true })
       .then(({ data, error: err }) => {
+        if (!alive) return;
         if (err) {
           setError(err.message);
         } else {
@@ -54,62 +53,70 @@ export function useTasksData() {
         }
         setLoading(false);
       });
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // Écriture optimiste avec diff et rollback
   const setTasks = useCallback((fn: (prev: Todo[]) => Todo[]) => {
-    setTasksState((prev) => {
-      const next = fn(prev);
+    let snapshot: Todo[] = [];
+    let next: Todo[] = [];
 
-      const prevMap = new Map(prev.map((t) => [t.id, t]));
+    setTasksState((prev) => {
+      snapshot = prev;
+      next = fn(prev);
+      return next;
+    });
+
+    (async () => {
+      setError(null);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError("Not authenticated");
+        setTasksState(() => snapshot);
+        return;
+      }
+
+      const prevMap = new Map(snapshot.map((t) => [t.id, t]));
       const nextMap = new Map(next.map((t) => [t.id, t]));
 
       const toUpsert = next.filter((t) => {
         const old = prevMap.get(t.id);
         return !old || JSON.stringify(old) !== JSON.stringify(t);
       });
-      const toDelete = prev.filter((t) => !nextMap.has(t.id)).map((t) => t.id);
+      const toDelete = snapshot.filter((t) => !nextMap.has(t.id)).map((t) => t.id);
 
-      (async () => {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      const ops: Array<Promise<{ error: { message: string } | null }>> = [];
 
-        const ops: Promise<{ error: string | null }>[] = [];
+      if (toUpsert.length > 0) {
+        ops.push(
+          Promise.resolve(
+            supabase
+              .from("user_tasks")
+              .upsert(toUpsert.map((t) => ({ ...todoToRow(t), user_id: user.id })))
+          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+        );
+      }
 
-        if (toUpsert.length > 0) {
-          ops.push(
-            (async () => {
-              const { error } = await supabase
-                .from("user_tasks")
-                .upsert(toUpsert.map((t) => ({ ...todoToRow(t), user_id: user.id })));
-              return { error: error?.message ?? null };
-            })()
-          );
-        }
+      if (toDelete.length > 0) {
+        ops.push(
+          Promise.resolve(
+            supabase
+              .from("user_tasks")
+              .delete()
+              .in("id", toDelete)
+          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+        );
+      }
 
-        if (toDelete.length > 0) {
-          ops.push(
-            (async () => {
-              const { error } = await supabase
-                .from("user_tasks")
-                .delete()
-                .in("id", toDelete);
-              return { error: error?.message ?? null };
-            })()
-          );
-        }
-
-        const results = await Promise.all(ops);
-        const firstError = results.find((r) => r.error);
-        if (firstError?.error) {
-          setError(firstError.error);
-          setTasksState(prev); // rollback
-        }
-      })();
-
-      return next;
-    });
+      const results = await Promise.all(ops);
+      const firstError = results.find((r) => r.error);
+      if (firstError?.error) {
+        setError(firstError.error.message);
+        setTasksState(() => snapshot);
+      }
+    })();
   }, []);
 
   return { tasks, setTasks, loading, error };
