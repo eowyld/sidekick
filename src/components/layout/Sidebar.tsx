@@ -118,6 +118,7 @@ const groupBusiness = [
       { href: "/admin/statuts", label: "Mes statuts" },
       { href: "/admin/demarches", label: "Mes démarches" },
       { href: "/admin/contrats", label: "Mes contrats" },
+      { href: "/migrate", label: "Migration données" },
     ],
   },
 ];
