@@ -8,10 +8,10 @@ import {
   ChevronRight,
   DollarSign,
   Mic2,
-  Disc2,
+  Music2,
+  BookOpen,
   Briefcase,
   Megaphone,
-  BookOpen,
   Trash2,
   Pencil,
   Share2
@@ -37,6 +37,7 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { useCalendarData, type CustomCalendarItem } from "@/hooks/useCalendarData";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -244,15 +245,6 @@ type TaskItem = {
     | "Edition"
     | "Revenus"
     | "Autre";
-};
-
-type CustomCalendarItem = {
-  id: string;
-  title: string;
-  date: string;
-  time?: string;
-  place?: string;
-  sector: CalendarSector;
 };
 
 function mapTaskSectorToCalendarSector(
@@ -533,50 +525,15 @@ function formatDateKeyToFr(dateKey: string): string {
 
 const SECTOR_CONFIG: Record<
   CalendarSector,
-  { label: string; color: string; bgClass: string; icon: React.ReactNode }
+  { label: string; color: string; bgClass: string; iconColor: string; Icon: React.ElementType }
 > = {
-  live: {
-    label: "Live",
-    color: "text-blue-600",
-    bgClass: "bg-blue-500",
-    icon: <Mic2 className="h-3.5 w-3.5" />
-  },
-  revenus: {
-    label: "Revenus",
-    color: "text-orange-600",
-    bgClass: "bg-orange-500",
-    icon: <DollarSign className="h-3.5 w-3.5" />
-  },
-  phono: {
-    label: "Phono",
-    color: "text-red-600",
-    bgClass: "bg-red-500",
-    icon: <Disc2 className="h-3.5 w-3.5" />
-  },
-  admin: {
-    label: "Admin",
-    color: "text-violet-600",
-    bgClass: "bg-violet-500",
-    icon: <Briefcase className="h-3.5 w-3.5" />
-  },
-  marketing: {
-    label: "Marketing",
-    color: "text-emerald-600",
-    bgClass: "bg-emerald-500",
-    icon: <Megaphone className="h-3.5 w-3.5" />
-  },
-  edition: {
-    label: "Edition",
-    color: "text-cyan-600",
-    bgClass: "bg-cyan-500",
-    icon: <BookOpen className="h-3.5 w-3.5" />
-  },
-  other: {
-    label: "Autre",
-    color: "text-gray-600",
-    bgClass: "bg-gray-500",
-    icon: <CalendarDays className="h-3.5 w-3.5" />
-  }
+  live:      { label: "Live",      color: "text-blue-400",    bgClass: "bg-blue-400",    iconColor: "text-blue-400",    Icon: Mic2 },
+  phono:     { label: "Phono",     color: "text-red-400",     bgClass: "bg-red-400",     iconColor: "text-red-400",     Icon: Music2 },
+  admin:     { label: "Admin",     color: "text-violet-400",  bgClass: "bg-violet-400",  iconColor: "text-violet-400",  Icon: Briefcase },
+  marketing: { label: "Marketing", color: "text-emerald-400", bgClass: "bg-emerald-400", iconColor: "text-emerald-400", Icon: Megaphone },
+  edition:   { label: "Édition",   color: "text-cyan-400",    bgClass: "bg-cyan-400",    iconColor: "text-cyan-400",    Icon: BookOpen },
+  revenus:   { label: "Revenus",   color: "text-orange-400",  bgClass: "bg-orange-400",  iconColor: "text-orange-400",  Icon: DollarSign },
+  other:     { label: "Autre",     color: "text-[#F5F5F5]/40",bgClass: "bg-[#F5F5F5]/40",iconColor: "text-[#F5F5F5]/40",Icon: CalendarDays },
 };
 
 const DEFAULT_SECTOR_FILTERS = {
@@ -656,10 +613,7 @@ export function GlobalCalendarPage() {
   const phonoTracks = (sidekickData.phono?.tracks ?? []) as PhonoTrackItem[];
   const phonoAlbums = (sidekickData.phono?.albums ?? []) as PhonoAlbumItem[];
   const phonoPodcasts = (sidekickData.phono?.podcasts ?? []) as PhonoPodcastItem[];
-  const [customEvents, setCustomEvents] = useLocalStorage<CustomCalendarItem[]>(
-    "calendar:custom-events",
-    []
-  );
+  const { customEvents, setCustomEvents } = useCalendarData();
   const tasks = (sidekickData.tasks ?? []) as TaskItem[];
   const marketingEvents = (sidekickData.marketing.events ?? []) as MarketingItem[];
   const adminProcedures = (sidekickData.admin.procedures ?? []) as AdminProcedureItem[];
@@ -918,84 +872,67 @@ export function GlobalCalendarPage() {
   };
 
   return !preferencesReady ? (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="animate-pulse space-y-2">
-        <div className="h-6 w-40 rounded bg-muted" />
-        <div className="h-4 w-64 rounded bg-muted" />
+        <div className="h-6 w-40 bg-[rgba(245,245,245,0.08)]" />
+        <div className="h-4 w-64 bg-[rgba(245,245,245,0.06)]" />
       </div>
-      <div className="h-[480px] w-full rounded-lg border border-border bg-muted/40" />
+      <div className="h-[480px] w-full border border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)]" />
     </div>
   ) : (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <CalendarDays className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Calendrier
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Représentations, répétitions, tâches, factures, sessions et événements transverses.
-            </p>
-          </div>
+    <div className="space-y-5">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[12px] uppercase tracking-[0.12em] text-[#F5F5F5]/40">Planning</p>
+          <h1 className="mt-1 text-[28px] font-bold uppercase tracking-tight text-[#F5F5F5]">
+            Calendrier
+          </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToPreviousMonth}
-                aria-label="Mois précédent"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="min-w-[150px] text-center text-sm font-medium capitalize">
-                {monthLabel}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToNextMonth}
-                aria-label="Mois suivant"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={goToToday}
-              className="text-xs"
-            >
-              Aujourd&apos;hui
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => setSyncPanelOpen((v) => !v)}
           >
             <Share2 className="h-4 w-4 mr-2" />
-            Sync
+            Synchroniser
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingEventId(null);
+              setNewEventName("");
+              setNewEventTime("");
+              setNewEventPlace("");
+              setNewEventSector("other");
+              setNewEventDate(toDateKey(currentDate));
+              setCustomDialogOpen(true);
+            }}
+          >
+            + Événement
           </Button>
         </div>
       </div>
 
+      {/* ── Sync panel ─────────────────────────────────────────────────────── */}
       {syncPanelOpen && (
-        <div className="mb-4 rounded-xl border border-white/10 bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-4">
+        <div className="border border-[rgba(245,245,245,0.12)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">Synchronisation calendrier</h3>
+            <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
+              Synchronisation calendrier
+            </p>
             <Button variant="ghost" size="sm" onClick={() => setSyncPanelOpen(false)}>Fermer</Button>
           </div>
           <ICalSyncPanel allEvents={allEvents} />
         </div>
       )}
 
-      {/* Filtre par secteur */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground mr-1">
-          Secteurs :
+      {/* ── Filtres secteurs ───────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] uppercase tracking-[0.1em] text-[#F5F5F5]/30 mr-1">
+          Filtres :
         </span>
         {(Object.keys(SECTOR_CONFIG) as CalendarSector[]).map((sector) => {
           if (sector === "live" && !sidekickData.preferences.enabledModules.live) return null;
@@ -1011,204 +948,137 @@ export function GlobalCalendarPage() {
               const merged = { ...DEFAULT_SECTOR_FILTERS, ...prev };
               return { ...merged, [sector]: !merged[sector] };
             });
+          const { Icon, iconColor } = config;
           return (
             <button
               key={sector}
               type="button"
               onClick={toggle}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                "inline-flex items-center gap-1.5 border px-2.5 py-1 text-[12px] font-medium transition-colors duration-150",
                 isActive
-                  ? "border-transparent text-white"
-                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-                isActive && sector === "live" && "bg-blue-500",
-                isActive && sector === "revenus" && "bg-orange-500",
-                isActive && sector === "phono" && "bg-red-500",
-                isActive && sector === "admin" && "bg-violet-500",
-                isActive && sector === "marketing" && "bg-emerald-500",
-                isActive && sector === "edition" && "bg-cyan-500"
+                  ? "border-[rgba(245,245,245,0.2)] bg-[rgba(245,245,245,0.08)] text-[#F5F5F5]"
+                  : "border-[rgba(245,245,245,0.08)] text-[#F5F5F5]/35 hover:text-[#F5F5F5]/60"
               )}
             >
-              {config.icon}
+              <Icon className={cn("h-3 w-3", isActive ? iconColor : "text-[#F5F5F5]/30")} />
               {config.label}
             </button>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {/* ── Grille calendrier + liste ──────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+        {/* Calendrier mensuel */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="border-b border-[rgba(245,245,245,0.08)] py-3">
             <div className="flex items-center justify-between gap-2">
-              <div>
-                <CardTitle className="text-base">Vue mensuelle</CardTitle>
-                <CardDescription>
-                  Live, Phono, Admin, Marketing, Edition et Revenus.
-                </CardDescription>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToPreviousMonth}
+                  aria-label="Mois précédent"
+                  className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="min-w-[140px] text-center text-[13px] font-semibold capitalize text-[#F5F5F5]">
+                  {monthLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={goToNextMonth}
+                  aria-label="Mois suivant"
+                  className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditingEventId(null);
-                  setNewEventName("");
-                  setNewEventTime("");
-                  setNewEventPlace("");
-                  setNewEventSector("other");
-                  setNewEventDate(toDateKey(currentDate));
-                  setCustomDialogOpen(true);
-                }}
+              <button
+                type="button"
+                onClick={goToToday}
+                className="text-[11px] uppercase tracking-[0.08em] text-[#F5F5F5]/40 transition-colors hover:text-[#F0FF00]"
               >
-                Ajouter un événement
-              </Button>
+                Aujourd'hui
+              </button>
             </div>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="mb-3 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
+            {/* Jours de semaine */}
+            <div className="mb-2 grid grid-cols-7 text-center">
               {WEEKDAYS.map((day) => (
-                <div key={day} className="py-1">
+                <div key={day} className="py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30">
                   {day}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5 text-sm">
+            {/* Grille */}
+            <div className="grid grid-cols-7 gap-px bg-[rgba(245,245,245,0.06)]">
               {monthMatrix.map((week, weekIndex) =>
                 week.map((day, dayIndex) => {
                   const dateKey = getDateKeyForDay(day);
                   const dayEvents = dateKey ? eventsByDateKey[dateKey] ?? [] : [];
-
                   const eventCount = dayEvents.length;
+                  const isTodayDay = isToday(day);
+
                   return (
                     <div
                       key={`${weekIndex}-${dayIndex}`}
                       className={cn(
-                        "flex min-h-20 flex-col rounded-md border p-1 transition-colors",
-                        day
-                          ? "bg-background/80"
-                          : "bg-muted/40 border-dashed",
-                        isToday(day) && "border-primary ring-1 ring-primary/30"
+                        "flex min-h-[96px] flex-col bg-[#101010] p-1.5 transition-colors",
+                        day ? "cursor-pointer hover:bg-[rgba(245,245,245,0.03)]" : "bg-[rgba(245,245,245,0.02)]",
+                        isTodayDay && "bg-[#F0FF00]/5"
                       )}
                       onClick={() => {
-                        if (eventCount === 0 && dateKey) {
-                          openCustomDialogForDate(dateKey);
-                        }
+                        if (eventCount === 0 && dateKey) openCustomDialogForDate(dateKey);
                       }}
                     >
-                      <span
-                        className={cn(
-                          "text-xs font-medium",
-                          day ? "text-foreground" : "text-muted-foreground/60",
-                          isToday(day) && "text-primary"
-                        )}
-                      >
+                      <span className={cn(
+                        "mb-1 inline-block w-fit text-[11px] font-medium leading-none",
+                        !day && "invisible",
+                        isTodayDay
+                          ? "bg-[#F0FF00] px-1 py-0.5 text-[#101010] font-bold"
+                          : "text-[#F5F5F5]/50"
+                      )}>
                         {day ?? ""}
                       </span>
 
-                      {/* Aucun événement */}
-                      {eventCount === 0 && null}
-
-                      {/* Un seul événement : il prend toute la case */}
-                      {eventCount === 1 &&
-                        (() => {
-                          const ev = dayEvents[0]!;
-                          const config = SECTOR_CONFIG[ev.sector];
-                          const metaParts: string[] = [];
-                          if (ev.subLabel) metaParts.push(ev.subLabel);
-                          if (ev.time) metaParts.push(ev.time);
-                          if (ev.place) metaParts.push(ev.place);
-                          const meta = metaParts.join(" · ");
-                          return (
-                            <button
-                              type="button"
-                              onClick={openEventDialog(ev)}
-                              className={cn(
-                                "mt-1 flex flex-1 flex-col rounded-md px-1.5 py-1 text-left text-[11px] leading-tight text-white",
-                                config.bgClass,
-                                ev.isPast && "opacity-80"
-                              )}
-                            >
-                              <div className="flex items-center gap-1">
-                                {config.icon}
-                                <span className="truncate font-semibold">
-                                  {ev.label}
-                                </span>
+                      {/* Événements — occupent tout l'espace disponible */}
+                      {eventCount > 0 && (() => {
+                        const MAX_VISIBLE = 4;
+                        const visible = dayEvents.slice(0, MAX_VISIBLE);
+                        const overflow = dayEvents.length - MAX_VISIBLE;
+                        return (
+                          <div className="mt-1 flex flex-1 flex-col gap-px overflow-hidden">
+                            {visible.map((ev) => {
+                              const { Icon, iconColor } = SECTOR_CONFIG[ev.sector];
+                              return (
+                                <button
+                                  key={ev.id}
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openEventDialog(ev)(); }}
+                                  className={cn(
+                                    "flex min-h-0 flex-1 w-full items-start gap-1 px-1.5 py-0.5 text-left transition-colors",
+                                    "bg-[rgba(245,245,245,0.06)] hover:bg-[rgba(245,245,245,0.11)]",
+                                    ev.isPast && "opacity-45"
+                                  )}
+                                >
+                                  <Icon className={cn("mt-[2px] h-2.5 w-2.5 shrink-0", iconColor)} />
+                                  <span className="line-clamp-3 text-[10px] leading-[1.3] text-[#F5F5F5]/75 break-words">{ev.label}</span>
+                                </button>
+                              );
+                            })}
+                            {overflow > 0 && (
+                              <div className="flex items-center px-1.5 text-[10px] text-[#F5F5F5]/30">
+                                +{overflow} autre{overflow > 1 ? "s" : ""}
                               </div>
-                              {meta && (
-                                <div className="mt-0.5 truncate text-[10px] opacity-90">
-                                  {meta}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })()}
-
-                      {/* Deux événements : divisés en deux blocs */}
-                      {eventCount === 2 && (
-                        <div className="mt-1 flex flex-1 flex-col gap-0.5">
-                          {dayEvents.slice(0, 2).map((ev) => {
-                            const config = SECTOR_CONFIG[ev.sector];
-                            const metaParts: string[] = [];
-                            if (ev.subLabel) metaParts.push(ev.subLabel);
-                            if (ev.time) metaParts.push(ev.time);
-                            if (ev.place) metaParts.push(ev.place);
-                            const meta = metaParts.join(" · ");
-                            return (
-                              <button
-                                key={ev.id}
-                                type="button"
-                                onClick={openEventDialog(ev)}
-                                className={cn(
-                                  "flex flex-1 flex-col rounded-md px-1.5 py-0.5 text-left text-[11px] leading-tight text-white",
-                                  config.bgClass,
-                                  ev.isPast && "opacity-80"
-                                )}
-                                title={ev.label}
-                              >
-                                <div className="flex items-center gap-1">
-                                  {config.icon}
-                                  <span className="truncate">
-                                    {ev.label}
-                                  </span>
-                                </div>
-                                {meta && (
-                                  <div className="truncate text-[10px] opacity-90">
-                                    {meta}
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Trois événements ou plus : pastilles compactes comme avant */}
-                      {eventCount >= 3 && (
-                        <div className="mt-0.5 flex flex-wrap gap-0.5">
-                          {dayEvents.slice(0, 3).map((ev) => {
-                            const config = SECTOR_CONFIG[ev.sector];
-                            return (
-                              <button
-                                key={ev.id}
-                                type="button"
-                                onClick={openEventDialog(ev)}
-                                className={cn(
-                                  "inline-flex cursor-pointer items-center rounded px-1 py-0.5 text-[10px] font-medium text-white transition-opacity hover:opacity-90",
-                                  config.bgClass,
-                                  ev.isPast && "opacity-70"
-                                )}
-                                title={ev.label}
-                              >
-                                {config.icon}
-                              </button>
-                            );
-                          })}
-                          {dayEvents.length > 3 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              +{dayEvents.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })
@@ -1217,53 +1087,43 @@ export function GlobalCalendarPage() {
           </CardContent>
         </Card>
 
+        {/* Prochains événements */}
         <Card className="h-full">
-          <CardHeader>
-            <CardTitle className="text-base">Prochains événements</CardTitle>
-            <CardDescription>
-              Liste des événements à venir (selon les filtres).
-            </CardDescription>
+          <CardHeader className="border-b border-[rgba(245,245,245,0.08)] py-3">
+            <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
+              Prochains événements
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="py-3">
             {upcomingEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground">
-                <p>Aucun événement à venir.</p>
-                <p className="mt-1">
-                  Modifie les filtres ou ajoute des dates dans les modules concernés.
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <p className="text-[13px] text-[#F5F5F5]/30">Aucun événement à venir.</p>
+                <p className="mt-1 text-[12px] text-[#F5F5F5]/20">
+                  Active des filtres ou ajoute des dates.
                 </p>
               </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="divide-y divide-[rgba(245,245,245,0.06)]">
                 {upcomingEvents.map((ev) => {
-                  const config = SECTOR_CONFIG[ev.sector];
-                  const frDate = (() => {
-                    const [y, m, d] = ev.dateKey.split("-");
-                    return `${d}/${m}/${y}`;
-                  })();
+                  const [y, m, d] = ev.dateKey.split("-");
+                  const frDate = `${d}/${m}/${y}`;
+                  const { Icon, iconColor } = SECTOR_CONFIG[ev.sector];
                   return (
                     <li key={ev.id}>
                       <button
                         type="button"
                         onClick={openEventDialog(ev)}
                         className={cn(
-                          "flex w-full cursor-pointer items-start gap-2 rounded-lg border p-2 text-left text-sm transition-colors hover:bg-muted/50",
-                          ev.isPast && "opacity-75"
+                          "flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-[rgba(245,245,245,0.03)]",
+                          ev.isPast && "opacity-50"
                         )}
                       >
-                        <span
-                          className={cn(
-                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white",
-                            config.bgClass
-                          )}
-                        >
-                          {config.icon}
-                        </span>
+                        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium leading-tight">{ev.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {ev.subLabel} · {frDate}
-                          </p>
+                          <p className="truncate text-[13px] font-medium text-[#F5F5F5]">{ev.label}</p>
+                          <p className="text-[11px] text-[#F5F5F5]/40">{ev.subLabel}</p>
                         </div>
+                        <span className="shrink-0 text-[11px] text-[#F5F5F5]/40">{frDate}</span>
                       </button>
                     </li>
                   );
@@ -1334,12 +1194,10 @@ export function GlobalCalendarPage() {
             }}
           >
             <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="custom-name">
-                Nom
-              </label>
+              <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-name">Nom</label>
               <input
                 id="custom-name"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                className="w-full border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] placeholder:text-[#F5F5F5]/40 focus:border-[#F0FF00]/40 focus:outline-none"
                 value={newEventName}
                 onChange={(e) => setNewEventName(e.target.value)}
                 placeholder="Nom de l'événement"
@@ -1349,9 +1207,7 @@ export function GlobalCalendarPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-sm font-medium" htmlFor="custom-date">
-                  Date
-                </label>
+                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-date">Date</label>
                 <DatePicker
                   value={newEventDate}
                   onChange={(v) => setNewEventDate(v)}
@@ -1359,13 +1215,11 @@ export function GlobalCalendarPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium" htmlFor="custom-time">
-                  Heure
-                </label>
+                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-time">Heure</label>
                 <input
                   id="custom-time"
                   type="time"
-                  className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  className="w-full border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] focus:border-[#F0FF00]/40 focus:outline-none"
                   value={newEventTime}
                   onChange={(e) => setNewEventTime(e.target.value)}
                 />
@@ -1373,12 +1227,10 @@ export function GlobalCalendarPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="custom-sector">
-                Secteur
-              </label>
+              <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-sector">Secteur</label>
               <select
                 id="custom-sector"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                className="w-full border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] focus:border-[#F0FF00]/40 focus:outline-none"
                 value={newEventSector}
                 onChange={(e) => setNewEventSector(e.target.value as CalendarSector)}
               >
@@ -1393,12 +1245,10 @@ export function GlobalCalendarPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="custom-place">
-                Lieu
-              </label>
+              <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-place">Lieu</label>
               <input
                 id="custom-place"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                className="w-full border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] placeholder:text-[#F5F5F5]/40 focus:border-[#F0FF00]/40 focus:outline-none"
                 value={newEventPlace}
                 onChange={(e) => setNewEventPlace(e.target.value)}
                 placeholder="Ville, salle, adresse..."
@@ -1440,7 +1290,7 @@ export function GlobalCalendarPage() {
                       SECTOR_CONFIG[selectedEventDetails.event.sector].bgClass
                     )}
                   >
-                    {SECTOR_CONFIG[selectedEventDetails.event.sector].icon}
+                    {(() => { const Ic = SECTOR_CONFIG[selectedEventDetails.event.sector].Icon; return <Ic className="h-4 w-4" />; })()}
                   </span>
                   <div>
                     <DialogTitle className="text-left">
@@ -1462,7 +1312,7 @@ export function GlobalCalendarPage() {
                       SECTOR_CONFIG[selectedEventDetails.event.sector].bgClass
                     )}
                   >
-                    {SECTOR_CONFIG[selectedEventDetails.event.sector].icon}
+                    {(() => { const Ic = SECTOR_CONFIG[selectedEventDetails.event.sector].Icon; return <Ic className="h-3.5 w-3.5" />; })()}
                     {SECTOR_CONFIG[selectedEventDetails.event.sector].label}
                   </span>
                 </div>
