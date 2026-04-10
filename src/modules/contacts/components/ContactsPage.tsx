@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowUpDown, Pencil, Plus, Trash2, Users, ChevronDown } from "lucide-react";
+import { useContactsData, type Contact } from "@/hooks/useContactsData";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronDown } from "lucide-react";
 
 const BASE_ROLES = [
   "Musicien",
@@ -44,19 +43,6 @@ const BASE_ROLES = [
   "Editeur",
 ] as const;
 
-type Contact = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  role: string;
-  city: string;
-  email: string;
-  instagram: string;
-  phone: string;
-  notes: string;
-  createdAt?: string;
-};
-
 const emptyForm: Omit<Contact, "id" | "createdAt"> = {
   firstName: "",
   lastName: "",
@@ -68,43 +54,13 @@ const emptyForm: Omit<Contact, "id" | "createdAt"> = {
   notes: ""
 };
 
-const initialContacts: Contact[] = [
-  {
-    id: 1,
-    firstName: "Théo",
-    lastName: "Martin",
-    instagram: "@theo.martin",
-    createdAt: "2025-01-01T10:00:00.000Z",
-    role: "Tourneur",
-    city: "Paris",
-    email: "theo@agence-live.fr",
-    phone: "+33 6 12 34 56 78",
-    notes: "Préfère être contacté le matin. A booké la dernière tournée."
-  },
-  {
-    id: 2,
-    firstName: "Sarah",
-    lastName: "Dupont",
-    instagram: "@sarah.dupont",
-    createdAt: "2025-01-05T15:30:00.000Z",
-    role: "Attachée de presse",
-    city: "Lyon",
-    email: "sarah@pr-horizon.com",
-    phone: "+33 6 98 76 54 32",
-    notes: "Partenaire presse prioritaire sur les sorties single."
-  }
-];
-
 export function ContactsPage() {
-  const [contacts, setContacts] = useLocalStorage<Contact[]>(
-    "contacts:list",
-    initialContacts
-  );
+  const { contacts, setContacts, loading } = useContactsData();
   const [customRoles, setCustomRoles] = useLocalStorage<string[]>(
     "contacts:customRoles",
     []
   );
-  const [editingId, setEditingId] = useState<number | "new" | null>(null);
+  const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<Omit<Contact, "id">>(emptyForm);
   const [roleFilter, setRoleFilter] = useState<string>("__all__");
   const [newRoleInput, setNewRoleInput] = useState("");
@@ -192,16 +148,15 @@ export function ContactsPage() {
     if (!form.firstName.trim() || !form.lastName.trim()) return;
 
     if (editingId === "new") {
-      const nextId = contacts.length ? Math.max(...contacts.map((c) => c.id)) + 1 : 1;
       setContacts((prev) => [
         ...prev,
         {
-          id: nextId,
+          id: crypto.randomUUID(),
           ...form,
           createdAt: new Date().toISOString()
         }
       ]);
-    } else if (typeof editingId === "number") {
+    } else if (typeof editingId === "string") {
       setContacts((prev) =>
         prev.map((c) => (c.id === editingId ? { ...c, ...form } : c))
       );
@@ -209,7 +164,7 @@ export function ContactsPage() {
     closeDialog();
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     setContacts((prev) => prev.filter((c) => c.id !== id));
     if (editingId === id) closeDialog();
   };
@@ -233,9 +188,7 @@ export function ContactsPage() {
   const sortedContacts = [...filteredBySearch].sort((a, b) => {
     const dir = sortDirection === "asc" ? 1 : -1;
     const getValue = (contact: Contact) => {
-      if (sortKey === "createdAt") {
-        return contact.createdAt ?? "";
-      }
+      if (sortKey === "createdAt") return contact.createdAt ?? "";
       return (contact[sortKey] as string) ?? "";
     };
     const aVal = getValue(a).toLowerCase();
@@ -260,33 +213,32 @@ export function ContactsPage() {
     });
   };
 
-  const renderSortIcon = (key: typeof sortKey) => {
-    if (sortKey !== key) {
-      return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40" />;
-    }
+  const SortIcon = ({ col }: { col: typeof sortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-25" />;
     return (
-      <span className="ml-1 text-[10px] opacity-70">
+      <span className="ml-1 text-[10px] text-[#F0FF00]">
         {sortDirection === "asc" ? "▲" : "▼"}
       </span>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="mb-1 text-2xl font-semibold tracking-tight">Contacts</h1>
-          <p className="text-sm text-muted-foreground">
-            Gère simplement ton carnet de contacts : tourneurs, managers, attaché·es de
-            presse, salles, etc.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40 mb-1">
+            Organisation
           </p>
+          <h1 className="text-xl font-bold tracking-tight text-[#F5F5F5]">Contacts</h1>
         </div>
         <Button onClick={startCreate} size="sm" className="shrink-0 gap-1.5">
           <Plus className="h-4 w-4" />
-          Ajouter un contact
+          Ajouter
         </Button>
       </div>
 
+      {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -325,16 +277,14 @@ export function ContactsPage() {
                       variant="outline"
                       className="h-9 w-full justify-between font-normal"
                     >
-                      <span className={form.role ? "" : "text-muted-foreground"}>
-                        {form.role && form.role !== "__add__"
-                          ? form.role
-                          : "Choisir un métier"}
+                      <span className={form.role ? "text-[#F5F5F5]" : "text-[#F5F5F5]/40"}>
+                        {form.role && form.role !== "__add__" ? form.role : "Choisir un métier"}
                       </span>
-                      <ChevronDown className="h-4 w-4 opacity-50" />
+                      <ChevronDown className="h-4 w-4 opacity-40" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] p-0 text-[#F5F5F5] shadow-md"
+                    className="w-[var(--radix-popover-trigger-width)] border border-[rgba(245,245,245,0.15)] bg-[#1a1a1a] p-0 text-[#F5F5F5] shadow-xl"
                     align="start"
                   >
                     <div
@@ -344,30 +294,28 @@ export function ContactsPage() {
                       {rolesForSelect.map((role) => (
                         <div
                           key={role}
-                          className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                          className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-sm hover:bg-[rgba(245,245,245,0.06)] transition-colors"
                           onClick={() => handleRoleSelect(role)}
                         >
                           <span className="min-w-0 flex-1 truncate">{role}</span>
                           {customRoles.includes(role) && (
-                            <Button
+                            <button
                               type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                              className="shrink-0 text-[#F5F5F5]/30 hover:text-red-400 transition-colors"
                               onClick={(e) => removeCustomRole(e, role)}
                               title="Supprimer ce rôle"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                              <Trash2 className="h-3 w-3" />
+                            </button>
                           )}
                         </div>
                       ))}
                       <button
                         type="button"
-                        className="flex w-full cursor-pointer items-center px-2 py-1.5 text-left text-sm text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground"
+                        className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-sm text-[#F0FF00]/70 hover:text-[#F0FF00] transition-colors"
                         onClick={() => handleRoleSelect("__add__")}
                       >
-                        ＋ Ajouter un métier…
+                        + Ajouter un métier…
                       </button>
                     </div>
                   </PopoverContent>
@@ -378,7 +326,7 @@ export function ContactsPage() {
                       id="newRole"
                       value={newRoleInput}
                       onChange={(e) => setNewRoleInput(e.target.value)}
-                      placeholder="Nouveau rôle (sauvegardé pour réutilisation)"
+                      placeholder="Nouveau rôle…"
                       onKeyDown={(e) =>
                         e.key === "Enter" && (e.preventDefault(), addCustomRole())
                       }
@@ -420,8 +368,8 @@ export function ContactsPage() {
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="instagram">Instagram</Label>
-                <div className="flex items-center gap-1">
-                  <span className="inline-flex h-9 items-center rounded-md border border-input bg-muted px-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-0">
+                  <span className="inline-flex h-9 items-center border border-r-0 border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.03)] px-2.5 text-sm text-[#F5F5F5]/40">
                     @
                   </span>
                   <Input
@@ -434,7 +382,7 @@ export function ContactsPage() {
                       }))
                     }
                     placeholder="nom_utilisateur"
-                    className="h-9"
+                    className="h-9 flex-1"
                   />
                 </div>
               </div>
@@ -444,7 +392,7 @@ export function ContactsPage() {
                   id="notes"
                   value={form.notes}
                   onChange={handleChange("notes")}
-                  placeholder="Infos importantes à garder en tête (préférences, historique, etc.)"
+                  placeholder="Infos importantes à garder en tête…"
                   rows={3}
                 />
               </div>
@@ -454,225 +402,191 @@ export function ContactsPage() {
                 Annuler
               </Button>
               <Button type="submit">
-                {isCreating ? "Enregistrer le contact" : "Enregistrer les modifications"}
+                {isCreating ? "Enregistrer" : "Sauvegarder"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <CardTitle className="text-base">Liste des contacts</CardTitle>
+      {/* Filters + table */}
+      <div className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)]">
+        {/* Toolbar */}
+        <div className="flex flex-col gap-3 border-b border-[rgba(245,245,245,0.08)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Users size={13} className="text-[#F5F5F5]/40 shrink-0" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40">
+              {sortedContacts.length} contact{sortedContacts.length !== 1 ? "s" : ""}
+            </span>
+          </div>
           {contacts.length > 0 && (
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="searchContacts" className="text-xs text-muted-foreground whitespace-nowrap">
-                  Rechercher
-                </Label>
-                <Input
-                  id="searchContacts"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Prénom ou nom..."
-                  className="h-8 w-full min-w-[180px] sm:w-48"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="roleFilter" className="text-xs text-muted-foreground whitespace-nowrap">
-                  Filtrer par métier
-                </Label>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger id="roleFilter" className="h-8 w-[180px]">
-                    <SelectValue placeholder="Tous les rôles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Tous les rôles</SelectItem>
-                    {roleOptionsForFilter.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          {contacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Aucun contact pour le moment. Clique sur &quot;Ajouter un contact&quot; pour
-              commencer ton carnet d&apos;adresses.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b text-xs text-muted-foreground">
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("firstName")}
-                      >
-                        Prénom
-                        {renderSortIcon("firstName")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("lastName")}
-                      >
-                        Nom
-                        {renderSortIcon("lastName")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("role")}
-                      >
-                        Métier
-                        {renderSortIcon("role")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("city")}
-                      >
-                        Ville
-                        {renderSortIcon("city")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("email")}
-                      >
-                        Email
-                        {renderSortIcon("email")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("instagram")}
-                      >
-                        Instagram
-                        {renderSortIcon("instagram")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("phone")}
-                      >
-                        Téléphone
-                        {renderSortIcon("phone")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1"
-                        onClick={() => handleSort("createdAt")}
-                      >
-                        Ajouté le
-                        {renderSortIcon("createdAt")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">Notes</th>
-                    <th className="px-3 py-2 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedContacts.map((contact) => (
-                    <tr key={contact.id} className="border-b last:border-0">
-                      <td className="px-3 py-2 align-top font-medium">{contact.firstName}</td>
-                      <td className="px-3 py-2 align-top font-medium">{contact.lastName}</td>
-                      <td className="px-3 py-2 align-top">{contact.role}</td>
-                      <td className="px-3 py-2 align-top">{contact.city}</td>
-                      <td className="px-3 py-2 align-top">
-                        {contact.email ? (
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="text-primary hover:underline"
-                          >
-                            {contact.email}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        {contact.instagram ? (
-                          <a
-                            href={`https://instagram.com/${contact.instagram}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            @{contact.instagram}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-top">{contact.phone}</td>
-                      <td className="px-3 py-2 align-top">
-                        {contact.createdAt ? (
-                          <span className="whitespace-nowrap text-xs text-muted-foreground">
-                            {new Date(contact.createdAt).toLocaleDateString("fr-FR")}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-top max-w-xs">
-                        <p className="line-clamp-3 text-xs text-muted-foreground">
-                          {contact.notes || "—"}
-                        </p>
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-8 w-8"
-                            onClick={() => startEdit(contact)}
-                            title="Modifier"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="destructive"
-                            className="h-8 w-8"
-                            onClick={() => handleDelete(contact.id)}
-                            title="Supprimer"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher…"
+                className="h-7 w-40 text-xs"
+              />
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="h-7 w-[160px] text-xs">
+                  <SelectValue placeholder="Tous les métiers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Tous les métiers</SelectItem>
+                  {roleOptionsForFilter.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
                   ))}
-                </tbody>
-              </table>
+                </SelectContent>
+              </Select>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Table */}
+        {contacts.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-[#F5F5F5]/35">
+            Aucun contact pour le moment. Clique sur &quot;Ajouter&quot; pour commencer ton carnet d&apos;adresses.
+          </p>
+        ) : (
+          <table className="w-full border-collapse text-sm table-fixed">
+            <colgroup>
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[8%]" />
+              <col className="w-[17%]" />
+              <col className="w-[13%]" />
+              <col className="w-[11%]" />
+              <col className="w-[8%]" />
+              <col className="w-[11%]" />
+              <col className="w-[68px]" />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-[rgba(245,245,245,0.06)]">
+                {(
+                  [
+                    { key: "firstName", label: "Prénom" },
+                    { key: "lastName", label: "Nom" },
+                    { key: "role", label: "Métier" },
+                    { key: "city", label: "Ville" },
+                    { key: "email", label: "Email" },
+                    { key: "instagram", label: "Instagram" },
+                    { key: "phone", label: "Téléphone" },
+                    { key: "createdAt", label: "Ajouté le" },
+                  ] as { key: typeof sortKey; label: string }[]
+                ).map(({ key, label }) => (
+                  <th key={key} className="px-3 py-2 text-left">
+                    <button
+                      type="button"
+                      className="inline-flex items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35 hover:text-[#F5F5F5]/60 transition-colors"
+                      onClick={() => handleSort(key)}
+                    >
+                      {label}
+                      <SortIcon col={key} />
+                    </button>
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35">
+                  Notes
+                </th>
+                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[rgba(245,245,245,0.05)]">
+              {sortedContacts.map((contact) => (
+                <tr
+                  key={contact.id}
+                  className="group transition-colors hover:bg-[rgba(245,245,245,0.02)]"
+                >
+                  <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
+                    {contact.firstName}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
+                    {contact.lastName}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle">
+                    {contact.role ? (
+                      <span className="block truncate border border-[rgba(245,245,245,0.12)] bg-[rgba(245,245,245,0.05)] px-1.5 py-0.5 text-xs text-[#F5F5F5]/65 text-center whitespace-nowrap overflow-hidden">
+                        {contact.role}
+                      </span>
+                    ) : (
+                      <span className="text-[#F5F5F5]/25">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle text-[#F5F5F5]/60 truncate text-xs">
+                    {contact.city || <span className="text-[#F5F5F5]/25">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle truncate">
+                    {contact.email ? (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="text-[#F0FF00]/70 hover:text-[#F0FF00] transition-colors text-xs truncate block"
+                      >
+                        {contact.email}
+                      </a>
+                    ) : (
+                      <span className="text-[#F5F5F5]/25">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle truncate">
+                    {contact.instagram ? (
+                      <a
+                        href={`https://instagram.com/${contact.instagram}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#F0FF00]/70 hover:text-[#F0FF00] transition-colors text-xs truncate block"
+                      >
+                        @{contact.instagram}
+                      </a>
+                    ) : (
+                      <span className="text-[#F5F5F5]/25">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle text-xs text-[#F5F5F5]/60 truncate">
+                    {contact.phone || <span className="text-[#F5F5F5]/25">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle whitespace-nowrap text-xs text-[#F5F5F5]/30">
+                    {contact.createdAt
+                      ? new Date(contact.createdAt).toLocaleDateString("fr-FR")
+                      : <span className="text-[#F5F5F5]/25">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle">
+                    <p className="line-clamp-2 text-xs text-[#F5F5F5]/40">
+                      {contact.notes || <span className="text-[#F5F5F5]/25">—</span>}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2.5 align-middle">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-[#F5F5F5]/40 hover:text-[#F5F5F5]"
+                        onClick={() => startEdit(contact)}
+                        title="Modifier"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-red-400/40 hover:text-red-400"
+                        onClick={() => handleDelete(contact.id)}
+                        title="Supprimer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
-
