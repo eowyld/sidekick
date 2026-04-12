@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 import type { Todo } from "@/lib/sidekick-store";
+
+const KEY = "user_tasks";
 
 function rowToTodo(row: Record<string, unknown>): Todo {
   return {
@@ -32,49 +35,33 @@ function todoToRow(todo: Todo): Record<string, unknown> {
   };
 }
 
-export function useTasksData() {
-  const [tasks, setTasksState] = useState<Todo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+async function fetchTasks(): Promise<Todo[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_tasks")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(rowToTodo);
+}
 
-  useEffect(() => {
-    let alive = true;
-    const supabase = createClient();
-    supabase
-      .from("user_tasks")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .then(({ data, error: err }) => {
-        if (!alive) return;
-        if (err) {
-          setError(err.message);
-        } else {
-          setTasksState((data ?? []).map(rowToTodo));
-        }
-        setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+export function useTasksData() {
+  const { data: tasks = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<Todo[]>(KEY, fetchTasks);
+
+  const error = swrError ? (swrError as Error).message : null;
 
   const setTasks = useCallback((fn: (prev: Todo[]) => Todo[]) => {
-    let snapshot: Todo[] = [];
-    let next: Todo[] = [];
+    const snapshot = tasks;
+    const next = fn(tasks);
 
-    setTasksState((prev) => {
-      snapshot = prev;
-      next = fn(prev);
-      return next;
-    });
+    // Optimistic update
+    mutateLocal(next, false);
 
     (async () => {
-      setError(null);
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setError("Not authenticated");
-        setTasksState(() => snapshot);
+        mutateLocal(snapshot, false);
         return;
       }
 
@@ -87,37 +74,36 @@ export function useTasksData() {
       });
       const toDelete = snapshot.filter((t) => !nextMap.has(t.id)).map((t) => t.id);
 
-      const ops: Array<Promise<{ error: { message: string } | null }>> = [];
+      const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
 
       if (toUpsert.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_tasks")
-              .upsert(toUpsert.map((t) => ({ ...todoToRow(t), user_id: user.id })))
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          supabase
+            .from("user_tasks")
+            .upsert(toUpsert.map((t) => ({ ...todoToRow(t), user_id: user.id })))
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
 
       if (toDelete.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_tasks")
-              .delete()
-              .in("id", toDelete)
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          supabase
+            .from("user_tasks")
+            .delete()
+            .in("id", toDelete)
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
 
       const results = await Promise.all(ops);
       const firstError = results.find((r) => r.error);
       if (firstError?.error) {
-        setError(firstError.error.message);
-        setTasksState(() => snapshot);
+        mutateLocal(snapshot, false);
+      } else {
+        mutate(KEY);
       }
     })();
-  }, []);
+  }, [tasks, mutateLocal]);
 
-  return { tasks, setTasks, loading, error };
+  return { tasks, setTasks, loading: isLoading, error };
 }
