@@ -1,52 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useIncomesData } from "@/hooks/useIncomesData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { IntermittenceDashboard } from "./IntermittenceDashboard";
 import { IntermittenceMissions } from "./IntermittenceMissions";
 import type { IntermittenceMission } from "./intermittence-types";
 import { IntermittenceModal } from "./IntermittenceModal";
 
-const STORAGE_KEY = "intermittenceMissions";
-
-const INITIAL_MISSIONS: IntermittenceMission[] = [
-  {
-    id: "1",
-    date: "2025-11-08",
-    employer: "Théâtre XYZ",
-    type: "Spectacle",
-    hours: 5,
-    grossAmount: 250,
-    charges: 50,
-    netAmount: 200,
-    notes: ""
-  },
-  {
-    id: "2",
-    date: "2025-11-12",
-    employer: "Studio ABC",
-    type: "Répétition rémunérée",
-    hours: 3,
-    grossAmount: 150,
-    charges: 30,
-    netAmount: 120,
-    notes: ""
-  }
-];
-
 type IntermittenceView = "dashboard" | "missions";
 
-function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 export function IntermittencePage() {
-  const [intermittenceMissions, setIntermittenceMissions] = useLocalStorage<
-    IntermittenceMission[]
-  >(STORAGE_KEY, INITIAL_MISSIONS);
+  const { missions: intermittenceMissions, setMissions: setIntermittenceMissions, loading } = useIncomesData();
+  if (loading) return <PageLoader />;
 
   const [currentView, setCurrentView] = useState<IntermittenceView>("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
@@ -80,7 +46,7 @@ export function IntermittencePage() {
     } else {
       const newMission: IntermittenceMission = {
         ...mission,
-        id: generateId()
+        id: crypto.randomUUID()
       };
       setIntermittenceMissions((prev) => [newMission, ...prev]);
     }

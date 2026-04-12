@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +18,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Download, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useIncomesData, type Invoice as InvoiceFromHook } from "@/hooks/useIncomesData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { DatePicker } from "@/components/ui/date-picker";
 
 type InvoiceStatus = "en_attente" | "payee";
@@ -38,51 +39,8 @@ type InvoiceLine = {
   vatPercent: string;
 };
 
-type Invoice = {
-  id: number;
-  number: string;
-  client: string;
-  subject: string;
-  amount: string;
-  dueDate: string;
-  status: InvoiceStatus;
-  address?: string;
-  siret?: string;
-  incomeType?: IncomeType;
-  lines?: InvoiceLine[];
-  notes?: string;
-};
+type Invoice = InvoiceFromHook;
 
-const defaultInvoices: Invoice[] = [
-  {
-    id: 1,
-    number: "FAC-2025-001",
-    client: "La Cigale",
-    subject: "Prestation scénique",
-    amount: "2 500,00",
-    dueDate: "15/03/2025",
-    status: "en_attente",
-    address: "",
-    siret: "",
-    incomeType: "Live",
-    lines: [{ id: 1, description: "Prestation scénique", type: "service", quantity: "1", unitPrice: "2500", vatPercent: "0" }],
-    notes: ""
-  },
-  {
-    id: 2,
-    number: "FAC-2025-002",
-    client: "Le Transbordeur",
-    subject: "Concert",
-    amount: "1 800,00",
-    dueDate: "28/02/2025",
-    status: "payee",
-    address: "",
-    siret: "",
-    incomeType: "Live",
-    lines: [],
-    notes: ""
-  }
-];
 
 function frToIso(frDate: string): string {
   if (!frDate) return "";
@@ -157,22 +115,15 @@ function getNextInvoiceNumber(invoices: Invoice[]): string {
 }
 
 export function InvoicesPage() {
-  const [invoices, setInvoices] = useLocalStorage<Invoice[]>(
-    "incomes:invoices",
-    defaultInvoices
-  );
-  const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const { invoices, setInvoices, loading } = useIncomesData();
 
   const [openSections, setOpenSections] = useState<{ en_attente: boolean; payees: boolean }>({
     en_attente: true,
     payees: false
   });
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const [form, setForm] = useState<{
     number: string;
@@ -303,18 +254,17 @@ export function InvoicesPage() {
         prev.map((inv) => (inv.id === editingId ? { ...inv, ...payload } : inv))
       );
     } else {
-      const nextId = invoices.length > 0 ? Math.max(...invoices.map((i) => i.id)) + 1 : 1;
-      setInvoices((prev) => [...prev, { id: nextId, ...payload }]);
+      setInvoices((prev) => [...prev, { id: crypto.randomUUID(), ...payload }]);
     }
     setDialogOpen(false);
   };
 
-  const deleteInvoice = (id: number) => {
+  const deleteInvoice = (id: string) => {
     setInvoices((prev) => prev.filter((i) => i.id !== id));
     setDeleteConfirmId(null);
   };
 
-  const markAsPaid = (id: number) => {
+  const markAsPaid = (id: string) => {
     setInvoices((prev) =>
       prev.map((inv) =>
         inv.id === id ? { ...inv, status: "payee" as const } : inv
@@ -409,16 +359,7 @@ export function InvoicesPage() {
     doc.save(`facture-${inv.number.replace(/\s/g, "-")}.pdf`);
   };
 
-  if (!isHydrated) {
-    return (
-      <div className="p-6">
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight">
-          Facturation
-        </h1>
-        <p className="text-sm text-muted-foreground">Chargement…</p>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6">
