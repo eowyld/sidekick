@@ -1,0 +1,254 @@
+"use client";
+
+import { useCallback } from "react";
+import useSWR, { mutate } from "swr";
+import { createClient } from "@/lib/supabase";
+import type { AdminStatus, AdminStructure, AdminProcedure } from "@/lib/sidekick-store";
+
+export type { AdminStatus, AdminStructure, AdminProcedure };
+
+// ─── Row mappers ─────────────────────────────────────────────────────────────
+
+function statusToRow(s: AdminStatus, userId: string): Record<string, unknown> {
+  return {
+    id: s.id,
+    user_id: userId,
+    nom: s.nom,
+    type: s.type,
+    actif: s.actif,
+    date_debut: s.dateDebut ?? null,
+    date_fin: s.dateFin ?? null,
+    notes: s.notes ?? null,
+    data: s.data ?? {},
+  };
+}
+
+function rowToStatus(row: Record<string, unknown>): AdminStatus {
+  return {
+    id: row.id as string,
+    nom: row.nom as string,
+    type: row.type as AdminStatus["type"],
+    actif: row.actif as boolean,
+    dateDebut: (row.date_debut as string) ?? undefined,
+    dateFin: (row.date_fin as string) ?? undefined,
+    notes: (row.notes as string) ?? undefined,
+    data: (row.data as Record<string, unknown>) ?? {},
+  };
+}
+
+function structureToRow(s: AdminStructure, userId: string): Record<string, unknown> {
+  return { id: s.id, user_id: userId, name: s.name, data: {} };
+}
+
+function rowToStructure(row: Record<string, unknown>): AdminStructure {
+  return { id: row.id as string, name: row.name as string };
+}
+
+function procedureToRow(p: AdminProcedure, userId: string): Record<string, unknown> {
+  return { id: p.id, user_id: userId, label: p.label, data: {} };
+}
+
+function rowToProcedure(row: Record<string, unknown>): AdminProcedure {
+  return { id: row.id as string, label: row.label as string };
+}
+
+// ─── SWR key & fetcher ────────────────────────────────────────────────────────
+
+const KEY = "user_admin";
+
+type AdminData = {
+  statuses: AdminStatus[];
+  structures: AdminStructure[];
+  procedures: AdminProcedure[];
+};
+
+const FALLBACK: AdminData = { statuses: [], structures: [], procedures: [] };
+
+async function fetchAdminData(): Promise<AdminData> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return FALLBACK;
+
+  const [s, st, p] = await Promise.all([
+    supabase.from("user_admin_statuses").select("*").order("nom"),
+    supabase.from("user_admin_structures").select("*").order("name"),
+    supabase.from("user_admin_procedures").select("*").order("label"),
+  ]);
+
+  return {
+    statuses: (s.data ?? []).map(rowToStatus),
+    structures: (st.data ?? []).map(rowToStructure),
+    procedures: (p.data ?? []).map(rowToProcedure),
+  };
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+export function useAdminData() {
+  const { data, mutate: mutateLocal, isLoading, error } = useSWR(KEY, fetchAdminData, {
+    fallbackData: FALLBACK,
+  });
+
+  const { statuses, structures, procedures } = data ?? FALLBACK;
+
+  const setStatuses = useCallback(
+    (fn: (prev: AdminStatus[]) => AdminStatus[]) => {
+      const snapshot = statuses;
+      const next = fn(statuses);
+      mutateLocal({ statuses: next, structures, procedures }, false);
+
+      (async () => {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          mutateLocal({ statuses: snapshot, structures, procedures }, false);
+          return;
+        }
+
+        const prevMap = new Map(snapshot.map((s) => [s.id, s]));
+        const nextMap = new Map(next.map((s) => [s.id, s]));
+        const toUpsert = next.filter((s) => {
+          const old = prevMap.get(s.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(s);
+        });
+        const toDelete = snapshot.filter((s) => !nextMap.has(s.id)).map((s) => s.id);
+
+        const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
+        if (toUpsert.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_statuses")
+              .upsert(toUpsert.map((s) => statusToRow(s, user.id)))
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+        if (toDelete.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_statuses")
+              .delete()
+              .in("id", toDelete)
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+
+        const results = await Promise.all(ops);
+        if (results.find((r) => r.error)) {
+          mutateLocal({ statuses: snapshot, structures, procedures }, false);
+        } else {
+          mutate(KEY);
+        }
+      })();
+    },
+    [statuses, structures, procedures, mutateLocal]
+  );
+
+  const setStructures = useCallback(
+    (fn: (prev: AdminStructure[]) => AdminStructure[]) => {
+      const snapshot = structures;
+      const next = fn(structures);
+      mutateLocal({ statuses, structures: next, procedures }, false);
+
+      (async () => {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          mutateLocal({ statuses, structures: snapshot, procedures }, false);
+          return;
+        }
+
+        const prevMap = new Map(snapshot.map((s) => [s.id, s]));
+        const nextMap = new Map(next.map((s) => [s.id, s]));
+        const toUpsert = next.filter((s) => {
+          const old = prevMap.get(s.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(s);
+        });
+        const toDelete = snapshot.filter((s) => !nextMap.has(s.id)).map((s) => s.id);
+
+        const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
+        if (toUpsert.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_structures")
+              .upsert(toUpsert.map((s) => structureToRow(s, user.id)))
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+        if (toDelete.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_structures")
+              .delete()
+              .in("id", toDelete)
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+
+        const results = await Promise.all(ops);
+        if (results.find((r) => r.error)) {
+          mutateLocal({ statuses, structures: snapshot, procedures }, false);
+        } else {
+          mutate(KEY);
+        }
+      })();
+    },
+    [statuses, structures, procedures, mutateLocal]
+  );
+
+  const setProcedures = useCallback(
+    (fn: (prev: AdminProcedure[]) => AdminProcedure[]) => {
+      const snapshot = procedures;
+      const next = fn(procedures);
+      mutateLocal({ statuses, structures, procedures: next }, false);
+
+      (async () => {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          mutateLocal({ statuses, structures, procedures: snapshot }, false);
+          return;
+        }
+
+        const prevMap = new Map(snapshot.map((p) => [p.id, p]));
+        const nextMap = new Map(next.map((p) => [p.id, p]));
+        const toUpsert = next.filter((p) => {
+          const old = prevMap.get(p.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(p);
+        });
+        const toDelete = snapshot.filter((p) => !nextMap.has(p.id)).map((p) => p.id);
+
+        const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
+        if (toUpsert.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_procedures")
+              .upsert(toUpsert.map((p) => procedureToRow(p, user.id)))
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+        if (toDelete.length > 0)
+          ops.push(
+            supabase
+              .from("user_admin_procedures")
+              .delete()
+              .in("id", toDelete)
+              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          );
+
+        const results = await Promise.all(ops);
+        if (results.find((r) => r.error)) {
+          mutateLocal({ statuses, structures, procedures: snapshot }, false);
+        } else {
+          mutate(KEY);
+        }
+      })();
+    },
+    [statuses, structures, procedures, mutateLocal]
+  );
+
+  return {
+    statuses,
+    setStatuses,
+    structures,
+    setStructures,
+    procedures,
+    setProcedures,
+    loading: isLoading,
+    error: error ? String(error) : null,
+  };
+}
