@@ -25,6 +25,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useLiveData } from "@/hooks/useLiveData";
 import {
   defaultRepresentations,
   type TimetableItem,
@@ -101,11 +102,7 @@ export function TourDatesPage() {
   const [documentsByDate, setDocumentsByDate] = useLocalStorage<
     Record<number, DocumentEntry[]>
   >("live:tour-dates:documents", {});
-  type EquipmentList = { id: number; name: string; description: string; itemIds: number[] };
-  type EquipmentInventoryItem = { id: number; name: string; quantity: number; condition: string; comment?: string };
-  const [equipmentLists] = useLocalStorage<EquipmentList[]>("live:equipment-lists", []);
-  const [equipmentInventory] = useLocalStorage<EquipmentInventoryItem[]>("live:equipment-inventory", []);
-  const [selectedListIdByDate, setSelectedListIdByDate] = useLocalStorage<Record<number, number>>(
+  const [selectedListIdByDate, setSelectedListIdByDate] = useLocalStorage<Record<number, string>>(
     "live:representations-material-by-date",
     {}
   );
@@ -179,10 +176,7 @@ export function TourDatesPage() {
   const [editingVenue, setEditingVenue] = useState<string>("");
   const [editingAddress, setEditingAddress] = useState<string>("");
 
-  const [dates, setDates] = useLocalStorage<TourDate[]>(
-    "live:representations",
-    defaultRepresentations
-  );
+  const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists } = useLiveData();
 
   const pastDates = useMemo(
     () => dates.filter((d) => isRepresentationPast(d.date)),
@@ -251,11 +245,11 @@ export function TourDatesPage() {
       : [];
 
   const getSelectedListForDate = (dateId: number) =>
-    equipmentLists.find((l) => l.id === selectedListIdByDate[dateId]);
-  const getItemsForMaterialList = (itemIds: number[]) =>
+    equipmentLists.find((l) => String(l.id) === String(selectedListIdByDate[dateId]));
+  const getItemsForMaterialList = (itemIds: (string | number)[]) =>
     itemIds
-      .map((id) => equipmentInventory.find((i) => i.id === id))
-      .filter((i): i is EquipmentInventoryItem => i != null);
+      .map((id) => equipmentInventory.find((i) => String(i.id) === String(id)))
+      .filter((i): i is typeof equipmentInventory[number] => i != null);
 
   const handleDeleteDate = (id: number) => {
     setDates((prev) => prev.filter((d) => d.id !== id));
@@ -1753,13 +1747,13 @@ export function TourDatesPage() {
                   </p>
                   <select
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={selectedListIdByDate[optionsDate.id] ?? ""}
+                    value={selectedListIdByDate[optionsDate.id] || ""}
                     onChange={(e) => {
                       const val = e.target.value;
                       setSelectedListIdByDate((prev) => {
                         const next = { ...prev };
                         if (!val) delete next[optionsDate.id];
-                        else next[optionsDate.id] = Number(val);
+                        else next[optionsDate.id] = val;
                         return next;
                       });
                     }}

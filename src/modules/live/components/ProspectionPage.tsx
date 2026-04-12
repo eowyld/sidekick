@@ -19,6 +19,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
+import { useLiveData, type ProspectionEntry } from "@/hooks/useLiveData";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 type ContactFromModule = {
@@ -68,31 +69,7 @@ const STATUS_OPTIONS = [
 
 type Status = (typeof STATUS_OPTIONS)[number];
 
-type ProspectionEntry = {
-  id: number;
-  venueName: string;
-  city: string;
-  contact: string;
-  email: string;
-  phone: string;
-  status: Status;
-  notes?: string;
-  lastContact?: string;
-};
 
-const defaultEntries: ProspectionEntry[] = [
-  {
-    id: 1,
-    venueName: "La Cigale",
-    city: "Paris",
-    contact: "Jean Dupont",
-    email: "contact@lacigale.fr",
-    phone: "01 49 25 81 75",
-    status: "En discussion",
-    notes: "Réponse attendue sous 2 semaines.",
-    lastContact: "15/01/2025"
-  }
-];
 
 function frToIso(frDate: string): string {
   if (!frDate) return "";
@@ -111,18 +88,11 @@ function isoToFr(isoDate: string): string {
 }
 
 export function ProspectionPage() {
-  const [entries, setEntries] = useLocalStorage<ProspectionEntry[]>(
-    "live:prospection",
-    defaultEntries
-  );
-  const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const { prospection: entries, setProspection: setEntries } = useLiveData();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [contactAddedNotification, setContactAddedNotification] = useState<{
     name: string;
@@ -155,7 +125,7 @@ export function ProspectionPage() {
     contact: string;
     email: string;
     phone: string;
-    status: Status;
+    status: string;
     notes: string;
     lastContact: string;
   }>({
@@ -229,11 +199,9 @@ export function ProspectionPage() {
         )
       );
     } else {
-      const nextId =
-        entries.length > 0 ? Math.max(...entries.map((x) => x.id)) + 1 : 1;
       setEntries((prev) => [
         {
-          id: nextId,
+          id: crypto.randomUUID(),
           venueName: venueName || "Sans nom",
           city: city || "",
           contact: contact || "",
@@ -279,7 +247,7 @@ export function ProspectionPage() {
     setDialogOpen(false);
   };
 
-  const deleteEntry = (id: number) => {
+  const deleteEntry = (id: string) => {
     setEntries((prev) => prev.filter((item) => item.id !== id));
     setDeleteConfirmId(null);
   };
@@ -295,7 +263,7 @@ export function ProspectionPage() {
     setImportDialogOpen(false);
   };
 
-  if (!isHydrated) {
+  if (false) {
     return (
       <div className="p-6">
         <h1 className="mb-2 text-2xl font-semibold tracking-tight">

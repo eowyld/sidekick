@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,45 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useLiveData, type RehearsalItem } from "@/hooks/useLiveData";
 
-type RemunerationEntry = {
-  id: number;
-  label: string;
-  amount?: string;
-};
+type RemunerationEntry = { id: number; label: string; amount?: string };
+type EquipmentEntry = { id: number; label: string };
 
-type EquipmentEntry = {
-  id: number;
-  label: string;
-};
-
-type RehearsalItem = {
-  id: number;
-  label?: string;
-  date: string;
-  time: string;
-  location: string;
-  city?: string;
-  address?: string;
-  note?: string;
-  remunerations: RemunerationEntry[];
-  equipments: EquipmentEntry[];
-};
-
-const defaultRehearsals: RehearsalItem[] = [
-  {
-    id: 1,
-    label: "Répétition set festival",
-    date: "10/03/2025",
-    time: "14:00",
-    location: "Studio Bleu",
-    address: "Studio Bleu, Paris",
-    note: "Prévoir 2h, backline fournie.",
-    remunerations: [],
-    equipments: []
-  }
-];
 
 function buildGoogleMapsUrl(location: string, address?: string): string {
   const query = (address || location || "").trim();
@@ -95,24 +63,25 @@ function isRehearsalPast(dateStr: string): boolean {
 }
 
 export function RehearsalsPage() {
-  const [rehearsals, setRehearsals] = useLocalStorage<RehearsalItem[]>(
-    "live:rehearsals",
-    defaultRehearsals
+  const { rehearsals, setRehearsals, equipmentLists, equipmentInventory, loading } = useLiveData();
+
+  if (loading) return <PageLoader />;
+
+  const [selectedListIdByRehearsal, setSelectedListIdByRehearsal] = useLocalStorage<Record<string, string>>(
+    "live:rehearsals-material-by-rehearsal",
+    {}
   );
-  const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const isLoaded = !loading;
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [remunerationDialog, setRemunerationDialog] = useState<{
-    rehearsalId: number | null;
+    rehearsalId: string | null;
   }>({ rehearsalId: null });
   const [equipmentDialog, setEquipmentDialog] = useState<{
-    rehearsalId: number | null;
+    rehearsalId: string | null;
   }>({ rehearsalId: null });
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const [form, setForm] = useState<{
     label: string;
@@ -143,12 +112,12 @@ export function RehearsalsPage() {
   const [openSection, setOpenSection] = useState<"past" | "upcoming" | null>("upcoming");
 
   const pastRehearsals = useMemo(
-    () => (isHydrated ? rehearsals.filter((r) => isRehearsalPast(r.date)) : []),
-    [rehearsals, isHydrated]
+    () => (isLoaded ? rehearsals.filter((r) => isRehearsalPast(r.date)) : []),
+    [rehearsals, isLoaded]
   );
   const upcomingRehearsals = useMemo(
-    () => (isHydrated ? rehearsals.filter((r) => !isRehearsalPast(r.date)) : []),
-    [rehearsals, isHydrated]
+    () => (isLoaded ? rehearsals.filter((r) => !isRehearsalPast(r.date)) : []),
+    [rehearsals, isLoaded]
   );
 
   const toggleSection = (section: "past" | "upcoming") => {
@@ -214,13 +183,9 @@ export function RehearsalsPage() {
         )
       );
     } else {
-      const nextId =
-        rehearsals.length > 0
-          ? Math.max(...rehearsals.map((x) => x.id)) + 1
-          : 1;
       setRehearsals((prev) => [
         {
-          id: nextId,
+          id: crypto.randomUUID(),
           label: form.label.trim() || undefined,
           date,
           time,
@@ -237,7 +202,7 @@ export function RehearsalsPage() {
     setAddDialogOpen(false);
   };
 
-  const deleteRehearsal = (id: number) => {
+  const deleteRehearsal = (id: string) => {
     setRehearsals((prev) => prev.filter((r) => r.id !== id));
     setDeleteConfirmId(null);
   };
@@ -266,7 +231,7 @@ export function RehearsalsPage() {
     setRemunerationDialog({ rehearsalId: null });
   };
 
-  const removeRemuneration = (rehearsalId: number, entryId: number) => {
+  const removeRemuneration = (rehearsalId: string, entryId: number) => {
     setRehearsals((prev) =>
       prev.map((r) => {
         if (r.id !== rehearsalId) return r;
@@ -298,7 +263,7 @@ export function RehearsalsPage() {
     setEquipmentDialog({ rehearsalId: null });
   };
 
-  const removeEquipment = (rehearsalId: number, entryId: number) => {
+  const removeEquipment = (rehearsalId: string, entryId: number) => {
     setRehearsals((prev) =>
       prev.map((r) => {
         if (r.id !== rehearsalId) return r;
@@ -310,7 +275,7 @@ export function RehearsalsPage() {
     );
   };
 
-  if (!isHydrated) {
+  if (!isLoaded) {
     return (
       <div className="p-6">
         <h1 className="mb-2 text-2xl font-semibold tracking-tight">
@@ -435,23 +400,59 @@ export function RehearsalsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              {r.equipments.length === 0 ? (
-                                <span className="text-muted-foreground">—</span>
-                              ) : (
-                                r.equipments.map((e) => (
-                                  <div key={e.id} className="flex items-center gap-1">
-                                    <span>{e.label}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                                      onClick={() => removeEquipment(r.id, e.id)}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                            <div className="space-y-2">
+                              <select
+                                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-sm focus-visible:outline-none"
+                                value={selectedListIdByRehearsal[r.id] ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSelectedListIdByRehearsal((prev) => {
+                                    const next = { ...prev };
+                                    if (!val) delete next[r.id];
+                                    else next[r.id] = val;
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <option value="">Aucune liste</option>
+                                {equipmentLists.map((list) => (
+                                  <option key={list.id} value={list.id}>
+                                    {list.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {(() => {
+                                const listId = selectedListIdByRehearsal[r.id];
+                                const selectedList = listId ? equipmentLists.find((l) => l.id === listId) : null;
+                                if (!selectedList) return null;
+                                const items = selectedList.itemIds
+                                  .map((id) => equipmentInventory.find((i) => String(i.id) === String(id)))
+                                  .filter((i): i is NonNullable<typeof i> => i != null);
+                                if (items.length === 0) return <span className="text-xs text-muted-foreground">Liste vide</span>;
+                                return (
+                                  <div className="rounded-md border bg-muted/40 p-2 space-y-0.5">
+                                    {items.map((item) => (
+                                      <div key={item.id} className="text-xs">{item.name}</div>
+                                    ))}
                                   </div>
-                                ))
+                                );
+                              })()}
+                              {r.equipments.length > 0 && (
+                                <div className="space-y-1">
+                                  {r.equipments.map((e) => (
+                                    <div key={e.id} className="flex items-center gap-1">
+                                      <span className="text-xs">{e.label}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeEquipment(r.id, e.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                               <Button
                                 variant="ghost"
@@ -595,23 +596,59 @@ export function RehearsalsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              {r.equipments.length === 0 ? (
-                                <span className="text-muted-foreground">—</span>
-                              ) : (
-                                r.equipments.map((e) => (
-                                  <div key={e.id} className="flex items-center gap-1">
-                                    <span>{e.label}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                                      onClick={() => removeEquipment(r.id, e.id)}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                            <div className="space-y-2">
+                              <select
+                                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-sm focus-visible:outline-none"
+                                value={selectedListIdByRehearsal[r.id] ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSelectedListIdByRehearsal((prev) => {
+                                    const next = { ...prev };
+                                    if (!val) delete next[r.id];
+                                    else next[r.id] = val;
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <option value="">Aucune liste</option>
+                                {equipmentLists.map((list) => (
+                                  <option key={list.id} value={list.id}>
+                                    {list.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {(() => {
+                                const listId = selectedListIdByRehearsal[r.id];
+                                const selectedList = listId ? equipmentLists.find((l) => l.id === listId) : null;
+                                if (!selectedList) return null;
+                                const items = selectedList.itemIds
+                                  .map((id) => equipmentInventory.find((i) => String(i.id) === String(id)))
+                                  .filter((i): i is NonNullable<typeof i> => i != null);
+                                if (items.length === 0) return <span className="text-xs text-muted-foreground">Liste vide</span>;
+                                return (
+                                  <div className="rounded-md border bg-muted/40 p-2 space-y-0.5">
+                                    {items.map((item) => (
+                                      <div key={item.id} className="text-xs">{item.name}</div>
+                                    ))}
                                   </div>
-                                ))
+                                );
+                              })()}
+                              {r.equipments.length > 0 && (
+                                <div className="space-y-1">
+                                  {r.equipments.map((e) => (
+                                    <div key={e.id} className="flex items-center gap-1">
+                                      <span className="text-xs">{e.label}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeEquipment(r.id, e.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                               <Button
                                 variant="ghost"

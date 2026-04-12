@@ -18,7 +18,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, List, Package } from "lucide-react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const CONDITION_OPTIONS = [
@@ -30,59 +31,28 @@ const CONDITION_OPTIONS = [
 
 type Condition = (typeof CONDITION_OPTIONS)[number];
 
-type InventoryItem = {
-  id: number;
-  name: string;
-  quantity: number;
-  condition: Condition;
-  comment?: string;
-};
-
-const defaultInventory: InventoryItem[] = [];
-
-type MaterialList = {
-  id: number;
-  name: string;
-  description: string;
-  itemIds: number[];
-};
-
-const defaultLists: MaterialList[] = [];
-
 type TabId = "inventaire" | "liste";
 
 export function EquipmentPage() {
+  const { equipmentInventory: inventory, setEquipmentInventory: setInventory, equipmentLists: lists, setEquipmentLists: setLists, loading } = useLiveData();
   const [activeTab, setActiveTab] = useState<TabId>("inventaire");
-  const [inventory, setInventory] = useLocalStorage<InventoryItem[]>(
-    "live:equipment-inventory",
-    defaultInventory
-  );
-  const [lists, setLists] = useLocalStorage<MaterialList[]>(
-    "live:equipment-lists",
-    defaultLists
-  );
-  const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const [listDialogOpen, setListDialogOpen] = useState(false);
-  const [editingListId, setEditingListId] = useState<number | null>(null);
-  const [deleteListConfirmId, setDeleteListConfirmId] = useState<number | null>(null);
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [listForm, setListForm] = useState<{
     name: string;
     description: string;
-    selectedIds: number[];
+    selectedIds: string[];
   }>({ name: "", description: "", selectedIds: [] });
 
   const [form, setForm] = useState<{
     name: string;
     quantity: string;
-    condition: Condition;
+    condition: string;
     comment: string;
   }>({
     name: "",
@@ -102,7 +72,7 @@ export function EquipmentPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (item: InventoryItem) => {
+  const openEdit = (item: EquipmentInventoryItem) => {
     setForm({
       name: item.name,
       quantity: String(item.quantity),
@@ -128,25 +98,15 @@ export function EquipmentPage() {
         )
       );
     } else {
-      const nextId =
-        inventory.length > 0
-          ? Math.max(...inventory.map((x) => x.id)) + 1
-          : 1;
       setInventory((prev) => [
         ...prev,
-        {
-          id: nextId,
-          name: name || "Sans nom",
-          quantity,
-          condition,
-          comment
-        }
+        { id: crypto.randomUUID(), name: name || "Sans nom", quantity, condition, comment }
       ]);
     }
     setDialogOpen(false);
   };
 
-  const deleteItem = (id: number) => {
+  const deleteItem = (id: string) => {
     setInventory((prev) => prev.filter((item) => item.id !== id));
     setDeleteConfirmId(null);
   };
@@ -157,7 +117,7 @@ export function EquipmentPage() {
     setListDialogOpen(true);
   };
 
-  const openEditList = (list: MaterialList) => {
+  const openEditList = (list: EquipmentList) => {
     setListForm({
       name: list.name,
       description: list.description,
@@ -167,7 +127,7 @@ export function EquipmentPage() {
     setListDialogOpen(true);
   };
 
-  const toggleListItem = (itemId: number) => {
+  const toggleListItem = (itemId: string) => {
     setListForm((prev) =>
       prev.selectedIds.includes(itemId)
         ? { ...prev, selectedIds: prev.selectedIds.filter((id) => id !== itemId) }
@@ -192,41 +152,25 @@ export function EquipmentPage() {
         )
       );
     } else {
-      const nextId =
-        lists.length > 0 ? Math.max(...lists.map((l) => l.id)) + 1 : 1;
       setLists((prev) => [
         ...prev,
-        {
-          id: nextId,
-          name,
-          description: listForm.description.trim(),
-          itemIds: listForm.selectedIds
-        }
+        { id: crypto.randomUUID(), name, description: listForm.description.trim(), itemIds: listForm.selectedIds }
       ]);
     }
     setListDialogOpen(false);
   };
 
-  const deleteList = (id: number) => {
+  const deleteList = (id: string) => {
     setLists((prev) => prev.filter((l) => l.id !== id));
     setDeleteListConfirmId(null);
   };
 
-  const getItemsForList = (itemIds: number[]) =>
+  const getItemsForList = (itemIds: string[]) =>
     itemIds
       .map((id) => inventory.find((i) => i.id === id))
-      .filter((i): i is InventoryItem => i != null);
+      .filter((i): i is EquipmentInventoryItem => i != null);
 
-  if (!isHydrated) {
-    return (
-      <div className="p-6">
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight">
-          Matériel
-        </h1>
-        <p className="text-sm text-muted-foreground">Chargement…</p>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6">
