@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 
 export interface Contact {
@@ -15,6 +16,8 @@ export interface Contact {
   notes: string;
   createdAt?: string;
 }
+
+const KEY = "user_contacts";
 
 function rowToContact(row: Record<string, unknown>): Contact {
   return {
@@ -46,46 +49,31 @@ function contactToRow(contact: Contact): Record<string, unknown> {
   };
 }
 
-export function useContactsData() {
-  const [contacts, setContactsState] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+async function fetchContacts(): Promise<Contact[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_contacts")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(rowToContact);
+}
 
-  useEffect(() => {
-    let alive = true;
-    const supabase = createClient();
-    supabase
-      .from("user_contacts")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .then(({ data, error: err }) => {
-        if (!alive) return;
-        if (err) setError(err.message);
-        else setContactsState((data ?? []).map(rowToContact));
-        setLoading(false);
-      });
-    return () => { alive = false; };
-  }, []);
+export function useContactsData() {
+  const { data: contacts = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<Contact[]>(KEY, fetchContacts);
+
+  const error = swrError ? (swrError as Error).message : null;
 
   const setContacts = useCallback((fn: (prev: Contact[]) => Contact[]) => {
-    let snapshot: Contact[] = [];
-    let next: Contact[] = [];
+    const snapshot = contacts;
+    const next = fn(contacts);
 
-    setContactsState((prev) => {
-      snapshot = prev;
-      next = fn(prev);
-      return next;
-    });
+    mutateLocal(next, false);
 
     (async () => {
-      setError(null);
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError("Not authenticated");
-        setContactsState(() => snapshot);
-        return;
-      }
+      if (!user) { mutateLocal(snapshot, false); return; }
 
       const prevMap = new Map(snapshot.map((c) => [c.id, c]));
       const nextMap = new Map(next.map((c) => [c.id, c]));
@@ -96,39 +84,31 @@ export function useContactsData() {
       });
       const toDelete = snapshot.filter((c) => !nextMap.has(c.id)).map((c) => c.id);
 
-      const ops: Promise<{ error: { message: string } | null }>[] = [];
+      const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
 
       if (toUpsert.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_contacts")
-              .upsert(toUpsert.map((c) => ({ ...contactToRow(c), user_id: user.id })))
-              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
-          )
+          supabase.from("user_contacts")
+            .upsert(toUpsert.map((c) => ({ ...contactToRow(c), user_id: user.id })))
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
-
       if (toDelete.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_contacts")
-              .delete()
-              .in("id", toDelete)
-              .then(({ error }) => ({ error: error ? { message: error.message } : null }))
-          )
+          supabase.from("user_contacts")
+            .delete().in("id", toDelete)
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
 
       const results = await Promise.all(ops);
-      const firstError = results.find((r) => r.error);
-      if (firstError?.error) {
-        setError(firstError.error.message);
-        setContactsState(() => snapshot);
+      if (results.find((r) => r.error)) {
+        mutateLocal(snapshot, false);
+      } else {
+        mutate(KEY);
       }
     })();
-  }, []);
+  }, [contacts, mutateLocal]);
 
-  return { contacts, setContacts, loading, error };
+  return { contacts, setContacts, loading: isLoading, error };
 }
