@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Copy, Check, Link, Trash2, RefreshCw } from "lucide-react";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -133,9 +134,7 @@ export function ICalSyncPanel({ allEvents }: Props) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (loading) {
-    return <div className="text-sm text-white/50 py-4">Chargement…</div>;
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-5">

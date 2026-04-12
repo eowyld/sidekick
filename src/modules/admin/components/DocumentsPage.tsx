@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useDriveData } from "@/hooks/useDriveData";
+import { PageLoader } from "@/components/ui/page-loader";
 import type { DriveFolder, DriveDocument } from "@/lib/drive-db";
 import {
   STORAGE_FOLDER_PREFIX,
@@ -836,16 +837,7 @@ export function DocumentsPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-        <p className="text-sm text-muted-foreground">
-          Chargement…
-        </p>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader />;
 
   return (
     <div className="space-y-4">
