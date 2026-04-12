@@ -15,7 +15,8 @@ import {
   X,
   Trash2
 } from "lucide-react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useMarketingData } from "@/hooks/useMarketingData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -130,10 +131,9 @@ export function PresskitPage() {
   const artistLogoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const presskitPreviewRef = useRef<HTMLDivElement | null>(null);
-  const [presskit, setPresskit] = useLocalStorage<PresskitProfile>(
-    PRESSKIT_STORAGE_KEY,
-    DEFAULT_PRESSKIT_PROFILE
-  );
+  const { presskit: presskitFromDb, setPresskit, loading } = useMarketingData();
+  if (loading) return <PageLoader />;
+  const presskit: PresskitProfile = presskitFromDb ?? DEFAULT_PRESSKIT_PROFILE;
   const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [presskitShareUrl, setPresskitShareUrl] = useState<string | null>(null);

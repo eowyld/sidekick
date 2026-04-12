@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useMarketingData } from "@/hooks/useMarketingData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,22 +60,14 @@ function generateId(): string {
 export function MailingPage() {
   const [activeTab, setActiveTab] = useState<TabId>("campaigns");
 
-  const [campaigns, setCampaigns] = useLocalStorage<MailingCampaign[]>(
-    MAILING_STORAGE_KEYS.campaigns,
-    []
-  );
-  const [draftCampaigns, setDraftCampaigns] = useLocalStorage<MailingCampaign[]>(
-    MAILING_STORAGE_KEYS.drafts,
-    []
-  );
-  const [contacts, setContacts] = useLocalStorage<MailingContact[]>(
-    MAILING_STORAGE_KEYS.contacts,
-    []
-  );
-  const [segments, setSegments] = useLocalStorage<MailingSegment[]>(
-    MAILING_STORAGE_KEYS.segments,
-    [{ id: "general", name: DEFAULT_SEGMENT_NAME }]
-  );
+  const {
+    campaigns, setCampaigns,
+    draftCampaigns, setDraftCampaigns,
+    mailingContacts: contacts, setMailingContacts: setContacts,
+    segments, setSegments,
+    loading,
+  } = useMarketingData();
+  if (loading) return <PageLoader />;
 
   // Formulaire campagne
   const [formCampaignName, setFormCampaignName] = useState("");
@@ -727,7 +720,7 @@ export function MailingPage() {
     setContacts((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const clearAllCampaigns = () => setCampaigns([]);
+  const clearAllCampaigns = () => setCampaigns(() => []);
   const recentSentCampaigns = [...campaigns]
     .filter((c) => c.envoyes > 0)
     .sort((a, b) => (b.dateEnvoi || "").localeCompare(a.dateEnvoi || ""))
