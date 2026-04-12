@@ -2,6 +2,8 @@
 
 import { useState, useCallback, memo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useEditionData } from "@/hooks/useEditionData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type { Work, Person, PersonRole, SplitEntry, SacemRepartition, EditionPublisher } from "@/lib/sidekick-store";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -1307,10 +1309,11 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
 // ─── WorksPage ─────────────────────────────────────────────────────────────────
 
 export function WorksPage() {
+  const { works, setWorks, loading } = useEditionData();
+  if (loading) return <PageLoader />;
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
-  const works = data.edition.works;
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -1336,7 +1339,7 @@ export function WorksPage() {
     if (newWork.persons.length === 0) { toast.error("Au moins une personne est requise."); return; }
     if (!isSplitValid(newWork)) { toast.error("La répartition interne doit totaliser 100% pour chaque catégorie."); return; }
     const work: Work = { ...newWork, id: crypto.randomUUID() };
-    setData((prev) => ({ ...prev, edition: { ...prev.edition, works: [...prev.edition.works, work] } }));
+    setWorks((prev) => [...prev, work]);
     if (projectIdParam) {
       setData((prev) => ({
         ...prev,
@@ -1360,21 +1363,13 @@ export function WorksPage() {
     if (!editWork.title.trim()) { toast.error("Le titre de l'œuvre est requis."); return; }
     if (editWork.persons.length === 0) { toast.error("Au moins une personne est requise."); return; }
     if (!isSplitValid(editWork)) { toast.error("La répartition interne doit totaliser 100% pour chaque catégorie."); return; }
-    setData((prev) => ({
-      ...prev,
-      edition: {
-        ...prev.edition,
-        works: prev.edition.works.map((w) =>
-          w.id === selectedWork.id ? { ...editWork, id: selectedWork.id } : w
-        ),
-      },
-    }));
+    setWorks((prev) => prev.map((w) => w.id === selectedWork.id ? { ...editWork, id: selectedWork.id } : w));
     setIsEditOpen(false);
     toast.success(`« ${editWork.title} » mise à jour.`);
   };
 
   const handleDeleteWork = (id: string, title: string) => {
-    setData((prev) => ({ ...prev, edition: { ...prev.edition, works: prev.edition.works.filter((w) => w.id !== id) } }));
+    setWorks((prev) => prev.filter((w) => w.id !== id));
     toast.success(`« ${title} » supprimée.`);
   };
 
@@ -1532,8 +1527,7 @@ export function WorksPage() {
 
                   <div className="shrink-0 pb-5 flex flex-col items-end gap-3">
                     <StatusTimeline status={work.status} onChange={(s) => {
-                      const updated = data.edition.works.map((w) => w.id === work.id ? { ...w, status: s } : w);
-                      setData((prev) => ({ ...prev, edition: { ...prev.edition, works: updated } }));
+                      setWorks((prev) => prev.map((w) => w.id === work.id ? { ...w, status: s } : w));
                     }} />
                     <div className="flex gap-2 mt-auto">
                       <Button variant="outline" size="sm" onClick={() => openEdit(work)}>
