@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 
 export type CalendarSector = "live" | "phono" | "admin" | "marketing" | "edition" | "revenus" | "other";
@@ -14,71 +15,58 @@ export interface CustomCalendarItem {
   sector: CalendarSector;
 }
 
+const KEY = "calendar_events";
+
 function rowToItem(row: Record<string, unknown>): CustomCalendarItem {
-  const data = (row.data ?? {}) as Record<string, unknown>;
   return {
-    id: row.id as string,
-    title: row.title as string,
-    date: row.start as string,
-    time: (data.time as string) ?? undefined,
-    place: (data.place as string) ?? undefined,
-    sector: (data.sector as CalendarSector) ?? "other",
+    id: row.source_id as string,
+    title: row.label as string,
+    date: row.date as string,
+    time: (row.time as string) ?? undefined,
+    place: (row.place as string) ?? undefined,
+    sector: (row.sector as CalendarSector) ?? "other",
   };
 }
 
 function itemToRow(item: CustomCalendarItem): Record<string, unknown> {
   return {
-    id: item.id,
-    title: item.title,
-    start: item.date,
-    data: {
-      time: item.time ?? null,
-      place: item.place ?? null,
-      sector: item.sector,
-    },
+    source_module: "custom",
+    source_id: item.id,
+    label: item.title,
+    date: item.date,
+    time: item.time ?? null,
+    place: item.place ?? null,
+    sector: item.sector,
+    type: "custom",
   };
 }
 
-export function useCalendarData() {
-  const [customEvents, setCustomEventsState] = useState<CustomCalendarItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+async function fetchCalendarEvents(): Promise<CustomCalendarItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("calendar_events")
+    .select("*")
+    .eq("source_module", "custom")
+    .order("date", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(rowToItem);
+}
 
-  useEffect(() => {
-    let alive = true;
-    const supabase = createClient();
-    supabase
-      .from("user_calendar_events")
-      .select("*")
-      .order("start", { ascending: true })
-      .then(({ data, error: err }) => {
-        if (!alive) return;
-        if (err) setError(err.message);
-        else setCustomEventsState((data ?? []).map(rowToItem));
-        setLoading(false);
-      });
-    return () => { alive = false; };
-  }, []);
+export function useCalendarData() {
+  const { data: customEvents = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<CustomCalendarItem[]>(KEY, fetchCalendarEvents);
+
+  const error = swrError ? (swrError as Error).message : null;
 
   const setCustomEvents = useCallback((fn: (prev: CustomCalendarItem[]) => CustomCalendarItem[]) => {
-    let snapshot: CustomCalendarItem[] = [];
-    let next: CustomCalendarItem[] = [];
+    const snapshot = customEvents;
+    const next = fn(customEvents);
 
-    setCustomEventsState((prev) => {
-      snapshot = prev;
-      next = fn(prev);
-      return next;
-    });
+    mutateLocal(next, false);
 
     (async () => {
-      setError(null);
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError("Not authenticated");
-        setCustomEventsState(() => snapshot);
-        return;
-      }
+      if (!user) { mutateLocal(snapshot, false); return; }
 
       const prevMap = new Map(snapshot.map((e) => [e.id, e]));
       const nextMap = new Map(next.map((e) => [e.id, e]));
@@ -89,37 +77,31 @@ export function useCalendarData() {
       });
       const toDelete = snapshot.filter((e) => !nextMap.has(e.id)).map((e) => e.id);
 
-      const ops: Promise<{ error: { message: string } | null }>[] = [];
+      const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
 
       if (toUpsert.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_calendar_events")
-              .upsert(toUpsert.map((e) => ({ ...itemToRow(e), user_id: user.id })))
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          supabase.from("calendar_events")
+            .upsert(toUpsert.map((e) => ({ ...itemToRow(e), user_id: user.id })))
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
-
       if (toDelete.length > 0) {
         ops.push(
-          Promise.resolve(
-            supabase
-              .from("user_calendar_events")
-              .delete()
-              .in("id", toDelete)
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
+          supabase.from("calendar_events")
+            .delete().in("source_id", toDelete).eq("source_module", "custom")
+            .then(({ error }) => ({ error: error ? { message: error.message } : null }))
         );
       }
 
       const results = await Promise.all(ops);
-      const firstError = results.find((r) => r.error);
-      if (firstError?.error) {
-        setError(firstError.error.message);
-        setCustomEventsState(() => snapshot);
+      if (results.find((r) => r.error)) {
+        mutateLocal(snapshot, false);
+      } else {
+        mutate(KEY);
       }
     })();
-  }, []);
+  }, [customEvents, mutateLocal]);
 
-  return { customEvents, setCustomEvents, loading, error };
+  return { customEvents, setCustomEvents, loading: isLoading, error };
 }
