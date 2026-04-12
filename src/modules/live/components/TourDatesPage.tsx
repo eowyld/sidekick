@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +177,8 @@ export function TourDatesPage() {
   const [editingVenue, setEditingVenue] = useState<string>("");
   const [editingAddress, setEditingAddress] = useState<string>("");
 
-  const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists } = useLiveData();
+  const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists, loading } = useLiveData();
+  if (loading) return <PageLoader />;
 
   const pastDates = useMemo(
     () => dates.filter((d) => isRepresentationPast(d.date)),

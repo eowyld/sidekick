@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,7 +89,8 @@ function isoToFr(isoDate: string): string {
 }
 
 export function ProspectionPage() {
-  const { prospection: entries, setProspection: setEntries } = useLiveData();
+  const { prospection: entries, setProspection: setEntries, loading } = useLiveData();
+  if (loading) return <PageLoader />;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
