@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { usePhonoData } from "@/hooks/usePhonoData";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type {
   Track,
@@ -54,6 +55,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import JSZip from "jszip";
 import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { PageLoader } from "@/components/ui/page-loader";
 
 const ROLES: { value: PhonoRole; label: string }[] = [
   { value: "artiste_principal", label: "Artiste principal" },
@@ -348,6 +350,10 @@ function formatTracklistForCopy(items: PodcastTracklistItem[]): string {
 }
 
 export function CatalogPage() {
+  const { tracks: tracksRaw, setTracks, albums: albumsRaw, setAlbums, podcasts: podcastsRaw, setPodcasts, loading } = usePhonoData();
+
+  if (loading) return <PageLoader />;
+
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
@@ -380,24 +386,14 @@ export function CatalogPage() {
   const [albumMetadataUploading, setAlbumMetadataUploading] = useState<Record<string, boolean>>({});
   const [albumMetadataProcessing, setAlbumMetadataProcessing] = useState(false);
 
-  const tracks = (data.phono?.tracks ?? []).map(normalizeTrack);
-  const albums = (data.phono?.albums ?? [])
+  const tracks = tracksRaw.map(normalizeTrack);
+  const albums = albumsRaw
     .map(normalizeAlbum)
     .sort((a, b) => {
       const order = { album: 0, ep: 1, single: 2 };
       return (order[a.type] ?? 2) - (order[b.type] ?? 2);
     });
-  const podcasts = (data.phono?.podcasts ?? []).map(normalizePodcast);
-
-  const setTracks = (updater: (prev: Track[]) => Track[]) => {
-    setData((prev) => ({
-      ...prev,
-      phono: {
-        ...prev.phono,
-        tracks: updater(prev.phono?.tracks ?? []),
-      },
-    }));
-  };
+  const podcasts = podcastsRaw.map(normalizePodcast);
 
   const isDraftComplete =
     String(draft.title ?? "").trim() !== "" &&
@@ -487,68 +483,32 @@ export function CatalogPage() {
 
   const addAlbumFromDraft = () => {
     if (!isAlbumDraftComplete) return;
-    setData((prev) => {
-      const prevAlbums = prev.phono?.albums ?? [];
-      const nextAlbum: Album = {
-        id: newAlbumId(),
-        ...(albumDraft as AlbumDraft),
-      } as Album;
-      return {
-        ...prev,
-        phono: {
-          ...prev.phono,
-          albums: [...prevAlbums, nextAlbum],
-        },
-      };
-    });
+    const nextAlbum: Album = { id: newAlbumId(), ...(albumDraft as AlbumDraft) } as Album;
+    setAlbums((prev) => [...prev, nextAlbum]);
     setAlbumDraft(defaultAlbum());
     setNewAlbumDialogOpen(false);
   };
 
   const updateAlbum = (id: string, patch: Partial<Album>) => {
-    setData((prev) => {
-      const prevAlbums = prev.phono?.albums ?? [];
-      const prevTracks = prev.phono?.tracks ?? [];
-      const updatedAlbums = prevAlbums.map((a) =>
-        a.id === id ? { ...normalizeAlbum(a), ...patch } : a
-      );
-
-      let updatedTracks = prevTracks;
-      if (patch.status) {
-        const album = updatedAlbums.find((a) => a.id === id);
-        const newAlbumStatus = patch.status as ReleaseStatus;
-        if (album) {
-          updatedTracks = prevTracks.map((t) => {
+    setAlbums((prev) => prev.map((a) => (a.id === id ? { ...normalizeAlbum(a), ...patch } : a)));
+    if (patch.status) {
+      const album = albums.find((a) => a.id === id);
+      const newAlbumStatus = patch.status as ReleaseStatus;
+      if (album) {
+        setTracks((prev) =>
+          prev.map((t) => {
             if (!(album.trackIds ?? []).includes(t.id)) return t;
             const currentTrackStatus = (normalizeTrack(t).status ?? "en_production") as ReleaseStatus;
             if (!isStatusMoreAdvanced(newAlbumStatus, currentTrackStatus)) return t;
-            return {
-              ...normalizeTrack(t),
-              status: newAlbumStatus,
-            };
-          });
-        }
+            return { ...normalizeTrack(t), status: newAlbumStatus };
+          })
+        );
       }
-
-      return {
-        ...prev,
-        phono: {
-          ...prev.phono,
-          albums: updatedAlbums,
-          tracks: updatedTracks,
-        },
-      };
-    });
+    }
   };
 
   const removeAlbum = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      phono: {
-        ...prev.phono,
-        albums: (prev.phono?.albums ?? []).filter((a) => a.id !== id),
-      },
-    }));
+    setAlbums((prev) => prev.filter((a) => a.id !== id));
     if (editingAlbumId === id) setEditingAlbumId(null);
   };
 
@@ -679,16 +639,6 @@ export function CatalogPage() {
       t.mainArtist.toLowerCase().includes(q)
     );
   });
-
-  const setPodcasts = (updater: (prev: Podcast[]) => Podcast[]) => {
-    setData((prev) => ({
-      ...prev,
-      phono: {
-        ...prev.phono,
-        podcasts: updater(prev.phono?.podcasts ?? []),
-      },
-    }));
-  };
 
   const isPodcastDraftComplete =
     String(podcastDraft.title ?? "").trim() !== "" &&

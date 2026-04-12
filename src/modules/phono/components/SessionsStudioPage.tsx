@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +29,9 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import type { StudioSession } from "@/hooks/usePhonoData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { frToIso, isoToFr } from "@/lib/date-format";
 import type { PhonoRole } from "@/lib/sidekick-store";
 
@@ -44,18 +46,7 @@ type ParticipantEntry = {
   role: ParticipantRole;
 };
 
-type SessionItem = {
-  id: number;
-  title: string;
-  date: string;
-  time: string;
-  location: string;
-  address?: string;
-  sessionType: SessionType;
-  sessionTypeOther?: string;
-  participants: ParticipantEntry[];
-  note?: string;
-};
+type SessionItem = StudioSession;
 
 const SESSION_TYPES: { value: SessionType; label: string }[] = [
   { value: "prise", label: "Prise" },
@@ -119,21 +110,12 @@ function buildGoogleMapsUrl(location: string, address?: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-const defaultSessions: SessionItem[] = [];
-
 export function SessionsStudioPage() {
-  const [sessions, setSessions] = useLocalStorage<SessionItem[]>(
-    "phono:sessions-studio",
-    defaultSessions
-  );
-  const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+  const { sessions, setSessions, loading } = usePhonoData();
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const [form, setForm] = useState<{
     title: string;
@@ -162,12 +144,12 @@ export function SessionsStudioPage() {
   );
 
   const pastSessions = useMemo(
-    () => (isHydrated ? sessions.filter((s) => isSessionPast(s.date)) : []),
-    [sessions, isHydrated]
+    () => sessions.filter((s) => isSessionPast(s.date)),
+    [sessions]
   );
   const upcomingSessions = useMemo(
-    () => (isHydrated ? sessions.filter((s) => !isSessionPast(s.date)) : []),
-    [sessions, isHydrated]
+    () => sessions.filter((s) => !isSessionPast(s.date)),
+    [sessions]
   );
 
   const toggleSection = (section: "past" | "upcoming") => {
@@ -240,14 +222,12 @@ export function SessionsStudioPage() {
         prev.map((s) => (s.id === editingId ? { ...s, ...payload } : s))
       );
     } else {
-      const nextId =
-        sessions.length > 0 ? Math.max(...sessions.map((x) => x.id)) + 1 : 1;
-      setSessions((prev) => [{ id: nextId, ...payload }, ...prev]);
+      setSessions((prev) => [{ id: crypto.randomUUID(), ...payload }, ...prev]);
     }
     setAddDialogOpen(false);
   };
 
-  const deleteSession = (id: number) => {
+  const deleteSession = (id: string) => {
     setSessions((prev) => prev.filter((s) => s.id !== id));
     setDeleteConfirmId(null);
   };
@@ -281,16 +261,7 @@ export function SessionsStudioPage() {
     }));
   };
 
-  if (!isHydrated) {
-    return (
-      <div>
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight">
-          Sessions Studio
-        </h1>
-        <p className="text-sm text-muted-foreground">Chargement…</p>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   const tableHeaders = (
     <tr className="border-b bg-muted/50">
