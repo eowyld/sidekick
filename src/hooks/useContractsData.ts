@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
+import useSWR, { useSWRConfig } from "swr";
 import { createClient } from "@/lib/supabase";
 import {
   type ContractInstance,
@@ -23,189 +24,171 @@ import {
   updateContractSignatureLabel
 } from "@/lib/contracts-db";
 
+const KEY = "user_contracts";
+
+interface ContractsData {
+  templates: ContractTemplate[];
+  contracts: ContractInstance[];
+  signatures: ContractSignature[];
+}
+
+async function fetchContractsData(): Promise<ContractsData> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { templates: [], contracts: [], signatures: [] };
+  const [templates, contracts, signatures] = await Promise.all([
+    fetchUserContractTemplates(supabase, user.id),
+    fetchUserContracts(supabase, user.id),
+    fetchUserContractSignatures(supabase, user.id, { includeUrls: true })
+  ]);
+  return { templates, contracts, signatures };
+}
+
 export function useContractsData() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<ContractTemplate[]>([]);
-  const [contracts, setContracts] = useState<ContractInstance[]>([]);
-  const [signatures, setSignatures] = useState<ContractSignature[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const { mutate: globalMutate } = useSWRConfig();
+  const { data, error, isLoading, mutate } = useSWR<ContractsData>(KEY, fetchContractsData, {
+    fallbackData: { templates: [], contracts: [], signatures: [] }
+  });
 
-  const load = useCallback(
-    async (uid: string | null) => {
-      if (!uid) {
-        setTemplates([]);
-        setContracts([]);
-        setSignatures([]);
-        setIsLoading(false);
-        setError(null);
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-      const supabase = createClient();
-      try {
-        const [t, c, s] = await Promise.all([
-          fetchUserContractTemplates(supabase, uid),
-          fetchUserContracts(supabase, uid),
-          fetchUserContractSignatures(supabase, uid, { includeUrls: true })
-        ]);
-        setTemplates(t);
-        setContracts(c);
-        setSignatures(s);
-      } catch (e) {
-        setError(e instanceof Error ? e : new Error(String(e)));
-        setTemplates([]);
-        setContracts([]);
-        setSignatures([]);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
+  // Re-fetch when auth state changes (login/logout)
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      const id = user?.id ?? null;
-      setUserId(id);
-      load(id);
-    });
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const id = session?.user?.id ?? null;
-      setUserId(id);
-      load(id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      globalMutate(KEY);
     });
     return () => subscription.unsubscribe();
-  }, [load]);
+  }, [globalMutate]);
+
+  const getUserId = useCallback(async (): Promise<string> => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Non connecté");
+    return user.id;
+  }, []);
 
   const refetch = useCallback(() => {
-    load(userId);
-  }, [userId, load]);
+    mutate();
+  }, [mutate]);
 
   const addTemplate = useCallback(
     async (payload: { title: string; htmlContent: string; variableKeys: string[] }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await insertContractTemplate(supabase, userId, payload);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const saveTemplate = useCallback(
     async (templateId: string, payload: { title: string; htmlContent: string; variableKeys: string[] }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await updateContractTemplate(supabase, userId, templateId, payload);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const removeTemplate = useCallback(
     async (templateId: string) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await deleteContractTemplate(supabase, userId, templateId);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const createContract = useCallback(
     async (payload: { templateId: string; title: string; variables: Record<string, unknown>; htmlContent: string }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       const created = await insertContract(supabase, userId, payload);
-      await load(userId);
+      await mutate();
       return created;
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const removeContract = useCallback(
     async (contractId: string) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await deleteContract(supabase, userId, contractId);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const saveContract = useCallback(
     async (contractId: string, payload: { title?: string; variables?: Record<string, unknown>; htmlContent?: string; signatureId?: string | null }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await updateContract(supabase, userId, contractId, payload);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const setContractStatus = useCallback(
     async (contractId: string, payload: { status: ContractStatus; signedAt?: string | null; sentAt?: string | null; signatureId?: string | null }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await updateContractStatus(supabase, userId, contractId, payload);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const addSignature = useCallback(
     async (payload: { label: string; file: File; makeActive?: boolean }) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await uploadContractSignatureImage(supabase, userId, {
         file: payload.file,
         label: payload.label,
         makeActive: payload.makeActive ?? false
       });
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const saveSignatureLabel = useCallback(
     async (signatureId: string, label: string) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await updateContractSignatureLabel(supabase, userId, signatureId, label);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const removeSignature = useCallback(
     async (signatureId: string) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await deleteContractSignature(supabase, userId, signatureId);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   const setActiveSignatureForUser = useCallback(
     async (signatureId: string) => {
-      if (!userId) throw new Error("Non connecté");
+      const userId = await getUserId();
       const supabase = createClient();
       await setActiveSignature(supabase, userId, signatureId);
-      await load(userId);
+      await mutate();
     },
-    [userId, load]
+    [getUserId, mutate]
   );
 
   return {
-    userId,
-    templates,
-    contracts,
-    signatures,
+    templates: data?.templates ?? [],
+    contracts: data?.contracts ?? [],
+    signatures: data?.signatures ?? [],
     isLoading,
     error,
     refetch,
@@ -222,4 +205,3 @@ export function useContractsData() {
     setActiveSignatureForUser
   };
 }
-
