@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { useContractsData } from "@/hooks/useContractsData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { toDisplayDate } from "@/lib/date-format";
 import type { ContractInstance, ContractStatus, ContractTemplate } from "@/lib/contracts-db";
 import { TemplateEditor } from "@/modules/admin/components/contract/TemplateEditor";
@@ -62,9 +63,11 @@ export function ContractsPage() {
     addSignature,
     setContractStatus: setContractStatusDb,
     setActiveSignatureForUser,
-    removeSignature
+    removeSignature,
+    isLoading,
   } =
     useContractsData();
+  if (isLoading) return <PageLoader />;
 
   const activeSignatureId = useMemo(() => signatures.find((s) => s.isActive)?.id ?? null, [signatures]);
 

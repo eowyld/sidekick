@@ -23,7 +23,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useAdminData } from "@/hooks/useAdminData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { toDisplayDate, isoToFr, frToIso } from "@/lib/date-format";
 import type { AdminStatus, AdminStatusType } from "@/lib/sidekick-store";
 
@@ -39,8 +40,8 @@ const STATUS_TYPES: { value: AdminStatusType; label: string }[] = [
 ];
 
 export function StatutsPage() {
-  const { data, setData } = useSidekickData();
-  const statuses = data.admin.statuses;
+  const { statuses, setStatuses, loading } = useAdminData();
+  if (loading) return <PageLoader />;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [formNom, setFormNom] = useState("");
@@ -83,33 +84,15 @@ export function StatutsPage() {
       notes: formNotes.trim() || undefined
     };
     if (editingId) {
-      setData((prev) => ({
-        ...prev,
-        admin: {
-          ...prev.admin,
-          statuses: prev.admin.statuses.map((s) => (s.id === editingId ? payload : s))
-        }
-      }));
+      setStatuses((prev) => prev.map((s) => (s.id === editingId ? payload : s)));
     } else {
-      setData((prev) => ({
-        ...prev,
-        admin: {
-          ...prev.admin,
-          statuses: [...prev.admin.statuses, payload]
-        }
-      }));
+      setStatuses((prev) => [...prev, payload]);
     }
     resetForm();
   };
 
   const deleteStatus = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      admin: {
-        ...prev.admin,
-        statuses: prev.admin.statuses.filter((s) => s.id !== id)
-      }
-    }));
+    setStatuses((prev) => prev.filter((s) => s.id !== id));
     resetForm();
   };
 

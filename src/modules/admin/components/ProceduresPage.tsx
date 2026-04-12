@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useAdminData } from "@/hooks/useAdminData";
+import { PageLoader } from "@/components/ui/page-loader";
 import { toDisplayDate, isoToFr, frToIso } from "@/lib/date-format";
 import type { AdminProcedure } from "@/lib/sidekick-store";
 
@@ -33,9 +34,8 @@ const PROCEDURE_STATUS = [
 ] as const;
 
 export function ProceduresPage() {
-  const { data, setData } = useSidekickData();
-  const procedures = data.admin.procedures;
-  const statuses = data.admin.statuses;
+  const { procedures, setProcedures, statuses, loading } = useAdminData();
+  if (loading) return <PageLoader />;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [formLabel, setFormLabel] = useState("");
@@ -77,38 +77,15 @@ export function ProceduresPage() {
       notes: formNotes.trim() || undefined
     };
     if (editingId) {
-      setData((prev) => ({
-        ...prev,
-        admin: {
-          ...prev.admin,
-          procedures: prev.admin.procedures.map((p) =>
-            p.id === editingId ? { ...p, ...payload } : p
-          )
-        }
-      }));
+      setProcedures((prev) => prev.map((p) => p.id === editingId ? { ...p, ...payload } : p));
     } else {
-      setData((prev) => ({
-        ...prev,
-        admin: {
-          ...prev.admin,
-          procedures: [
-            ...prev.admin.procedures,
-            { id: crypto.randomUUID(), ...payload }
-          ]
-        }
-      }));
+      setProcedures((prev) => [...prev, { id: crypto.randomUUID(), ...payload }]);
     }
     resetForm();
   };
 
   const deleteProcedure = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      admin: {
-        ...prev.admin,
-        procedures: prev.admin.procedures.filter((p) => p.id !== id)
-      }
-    }));
+    setProcedures((prev) => prev.filter((p) => p.id !== id));
     resetForm();
   };
 
