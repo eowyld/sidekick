@@ -14,6 +14,7 @@ import type { Todo } from "@/lib/sidekick-store";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useTasksData } from "@/hooks/useTasksData";
 import { createClient } from "@/lib/supabase";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TaskModal, type TaskFormData, type TaskSector } from "./TaskModal";
@@ -24,6 +25,9 @@ import { TaskCard } from "./TaskCard";
 export function Tasks() {
   const { data, setData } = useSidekickData();
   const { tasks, setTasks, loading } = useTasksData();
+
+  if (loading) return <PageLoader />;
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
