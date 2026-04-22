@@ -303,6 +303,7 @@ export function Tasks() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAddSuggestion={handleAddSuggestion}
+            onAddTask={() => setModalOpen(true)}
           />
         </div>
 

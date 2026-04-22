@@ -2,7 +2,9 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
+import { Inbox, ListTodo } from "lucide-react";
 import type { Todo } from "@/lib/sidekick-store";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TaskCard } from "./TaskCard";
 import { AiSuggestions } from "./AiSuggestions";
 
@@ -17,6 +19,7 @@ interface BacklogPanelProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onAddSuggestion: (title: string, sector: string) => void;
+  onAddTask: () => void;
 }
 
 export function BacklogPanel({
@@ -30,6 +33,7 @@ export function BacklogPanel({
   onEdit,
   onDelete,
   onAddSuggestion,
+  onAddTask,
 }: BacklogPanelProps) {
   const { setNodeRef, isOver } = useDroppable({ id: "backlog-panel" });
 
@@ -37,23 +41,30 @@ export function BacklogPanel({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[300px] flex-col gap-2 rounded-lg border border-border bg-card/40 p-4 transition-colors",
-        isOver && "border-border/80 bg-muted/10"
+        "flex min-h-[320px] flex-col border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)] p-4 transition-colors duration-150",
+        isOver && "border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.45)]"
       )}
     >
-      <div className="mb-1 flex items-center gap-2">
-        <span className="text-base font-semibold">Backlog</span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+      {/* Header */}
+      <div className="mb-3 flex items-center gap-2">
+        <ListTodo size={14} className="text-[#F5F5F5]/50 shrink-0" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/50">
+          À faire
+        </span>
+        <span className="ml-auto text-[11px] font-medium text-[#F5F5F5]/35">
           {tasks.length}
         </span>
       </div>
 
       {tasks.length === 0 ? (
-        <p className="py-4 text-center text-xs text-muted-foreground">
-          Aucune tâche en attente
-        </p>
+        <EmptyState
+          icon={Inbox}
+          title="Ton backlog est vide"
+          description="Tout ce que tu dois faire sans date précise atterrit ici. Ajoute une tâche pour t'en souvenir plus tard."
+          action={{ label: "Ajouter une tâche", onClick: onAddTask }}
+        />
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col divide-y divide-[rgba(245,245,245,0.05)]">
           {tasks.map((task) => (
             <TaskCard
               key={task.id}

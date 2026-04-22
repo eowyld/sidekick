@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Todo } from "@/lib/sidekick-store";
 
 interface Suggestion {
@@ -70,11 +71,14 @@ export function AiSuggestions({
         }),
       });
 
-      if (!res.ok) throw new Error("Erreur serveur");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
       const json = await res.json() as { suggestions: Suggestion[] };
       setSuggestions(json.suggestions ?? []);
-    } catch {
-      setError("Impossible de charger les suggestions.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de charger les suggestions.");
     } finally {
       setLoading(false);
     }
@@ -122,7 +126,11 @@ export function AiSuggestions({
       ) : error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : suggestions.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Aucune suggestion pour l'instant.</p>
+        <EmptyState
+          icon={Sparkles}
+          title="Pas encore de suggestions"
+          description="Ajoute quelques tâches, l'IA te proposera ensuite comment les organiser dans ta semaine."
+        />
       ) : (
         <div className="space-y-1.5">
           {suggestions.map((s, i) => {
