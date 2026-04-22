@@ -27,6 +27,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 
 const BASE_ROLES = [
   "Musicien",
@@ -55,7 +58,7 @@ const emptyForm: Omit<Contact, "id" | "createdAt"> = {
 };
 
 export function ContactsPage() {
-  const { contacts, setContacts, loading } = useContactsData();
+  const { contacts, setContacts, loading, error } = useContactsData();
   const [customRoles, setCustomRoles] = useLocalStorage<string[]>(
     "contacts:customRoles",
     []
@@ -221,6 +224,15 @@ export function ContactsPage() {
       </span>
     );
   };
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes contacts"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_contacts")}
+    />
+  );
 
   return (
     <div className="space-y-6 p-6">

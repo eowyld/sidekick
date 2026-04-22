@@ -5,13 +5,34 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSidekickData } from "@/hooks/useSidekickData";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { Briefcase, CalendarDays, ChevronRight, DollarSign, Disc2, Megaphone, Mic2, Music2 } from "lucide-react";
+import { useTasksData } from "@/hooks/useTasksData";
+import { useLiveData } from "@/hooks/useLiveData";
+import { useIncomesData } from "@/hooks/useIncomesData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useCalendarData } from "@/hooks/useCalendarData";
+import {
+  Briefcase,
+  CalendarDays,
+  ChevronRight,
+  DollarSign,
+  Disc2,
+  Megaphone,
+  Mic2,
+  Music2,
+  Pencil,
+  TriangleAlert,
+  Zap,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type TourDateItem = { id: number; city: string; venue: string; date: string };
-type RehearsalItem = { id: number; date: string; location: string; label?: string };
-type InvoiceItem = { id: number; dueDate: string; number: string; client: string };
-type SessionItem = { id: number; date: string; title: string; location: string };
+type RehearsalItem = { id: string; date: string; location: string; label?: string };
+type InvoiceItem = { id: string; dueDate: string; number: string; client: string };
+type SessionItem = { id: string; date: string; title: string; location: string };
 type CustomCalendarItem = {
   id: string;
   title: string;
@@ -20,6 +41,8 @@ type CustomCalendarItem = {
   place?: string;
   sector?: "live" | "phono" | "admin" | "marketing" | "edition" | "revenus" | "other";
 };
+
+// ─── Helpers dates ────────────────────────────────────────────────────────────
 
 function parseDate(dateStr: string | undefined): Date | null {
   if (!dateStr) return null;
@@ -39,21 +62,26 @@ function parseDate(dateStr: string | undefined): Date | null {
 }
 
 function toDateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatEventDate(dateStr: string | undefined): string {
   const d = parseDate(dateStr);
   if (!d) return "";
-  return d.toLocaleDateString("fr-FR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short"
-  });
+  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
 }
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 7) return "Encore debout ?";
+  if (h < 12) return "Bonne matinée.";
+  if (h < 14) return "Bonne après-midi.";
+  if (h < 18) return "On avance.";
+  if (h < 22) return "Bonne soirée.";
+  return "Bonne nuit.";
+}
+
+// ─── Config événements ────────────────────────────────────────────────────────
 
 type EventType = "representation" | "rehearsal" | "invoice" | "session" | "custom";
 
@@ -66,60 +94,31 @@ type UpcomingEvent = {
   sector?: CustomCalendarItem["sector"];
 };
 
-const EVENT_CONFIG: Record<
-  EventType,
-  { color: string; bgClass: string; icon: React.ReactNode; label: string }
-> = {
-  representation: {
-    color: "text-blue-600",
-    bgClass: "bg-blue-500",
-    icon: <Mic2 className="h-3.5 w-3.5" />,
-    label: "Live"
-  },
-  rehearsal: {
-    color: "text-blue-600",
-    bgClass: "bg-blue-500",
-    icon: <Mic2 className="h-3.5 w-3.5" />,
-    label: "Live"
-  },
-  invoice: {
-    color: "text-orange-600",
-    bgClass: "bg-orange-500",
-    icon: <DollarSign className="h-3.5 w-3.5" />,
-    label: "Revenus"
-  },
-  session: {
-    color: "text-red-600",
-    bgClass: "bg-red-500",
-    icon: <Disc2 className="h-3.5 w-3.5" />,
-    label: "Phono"
-  },
-  custom: {
-    color: "text-slate-600",
-    bgClass: "bg-slate-500",
-    icon: <CalendarDays className="h-3.5 w-3.5" />,
-    label: "Autre"
-  }
+const EVENT_CONFIG: Record<EventType, { dot: string; label: string; icon: React.ReactNode }> = {
+  representation: { dot: "bg-blue-400", label: "Live", icon: <Mic2 className="h-3 w-3" /> },
+  rehearsal:      { dot: "bg-blue-400", label: "Répétition", icon: <Mic2 className="h-3 w-3" /> },
+  invoice:        { dot: "bg-orange-400", label: "Facture", icon: <DollarSign className="h-3 w-3" /> },
+  session:        { dot: "bg-red-400", label: "Studio", icon: <Disc2 className="h-3 w-3" /> },
+  custom:         { dot: "bg-[#F5F5F5]/40", label: "Autre", icon: <CalendarDays className="h-3 w-3" /> },
 };
 
-const CUSTOM_SECTOR_CONFIG: Record<
-  NonNullable<CustomCalendarItem["sector"]>,
-  { bgClass: string; icon: React.ReactNode; label: string }
-> = {
-  live: { bgClass: "bg-blue-500", icon: <Mic2 className="h-3.5 w-3.5" />, label: "Live" },
-  phono: { bgClass: "bg-red-500", icon: <Disc2 className="h-3.5 w-3.5" />, label: "Phono" },
-  admin: { bgClass: "bg-violet-500", icon: <Briefcase className="h-3.5 w-3.5" />, label: "Admin" },
-  marketing: { bgClass: "bg-emerald-500", icon: <Megaphone className="h-3.5 w-3.5" />, label: "Marketing" },
-  edition: { bgClass: "bg-cyan-500", icon: <Music2 className="h-3.5 w-3.5" />, label: "Edition" },
-  revenus: { bgClass: "bg-orange-500", icon: <DollarSign className="h-3.5 w-3.5" />, label: "Revenus" },
-  other: { bgClass: "bg-slate-500", icon: <CalendarDays className="h-3.5 w-3.5" />, label: "Autre" }
+const SECTOR_DOT: Record<NonNullable<CustomCalendarItem["sector"]>, string> = {
+  live:      "bg-blue-400",
+  phono:     "bg-red-400",
+  admin:     "bg-violet-400",
+  marketing: "bg-emerald-400",
+  edition:   "bg-cyan-400",
+  revenus:   "bg-orange-400",
+  other:     "bg-[#F5F5F5]/40",
 };
 
 function getEventConfig(event: UpcomingEvent) {
   if (event.type !== "custom") return EVENT_CONFIG[event.type];
   const sector = event.sector ?? "other";
-  return CUSTOM_SECTOR_CONFIG[sector] ?? CUSTOM_SECTOR_CONFIG.other;
+  return { ...EVENT_CONFIG.custom, dot: SECTOR_DOT[sector] ?? SECTOR_DOT.other };
 }
+
+// ─── Build events ─────────────────────────────────────────────────────────────
 
 function buildUpcomingEvents(
   representations: TourDateItem[],
@@ -135,69 +134,28 @@ function buildUpcomingEvents(
 
   representations.forEach((t) => {
     const d = parseDate(t.date);
-    if (!d) return;
-    if (toDateKey(d) >= todayKey) {
-      events.push({
-        id: `live-rep-${t.id}`,
-        title: `${t.venue} – ${t.city}`,
-        date: d,
-        dateStr: t.date,
-        type: "representation"
-      });
-    }
+    if (d && toDateKey(d) >= todayKey)
+      events.push({ id: `live-rep-${t.id}`, title: `${t.venue} – ${t.city}`, date: d, dateStr: t.date, type: "representation" });
   });
   rehearsals.forEach((r) => {
     const d = parseDate(r.date);
-    if (!d) return;
-    if (toDateKey(d) >= todayKey) {
-      events.push({
-        id: `live-rehearsal-${r.id}`,
-        title: r.label || r.location || "Répétition",
-        date: d,
-        dateStr: r.date,
-        type: "rehearsal"
-      });
-    }
+    if (d && toDateKey(d) >= todayKey)
+      events.push({ id: `live-rehearsal-${r.id}`, title: r.label || r.location || "Répétition", date: d, dateStr: r.date, type: "rehearsal" });
   });
   invoices.forEach((i) => {
     const d = parseDate(i.dueDate);
-    if (!d) return;
-    if (toDateKey(d) >= todayKey) {
-      events.push({
-        id: `revenus-invoice-${i.id}`,
-        title: `Facture ${i.number} – ${i.client}`,
-        date: d,
-        dateStr: i.dueDate,
-        type: "invoice"
-      });
-    }
+    if (d && toDateKey(d) >= todayKey)
+      events.push({ id: `revenus-invoice-${i.id}`, title: `Facture ${i.number} – ${i.client}`, date: d, dateStr: i.dueDate, type: "invoice" });
   });
   sessions.forEach((s) => {
     const d = parseDate(s.date);
-    if (!d) return;
-    if (toDateKey(d) >= todayKey) {
-      events.push({
-        id: `phono-session-${s.id}`,
-        title: s.title || s.location || "Session",
-        date: d,
-        dateStr: s.date,
-        type: "session"
-      });
-    }
+    if (d && toDateKey(d) >= todayKey)
+      events.push({ id: `phono-session-${s.id}`, title: s.title || s.location || "Session", date: d, dateStr: s.date, type: "session" });
   });
   customEvents.forEach((e) => {
     const d = parseDate(e.date);
-    if (!d) return;
-    if (toDateKey(d) >= todayKey) {
-      events.push({
-        id: `custom-${e.id}`,
-        title: e.title || "Événement personnalisé",
-        date: d,
-        dateStr: e.date,
-        type: "custom",
-        sector: e.sector ?? "other"
-      });
-    }
+    if (d && toDateKey(d) >= todayKey)
+      events.push({ id: `custom-${e.id}`, title: e.title || "Événement", date: d, dateStr: e.date, type: "custom", sector: e.sector ?? "other" });
   });
 
   events.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -217,153 +175,97 @@ function buildWeekEvents(
   const endKey = toDateKey(weekEnd);
   const events: UpcomingEvent[] = [];
 
+  const inRange = (d: Date | null) => d && toDateKey(d) >= startKey && toDateKey(d) <= endKey;
+
   representations.forEach((t) => {
     const d = parseDate(t.date);
-    if (!d) return;
-    const key = toDateKey(d);
-    if (key >= startKey && key <= endKey) {
-      events.push({
-        id: `live-rep-${t.id}`,
-        title: `${t.venue} – ${t.city}`,
-        date: d,
-        dateStr: t.date,
-        type: "representation"
-      });
-    }
+    if (inRange(d)) events.push({ id: `live-rep-${t.id}`, title: `${t.venue} – ${t.city}`, date: d!, dateStr: t.date, type: "representation" });
   });
-
   rehearsals.forEach((r) => {
     const d = parseDate(r.date);
-    if (!d) return;
-    const key = toDateKey(d);
-    if (key >= startKey && key <= endKey) {
-      events.push({
-        id: `live-rehearsal-${r.id}`,
-        title: r.label || r.location || "Répétition",
-        date: d,
-        dateStr: r.date,
-        type: "rehearsal"
-      });
-    }
+    if (inRange(d)) events.push({ id: `live-rehearsal-${r.id}`, title: r.label || r.location || "Répétition", date: d!, dateStr: r.date, type: "rehearsal" });
   });
-
   invoices.forEach((i) => {
     const d = parseDate(i.dueDate);
-    if (!d) return;
-    const key = toDateKey(d);
-    if (key >= startKey && key <= endKey) {
-      events.push({
-        id: `revenus-invoice-${i.id}`,
-        title: `Facture ${i.number} – ${i.client}`,
-        date: d,
-        dateStr: i.dueDate,
-        type: "invoice"
-      });
-    }
+    if (inRange(d)) events.push({ id: `revenus-invoice-${i.id}`, title: `Facture ${i.number} – ${i.client}`, date: d!, dateStr: i.dueDate, type: "invoice" });
   });
-
   sessions.forEach((s) => {
     const d = parseDate(s.date);
-    if (!d) return;
-    const key = toDateKey(d);
-    if (key >= startKey && key <= endKey) {
-      events.push({
-        id: `phono-session-${s.id}`,
-        title: s.title || s.location || "Session",
-        date: d,
-        dateStr: s.date,
-        type: "session"
-      });
-    }
+    if (inRange(d)) events.push({ id: `phono-session-${s.id}`, title: s.title || s.location || "Session", date: d!, dateStr: s.date, type: "session" });
   });
   customEvents.forEach((e) => {
     const d = parseDate(e.date);
-    if (!d) return;
-    const key = toDateKey(d);
-    if (key >= startKey && key <= endKey) {
-      events.push({
-        id: `custom-${e.id}`,
-        title: e.title || "Événement personnalisé",
-        date: d,
-        dateStr: e.date,
-        type: "custom",
-        sector: e.sector ?? "other"
-      });
-    }
+    if (inRange(d)) events.push({ id: `custom-${e.id}`, title: e.title || "Événement", date: d!, dateStr: e.date, type: "custom", sector: e.sector ?? "other" });
   });
 
   events.sort((a, b) => a.date.getTime() - b.date.getTime());
   return events;
 }
 
+// ─── Composants internes ──────────────────────────────────────────────────────
+
+function XpBar({ percent }: { percent: number }) {
+  return (
+    <div className="h-[3px] w-full overflow-hidden bg-[rgba(245,245,245,0.08)]">
+      <div
+        className="h-full bg-[#F0FF00] transition-all duration-700 ease-out"
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
 export function DashboardPage() {
   const { data, preferencesReady } = useSidekickData();
   const enabled = data.preferences?.enabledModules ?? {
-    live: true,
-    phono: true,
-    admin: true,
-    marketing: true,
-    edition: true,
-    revenus: true
+    live: true, phono: true, admin: true, marketing: true, edition: true, revenus: true,
   };
-  const [representations] = useLocalStorage<TourDateItem[]>("live:representations", []);
-  const [rehearsals] = useLocalStorage<RehearsalItem[]>("live:rehearsals", []);
-  const [invoices] = useLocalStorage<InvoiceItem[]>("incomes:invoices", []);
-  const [sessions] = useLocalStorage<SessionItem[]>("phono:sessions-studio", []);
-  const [customEvents] = useLocalStorage<CustomCalendarItem[]>("calendar:custom-events", []);
 
-  const todaysTasks = data.tasks
-    .filter((t) => t.status !== "done")
-    .map((t) => ({
-      ...t,
-      description: t.description ?? "",
-      deadline: t.deadline ?? "",
-      sector: t.sector ?? "Admin"
-    }))
-    .slice(0, 5);
-  const completedTasksCount = data.tasks.filter((t) => t.status === "done").length;
+  const { tasks, error: tasksError } = useTasksData();
+  const { tourDates: representations, rehearsals, error: liveError } = useLiveData();
+  const { invoices, error: incomesError } = useIncomesData();
+  const { sessions, error: phonoError } = usePhonoData();
+  const { customEvents, error: calendarError } = useCalendarData();
+
+  const todaysTasks = tasks
+    .filter((t) => t.todayFocus && t.status !== "done")
+    .map((t) => ({ ...t, description: t.description ?? "", deadline: t.deadline ?? "", sector: t.sector ?? "Admin" }));
+
+  const completedTasksCount = tasks.filter((t) => t.status === "done").length;
   const sidekickLevel = Math.floor(completedTasksCount / 10) + 1;
-  const sidekickLevelProgressRaw = completedTasksCount % 10;
-  const sidekickXpPercent = Math.min(
-    100,
-    (sidekickLevelProgressRaw / 10) * 100
-  );
-  const upcomingEvents = useMemo(
-    () => {
-      if (!preferencesReady) return [];
-      const all = buildUpcomingEvents(representations, rehearsals, invoices, sessions, customEvents);
-      return all.filter((event) => {
-        if (event.type === "representation" || event.type === "rehearsal") return enabled.live;
-        if (event.type === "session") return enabled.phono;
-        if (event.type === "invoice") return enabled.revenus;
-        if (event.type === "custom") {
-          const sector = event.sector ?? "other";
-          if (sector === "live") return enabled.live;
-          if (sector === "phono") return enabled.phono;
-          if (sector === "admin") return enabled.admin;
-          if (sector === "marketing") return enabled.marketing;
-          if (sector === "edition") return enabled.edition;
-          if (sector === "revenus") return enabled.revenus;
-          return true;
-        }
-        return true;
-      });
-    },
-    [representations, rehearsals, invoices, sessions, customEvents, enabled, preferencesReady]
-  );
+  const sidekickXpPercent = Math.min(100, (completedTasksCount % 10) / 10 * 100);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
+  const filterEnabled = (events: UpcomingEvent[]) =>
+    events.filter((event) => {
+      if (event.type === "representation" || event.type === "rehearsal") return enabled.live;
+      if (event.type === "session") return enabled.phono;
+      if (event.type === "invoice") return enabled.revenus;
+      if (event.type === "custom") {
+        const s = event.sector ?? "other";
+        if (s === "live") return enabled.live;
+        if (s === "phono") return enabled.phono;
+        if (s === "admin") return enabled.admin;
+        if (s === "marketing") return enabled.marketing;
+        if (s === "edition") return enabled.edition;
+        if (s === "revenus") return enabled.revenus;
+        return true;
+      }
+      return true;
+    });
+
+  const upcomingEvents = useMemo(() => {
+    if (!preferencesReady) return [];
+    return filterEnabled(buildUpcomingEvents(representations as TourDateItem[], rehearsals as RehearsalItem[], invoices as InvoiceItem[], sessions as SessionItem[], customEvents));
+  }, [representations, rehearsals, invoices, sessions, customEvents, enabled, preferencesReady]);
+
+  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   const weekDays = useMemo(() => {
-    const base = new Date(today);
-    const jsDay = base.getDay(); // 0 = dimanche ... 6 = samedi
-    const offsetToMonday = (jsDay + 6) % 7; // 0 = lundi
-    const monday = new Date(base);
-    monday.setDate(base.getDate() - offsetToMonday);
+    const offsetToMonday = (today.getDay() + 6) % 7;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - offsetToMonday);
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
@@ -373,35 +275,9 @@ export function DashboardPage() {
 
   const weekEventsByDate = useMemo(() => {
     if (!preferencesReady) return {};
-    const start = weekDays[0];
-    const end = weekDays[6];
-    const events = buildWeekEvents(
-      representations,
-      rehearsals,
-      invoices,
-      sessions,
-      customEvents,
-      start,
-      end
-    );
-    const filtered = events.filter((event) => {
-      if (event.type === "representation" || event.type === "rehearsal") return enabled.live;
-      if (event.type === "session") return enabled.phono;
-      if (event.type === "invoice") return enabled.revenus;
-      if (event.type === "custom") {
-        const sector = event.sector ?? "other";
-        if (sector === "live") return enabled.live;
-        if (sector === "phono") return enabled.phono;
-        if (sector === "admin") return enabled.admin;
-        if (sector === "marketing") return enabled.marketing;
-        if (sector === "edition") return enabled.edition;
-        if (sector === "revenus") return enabled.revenus;
-        return true;
-      }
-      return true;
-    });
+    const events = filterEnabled(buildWeekEvents(representations as TourDateItem[], rehearsals as RehearsalItem[], invoices as InvoiceItem[], sessions as SessionItem[], customEvents, weekDays[0], weekDays[6]));
     const map: Record<string, UpcomingEvent[]> = {};
-    filtered.forEach((e) => {
+    events.forEach((e) => {
       const key = toDateKey(e.date);
       if (!map[key]) map[key] = [];
       map[key].push(e);
@@ -409,240 +285,206 @@ export function DashboardPage() {
     return map;
   }, [weekDays, representations, rehearsals, invoices, sessions, customEvents, enabled, preferencesReady]);
 
-  const nextThreeEvents = useMemo(
-    () => upcomingEvents.slice(0, 3),
-    [upcomingEvents]
+  const todayKey = toDateKey(today);
+
+  const dataError = tasksError || liveError || incomesError || phonoError || calendarError;
+  if (dataError) return (
+    <PageError
+      title="Impossible de charger le tableau de bord"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => {
+        mutate("user_tasks");
+        mutate("user_live");
+        mutate("user_incomes");
+        mutate("user_phono");
+        mutate("calendar_events");
+      }}
+    />
   );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold tracking-tight">
-          Tableau de bord
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Vue rapide sur ce qui demande ton attention aujourd&apos;hui.
-        </p>
+
+      {/* ── Header cockpit ─────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[12px] uppercase tracking-[0.12em] text-[#F5F5F5]/40">
+            {getGreeting()}
+          </p>
+          <h1 className="mt-1 text-[28px] font-bold uppercase tracking-tight text-[#F5F5F5]">
+            Ton sidekick
+          </h1>
+        </div>
+        <div className="flex items-center gap-2 rounded-none border border-[rgba(245,245,245,0.12)] px-3 py-2 text-[12px]">
+          <Zap size={13} className="text-[#F0FF00]" />
+          <span className="text-[#F5F5F5]/60">Niv.</span>
+          <span className="font-semibold text-[#F0FF00]">{sidekickLevel}</span>
+          <span className="text-[#F5F5F5]/30">·</span>
+          <span className="text-[#F5F5F5]/50">{Math.round(sidekickXpPercent)}% XP</span>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900" />
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_30%_30%,#fbbf24,#ec4899,transparent_60%)] opacity-60" />
-          <CardHeader className="relative z-10 pb-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-                Ton sidekick
+      {/* Barre XP */}
+      <XpBar percent={sidekickXpPercent} />
+
+      {/* ── Grille principale 60/40 ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+
+        {/* Colonne gauche — Tâches + Échéances */}
+        <div className="space-y-4 lg:col-span-3">
+
+          {/* Tâches du jour */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between border-b border-[rgba(245,245,245,0.08)] py-3">
+              <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
+                Tâches du jour
               </CardTitle>
-              <div className="flex items-center gap-2 text-[11px] text-slate-200">
-                <span className="rounded-full bg-slate-800/80 px-2 py-0.5 font-semibold uppercase tracking-wide">
-                  Niveau {sidekickLevel}
-                </span>
-                <span className="text-slate-400">
-                  XP {sidekickLevelProgressRaw}/10
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative z-10 flex items-center gap-4">
-            <div className="h-36 w-36 shrink-0 overflow-hidden rounded-2xl">
-              <img
-                src="/images/sidekick-manager.png"
-                alt="Sidekick manager artistique"
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <div className="flex-1 space-y-2 text-sm text-slate-100">
-              <div className="space-y-1">
-                <p className="font-medium">
-                  Bienvenue sur ton tableau de bord.
-                </p>
-                <p className="text-xs text-slate-300">
-                  Je suis ton sidekick, ton manager artistique virtuel, cool et
-                  décontracté. On fait monter ton niveau en avançant sur tes
-                  tâches et tes événements.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-300">
-                  <span>Progression du niveau</span>
-                  <span>{Math.round(sidekickXpPercent)}%</span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800/80">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-300 via-rose-400 to-sky-400"
-                    style={{ width: `${sidekickXpPercent}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>Tâches du jour</CardTitle>
-            <Link
-              href="/tasks"
-              className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              Tâches
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {todaysTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucune tâche en attente.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {todaysTasks.map((task) => (
-                  <Link key={task.id} href="/tasks">
-                    <li className="rounded-md bg-muted px-3 py-2 text-sm transition-colors hover:bg-muted/80">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="line-clamp-2 font-medium">
-                          {task.title}
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          À faire
-                        </span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="rounded-full bg-background/60 px-2 py-0.5">
-                          {task.sector}
-                        </span>
-                        {task.deadline && (
-                          <span>
-                            Échéance :{" "}
-                            {new Date(task.deadline).toLocaleDateString("fr-FR")}
-                          </span>
-                        )}
-                      </div>
-                      {task.description && (
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {task.description}
-                        </p>
-                      )}
-                    </li>
-                  </Link>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Calendrier hebdomadaire</CardTitle>
-          <span className="text-xs text-muted-foreground">
-            Semaine du{" "}
-            {weekDays[0].toLocaleDateString("fr-FR", {
-              day: "numeric",
-              month: "short"
-            })}{" "}
-            au{" "}
-            {weekDays[6].toLocaleDateString("fr-FR", {
-              day: "numeric",
-              month: "short"
-            })}
-          </span>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-2 xl:grid-cols-[repeat(7,minmax(0,1fr))_220px]">
-            {weekDays.map((day) => {
-              const key = toDateKey(day);
-              const dayEvents = weekEventsByDate[key] ?? [];
-              return (
-                <div
-                  key={key}
-                  className="flex min-h-24 flex-col rounded-lg border bg-muted/40 p-2"
-                >
-                  <div className="mb-1 text-xs font-medium">
-                    {day.toLocaleDateString("fr-FR", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short"
-                    })}
-                  </div>
-                  {dayEvents.length === 0 ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Aucun événement.
-                    </p>
-                  ) : (
-                    <ul className="mt-1 space-y-1">
-                      {dayEvents.map((event) => {
-                        const config = getEventConfig(event);
-                        return (
-                          <li
-                            key={event.id}
-                            className="flex items-start gap-1 rounded-md bg-background/70 px-1.5 py-1"
-                          >
-                            <span
-                              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${config.bgClass}`}
-                            >
-                              {config.icon}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[11px] font-medium">
-                                {event.title}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {config.label}
-                              </p>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-            <div className="rounded-lg border bg-muted/30 p-2">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Prochains événements
-              </p>
-              {nextThreeEvents.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Aucun événement à venir.
+              <Link
+                href="/tasks"
+                className="flex items-center gap-1 text-[12px] text-[#F5F5F5]/40 transition-colors hover:text-[#F0FF00]"
+              >
+                Voir tout <ChevronRight size={13} />
+              </Link>
+            </CardHeader>
+            <CardContent className="py-3">
+              {todaysTasks.length === 0 ? (
+                <p className="py-4 text-center text-[13px] text-[#F5F5F5]/30">
+                  Aucune tâche pour aujourd'hui.
                 </p>
               ) : (
-                <ul className="space-y-1.5">
-                  {nextThreeEvents.map((event) => {
-                    const config = getEventConfig(event);
+                <ul className="divide-y divide-[rgba(245,245,245,0.06)]">
+                  {todaysTasks.slice(0, 5).map((task) => {
+                    const todayIso = new Date().toISOString().slice(0, 10);
+                    const overdue = task.deadline && task.deadline < todayIso;
                     return (
-                      <li key={`upcoming-week-${event.id}`}>
-                        <Link
-                          href={`/calendar?event=${encodeURIComponent(event.id)}`}
-                          className="block rounded-md border bg-background/70 px-2 py-1.5 transition-colors hover:bg-muted/50"
-                        >
-                          <div className="flex items-start gap-1.5">
-                            <span
-                              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${config.bgClass}`}
-                            >
-                              {config.icon}
+                      <li key={task.id} className="flex items-start justify-between gap-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-[#F5F5F5]">
+                            {task.title}
+                          </p>
+                          {task.deadline && (
+                            <span className={cn(
+                              "mt-0.5 inline-flex items-center gap-1 text-[11px]",
+                              overdue
+                                ? "text-rose-400"
+                                : "text-[#F5F5F5]/40"
+                            )}>
+                              {overdue && <TriangleAlert size={11} />}
+                              {new Date(task.deadline).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
                             </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-[11px] font-medium">
-                                {event.title}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {formatEventDate(event.dateStr)}
-                              </p>
-                            </div>
-                          </div>
+                          )}
+                        </div>
+                        <Link href="/tasks" className="shrink-0 text-[#F5F5F5]/25 transition-colors hover:text-[#F5F5F5]">
+                          <Pencil size={13} />
                         </Link>
                       </li>
                     );
                   })}
                 </ul>
               )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {/* Prochaines échéances */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between border-b border-[rgba(245,245,245,0.08)] py-3">
+              <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
+                Prochaines échéances
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-3">
+              {upcomingEvents.length === 0 ? (
+                <p className="py-4 text-center text-[13px] text-[#F5F5F5]/30">
+                  Aucun événement à venir.
+                </p>
+              ) : (
+                <ul className="divide-y divide-[rgba(245,245,245,0.06)]">
+                  {upcomingEvents.slice(0, 3).map((event) => {
+                    const cfg = getEventConfig(event);
+                    return (
+                      <li key={event.id} className="flex items-center gap-3 py-2.5">
+                        <span className={cn("h-2 w-2 shrink-0 rounded-full", cfg.dot)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-[#F5F5F5]">
+                            {event.title}
+                          </p>
+                          <p className="text-[11px] text-[#F5F5F5]/40">{cfg.label}</p>
+                        </div>
+                        <span className="shrink-0 text-[11px] text-[#F5F5F5]/40">
+                          {formatEventDate(event.dateStr)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Colonne droite — Calendrier semaine */}
+        <div className="lg:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-[rgba(245,245,245,0.08)] py-3">
+              <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
+                Cette semaine
+              </CardTitle>
+              <Link href="/calendar" className="text-[12px] text-[#F5F5F5]/40 transition-colors hover:text-[#F0FF00]">
+                Calendrier
+              </Link>
+            </CardHeader>
+            <CardContent className="py-3">
+              <div className="space-y-1">
+                {weekDays.map((day) => {
+                  const key = toDateKey(day);
+                  const dayEvents = weekEventsByDate[key] ?? [];
+                  const isToday = key === todayKey;
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "flex items-start gap-3 rounded-none px-2 py-1.5",
+                        isToday && "bg-[#F0FF00]/5 outline outline-1 outline-[#F0FF00]/20"
+                      )}
+                    >
+                      <div className="w-16 shrink-0">
+                        <p className={cn(
+                          "text-[11px] font-medium capitalize",
+                          isToday ? "text-[#F0FF00]" : "text-[#F5F5F5]/40"
+                        )}>
+                          {day.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="flex flex-1 flex-wrap gap-1">
+                        {dayEvents.length === 0 ? (
+                          <span className="text-[11px] text-[#F5F5F5]/20">—</span>
+                        ) : (
+                          dayEvents.map((event) => {
+                            const cfg = getEventConfig(event);
+                            return (
+                              <span
+                                key={event.id}
+                                className={cn(
+                                  "flex items-center gap-1 rounded-none px-1.5 py-0.5 text-[10px] font-medium",
+                                  "bg-[rgba(245,245,245,0.06)] text-[#F5F5F5]/70"
+                                )}
+                              >
+                                <span className={cn("h-1.5 w-1.5 rounded-full", cfg.dot)} />
+                                <span className="max-w-[80px] truncate">{event.title}</span>
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,9 +65,16 @@ function isRehearsalPast(dateStr: string): boolean {
 }
 
 export function RehearsalsPage() {
-  const { rehearsals, setRehearsals, equipmentLists, equipmentInventory, loading } = useLiveData();
+  const { rehearsals, setRehearsals, equipmentLists, equipmentInventory, loading, error } = useLiveData();
 
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes répétitions"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_live")}
+    />
+  );
 
   const [selectedListIdByRehearsal, setSelectedListIdByRehearsal] = useLocalStorage<Record<string, string>>(
     "live:rehearsals-material-by-rehearsal",

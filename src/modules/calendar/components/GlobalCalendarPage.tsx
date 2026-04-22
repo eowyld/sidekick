@@ -38,6 +38,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useCalendarData, type CustomCalendarItem } from "@/hooks/useCalendarData";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -613,7 +615,7 @@ export function GlobalCalendarPage() {
   const phonoTracks = (sidekickData.phono?.tracks ?? []) as PhonoTrackItem[];
   const phonoAlbums = (sidekickData.phono?.albums ?? []) as PhonoAlbumItem[];
   const phonoPodcasts = (sidekickData.phono?.podcasts ?? []) as PhonoPodcastItem[];
-  const { customEvents, setCustomEvents } = useCalendarData();
+  const { customEvents, setCustomEvents, loading: calendarLoading, error: calendarError } = useCalendarData();
   const tasks = (sidekickData.tasks ?? []) as TaskItem[];
   const marketingEvents = (sidekickData.marketing.events ?? []) as MarketingItem[];
   const adminProcedures = (sidekickData.admin.procedures ?? []) as AdminProcedureItem[];
@@ -870,6 +872,14 @@ export function GlobalCalendarPage() {
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
+
+  if (calendarError) return (
+    <PageError
+      title="Impossible de charger ton calendrier"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("calendar_events")}
+    />
+  );
 
   return !preferencesReady ? (
     <div className="space-y-4">

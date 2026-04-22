@@ -32,6 +32,8 @@ import {
 import { usePhonoData } from "@/hooks/usePhonoData";
 import type { StudioSession } from "@/hooks/usePhonoData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { frToIso, isoToFr } from "@/lib/date-format";
 import type { PhonoRole } from "@/lib/sidekick-store";
 
@@ -111,7 +113,7 @@ function buildGoogleMapsUrl(location: string, address?: string): string {
 }
 
 export function SessionsStudioPage() {
-  const { sessions, setSessions, loading } = usePhonoData();
+  const { sessions, setSessions, loading, error } = usePhonoData();
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -179,12 +181,12 @@ export function SessionsStudioPage() {
       time: s.time ?? "",
       location: s.location ?? "",
       address: s.address ?? "",
-      sessionType: s.sessionType ?? "prise",
+      sessionType: (s.sessionType ?? "prise") as SessionType,
       sessionTypeOther: s.sessionTypeOther ?? "",
       participants: s.participants?.length
         ? s.participants.map((p) => ({
             ...p,
-            role: normalizeParticipantRole(p.role),
+            role: normalizeParticipantRole(p.role as ParticipantRole),
           }))
         : [],
       note: s.note ?? "",
@@ -262,6 +264,13 @@ export function SessionsStudioPage() {
   };
 
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes sessions studio"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_phono")}
+    />
+  );
 
   const tableHeaders = (
     <tr className="border-b bg-muted/50">
@@ -280,7 +289,7 @@ export function SessionsStudioPage() {
     <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{s.title || "—"}</td>
       <td className="px-4 py-3 text-sm">
-        {sessionTypeLabel(s.sessionType, s.sessionTypeOther)}
+        {sessionTypeLabel(s.sessionType as SessionType, s.sessionTypeOther)}
       </td>
       <td className="px-4 py-3">{s.date}</td>
       <td className="px-4 py-3">{s.time}</td>

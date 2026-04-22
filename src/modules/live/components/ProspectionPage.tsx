@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,8 +91,15 @@ function isoToFr(isoDate: string): string {
 }
 
 export function ProspectionPage() {
-  const { prospection: entries, setProspection: setEntries, loading } = useLiveData();
+  const { prospection: entries, setProspection: setEntries, loading, error } = useLiveData();
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger ta prospection live"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_live")}
+    />
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

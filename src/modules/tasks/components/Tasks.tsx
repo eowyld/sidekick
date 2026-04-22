@@ -15,6 +15,8 @@ import { useSidekickData } from "@/hooks/useSidekickData";
 import { useTasksData } from "@/hooks/useTasksData";
 import { createClient } from "@/lib/supabase";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TaskModal, type TaskFormData, type TaskSector } from "./TaskModal";
@@ -24,9 +26,7 @@ import { TaskCard } from "./TaskCard";
 
 export function Tasks() {
   const { data, setData } = useSidekickData();
-  const { tasks, setTasks, loading } = useTasksData();
-
-  if (loading) return <PageLoader />;
+  const { tasks, setTasks, loading, error } = useTasksData();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -87,6 +87,15 @@ export function Tasks() {
   const activeTask = useMemo(
     () => (activeId ? todos.find((t) => t.id === activeId) ?? null : null),
     [activeId, todos]
+  );
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes tâches"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_tasks")}
+    />
   );
 
   const enabledModules = data.preferences?.enabledModules ?? {};

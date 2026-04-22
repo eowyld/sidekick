@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,8 +68,8 @@ export function MailingPage() {
     mailingContacts: contacts, setMailingContacts: setContacts,
     segments, setSegments,
     loading,
+    error,
   } = useMarketingData();
-  if (loading) return <PageLoader />;
 
   // Formulaire campagne
   const [formCampaignName, setFormCampaignName] = useState("");
@@ -223,6 +225,15 @@ export function MailingPage() {
       }
     })();
   }, [activeTab, campaigns.length]);
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes campagnes"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_marketing")}
+    />
+  );
 
   const clearCampaignForm = () => {
     setFormCampaignName("");

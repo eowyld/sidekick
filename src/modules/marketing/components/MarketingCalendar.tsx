@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, FolderOpen, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { useMarketingData } from "@/hooks/useMarketingData";
+import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -155,6 +159,7 @@ function stripExtension(name: string): string {
 
 export function MarketingCalendar() {
   const { data, setData } = useSidekickData();
+  const { marketingEvents: eventsFromDb, setMarketingEvents, loading, error } = useMarketingData();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
@@ -181,10 +186,9 @@ export function MarketingCalendar() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const rawEvents = (data.marketing.events ?? []) as MarketingEvent[];
   const events = useMemo(
-    () => rawEvents.map(normalizeEditorialEvent).filter((e) => e.date).sort(sortEvents),
-    [rawEvents]
+    () => eventsFromDb.filter((e) => e.date).sort(sortEvents),
+    [eventsFromDb]
   );
   const customPlatforms = data.marketing.editorialPlatforms ?? [];
   const customContentTypes = data.marketing.editorialContentTypes ?? [];
@@ -324,17 +328,8 @@ export function MarketingCalendar() {
     setDialogOpen(true);
   };
 
-  const persistEvents = (updater: (prev: MarketingEvent[]) => MarketingEvent[]) => {
-    setData((prev) => {
-      const previousMarketingEvents = (prev.marketing.events ?? []) as MarketingEvent[];
-      return {
-        ...prev,
-        marketing: {
-          ...prev.marketing,
-          events: updater(previousMarketingEvents)
-        }
-      };
-    });
+  const persistEvents = (updater: (prev: EditorialEvent[]) => EditorialEvent[]) => {
+    setMarketingEvents(updater);
   };
 
   const toggleInFormList = (key: "platforms" | "contentTypes", value: string) => {
@@ -518,6 +513,15 @@ export function MarketingCalendar() {
     if (!window.confirm(`Supprimer "${target.title}" ?`)) return;
     persistEvents((prev) => prev.filter((item) => String(item.id) !== id));
   };
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger le calendrier éditorial"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_marketing")}
+    />
+  );
 
   return (
     <div className="space-y-6">

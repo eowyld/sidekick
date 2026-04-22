@@ -4,6 +4,8 @@ import { useState, useCallback, memo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useEditionData } from "@/hooks/useEditionData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type { Work, Person, PersonRole, SplitEntry, SacemRepartition, EditionPublisher } from "@/lib/sidekick-store";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -1309,8 +1311,7 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
 // ─── WorksPage ─────────────────────────────────────────────────────────────────
 
 export function WorksPage() {
-  const { works, setWorks, loading } = useEditionData();
-  if (loading) return <PageLoader />;
+  const { works, setWorks, loading, error } = useEditionData();
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
@@ -1320,6 +1321,15 @@ export function WorksPage() {
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
   const [newWork, setNewWork] = useState<Omit<Work, "id">>(DEFAULT_WORK);
   const [editWork, setEditWork] = useState<Omit<Work, "id">>(DEFAULT_WORK);
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes œuvres"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_edition")}
+    />
+  );
 
   const isSplitValid = (w: Omit<Work, "id">) => {
     if (w.persons.length <= 1) return true;

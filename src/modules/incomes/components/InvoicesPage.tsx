@@ -20,6 +20,8 @@ import {
 import { Plus, Pencil, Trash2, Download, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { useIncomesData, type Invoice as InvoiceFromHook } from "@/hooks/useIncomesData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { DatePicker } from "@/components/ui/date-picker";
 
 type InvoiceStatus = "en_attente" | "payee";
@@ -115,7 +117,7 @@ function getNextInvoiceNumber(invoices: Invoice[]): string {
 }
 
 export function InvoicesPage() {
-  const { invoices, setInvoices, loading } = useIncomesData();
+  const { invoices, setInvoices, loading, error } = useIncomesData();
 
   const [openSections, setOpenSections] = useState<{ en_attente: boolean; payees: boolean }>({
     en_attente: true,
@@ -360,6 +362,13 @@ export function InvoicesPage() {
   };
 
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes factures"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_incomes")}
+    />
+  );
 
   return (
     <div className="space-y-6">

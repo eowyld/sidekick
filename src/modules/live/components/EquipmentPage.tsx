@@ -20,6 +20,8 @@ import {
 import { Plus, Pencil, Trash2, List, Package } from "lucide-react";
 import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const CONDITION_OPTIONS = [
@@ -34,7 +36,7 @@ type Condition = (typeof CONDITION_OPTIONS)[number];
 type TabId = "inventaire" | "liste";
 
 export function EquipmentPage() {
-  const { equipmentInventory: inventory, setEquipmentInventory: setInventory, equipmentLists: lists, setEquipmentLists: setLists, loading } = useLiveData();
+  const { equipmentInventory: inventory, setEquipmentInventory: setInventory, equipmentLists: lists, setEquipmentLists: setLists, loading, error } = useLiveData();
   const [activeTab, setActiveTab] = useState<TabId>("inventaire");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -171,6 +173,13 @@ export function EquipmentPage() {
       .filter((i): i is EquipmentInventoryItem => i != null);
 
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger ton inventaire"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_live")}
+    />
+  );
 
   return (
     <div className="space-y-6">

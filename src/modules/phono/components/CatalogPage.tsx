@@ -56,6 +56,8 @@ import {
 import JSZip from "jszip";
 import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 
 const ROLES: { value: PhonoRole; label: string }[] = [
   { value: "artiste_principal", label: "Artiste principal" },
@@ -350,9 +352,7 @@ function formatTracklistForCopy(items: PodcastTracklistItem[]): string {
 }
 
 export function CatalogPage() {
-  const { tracks: tracksRaw, setTracks, albums: albumsRaw, setAlbums, podcasts: podcastsRaw, setPodcasts, loading } = usePhonoData();
-
-  if (loading) return <PageLoader />;
+  const { tracks: tracksRaw, setTracks, albums: albumsRaw, setAlbums, podcasts: podcastsRaw, setPodcasts, loading, error } = usePhonoData();
 
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
@@ -385,6 +385,15 @@ export function CatalogPage() {
   const [albumMetadataBuffers, setAlbumMetadataBuffers] = useState<Record<string, ArrayBuffer | null>>({});
   const [albumMetadataUploading, setAlbumMetadataUploading] = useState<Record<string, boolean>>({});
   const [albumMetadataProcessing, setAlbumMetadataProcessing] = useState(false);
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger ton catalogue"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_phono")}
+    />
+  );
 
   const tracks = tracksRaw.map(normalizeTrack);
   const albums = albumsRaw

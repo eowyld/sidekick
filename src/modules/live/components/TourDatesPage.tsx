@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,8 +179,7 @@ export function TourDatesPage() {
   const [editingVenue, setEditingVenue] = useState<string>("");
   const [editingAddress, setEditingAddress] = useState<string>("");
 
-  const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists, loading } = useLiveData();
-  if (loading) return <PageLoader />;
+  const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists, loading, error } = useLiveData();
 
   const pastDates = useMemo(
     () => dates.filter((d) => isRepresentationPast(d.date)),
@@ -189,13 +190,6 @@ export function TourDatesPage() {
     () => dates.filter((d) => !isRepresentationPast(d.date)),
     [dates]
   );
-
-  const toggleSection = (section: "past" | "upcoming") => {
-    setOpenSection(openSection === section ? null : section);
-  };
-
-  const getRepresentationTitle = (date: TourDate) =>
-    [date.city, date.venue].filter(Boolean).join(" – ") || "Sans nom";
 
   const allDates = dates;
 
@@ -211,6 +205,22 @@ export function TourDatesPage() {
       setEditingAddress(editingDate.address ?? "");
     }
   }, [editingDate]);
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes dates de live"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_live")}
+    />
+  );
+
+  const toggleSection = (section: "past" | "upcoming") => {
+    setOpenSection(openSection === section ? null : section);
+  };
+
+  const getRepresentationTitle = (date: TourDate) =>
+    [date.city, date.venue].filter(Boolean).join(" – ") || "Sans nom";
 
   const optionsDate =
     optionsDialog.dateId != null

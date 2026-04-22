@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useIncomesData } from "@/hooks/useIncomesData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { RoyaltiesDashboard } from "./RoyaltiesDashboard";
 import { RoyaltiesImports } from "./RoyaltiesImports";
 import type {
@@ -10,8 +12,15 @@ import type {
 } from "../parsers/royalties-types";
 
 export function RoyaltiesPage() {
-  const { imports, setImport, manualEntries, setManualEntries, loading } = useIncomesData();
+  const { imports, setImport, manualEntries, setManualEntries, loading, error } = useIncomesData();
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes revenus"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_incomes")}
+    />
+  );
   const [lastTab, setLastTab] = useState<TabId>("distrokid");
 
   const allEntries: RoyaltyEntry[] = useMemo(() => {

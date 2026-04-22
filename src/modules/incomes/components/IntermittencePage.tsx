@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useIncomesData } from "@/hooks/useIncomesData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { IntermittenceDashboard } from "./IntermittenceDashboard";
 import { IntermittenceMissions } from "./IntermittenceMissions";
 import type { IntermittenceMission } from "./intermittence-types";
@@ -11,8 +13,15 @@ import { IntermittenceModal } from "./IntermittenceModal";
 type IntermittenceView = "dashboard" | "missions";
 
 export function IntermittencePage() {
-  const { missions: intermittenceMissions, setMissions: setIntermittenceMissions, loading } = useIncomesData();
+  const { missions: intermittenceMissions, setMissions: setIntermittenceMissions, loading, error } = useIncomesData();
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes données d'intermittence"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_incomes")}
+    />
+  );
 
   const [currentView, setCurrentView] = useState<IntermittenceView>("dashboard");
   const [modalOpen, setModalOpen] = useState(false);

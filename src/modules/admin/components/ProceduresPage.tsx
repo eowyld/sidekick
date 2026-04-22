@@ -24,6 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAdminData } from "@/hooks/useAdminData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { toDisplayDate, isoToFr, frToIso } from "@/lib/date-format";
 import type { AdminProcedure } from "@/lib/sidekick-store";
 
@@ -34,8 +36,15 @@ const PROCEDURE_STATUS = [
 ] as const;
 
 export function ProceduresPage() {
-  const { procedures, setProcedures, statuses, loading } = useAdminData();
+  const { procedures, setProcedures, statuses, loading, error } = useAdminData();
   if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes démarches"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_admin")}
+    />
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [formLabel, setFormLabel] = useState("");

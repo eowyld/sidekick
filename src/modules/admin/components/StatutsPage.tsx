@@ -25,6 +25,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAdminData } from "@/hooks/useAdminData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import { toDisplayDate, isoToFr, frToIso } from "@/lib/date-format";
 import type { AdminStatus, AdminStatusType } from "@/lib/sidekick-store";
 
@@ -40,8 +42,7 @@ const STATUS_TYPES: { value: AdminStatusType; label: string }[] = [
 ];
 
 export function StatutsPage() {
-  const { statuses, setStatuses, loading } = useAdminData();
-  if (loading) return <PageLoader />;
+  const { statuses, setStatuses, loading, error } = useAdminData();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [formNom, setFormNom] = useState("");
@@ -50,6 +51,15 @@ export function StatutsPage() {
   const [formDateDebut, setFormDateDebut] = useState("");
   const [formDateFin, setFormDateFin] = useState("");
   const [formNotes, setFormNotes] = useState("");
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes statuts juridiques"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_admin")}
+    />
+  );
 
   const resetForm = () => {
     setFormNom("");

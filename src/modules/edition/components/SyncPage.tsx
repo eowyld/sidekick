@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useEditionData } from "@/hooks/useEditionData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { PageError } from "@/components/ui/page-error";
+import { mutate } from "swr";
 import type { Work, SyncData, Exploitant, PersonRole } from "@/lib/sidekick-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -122,8 +124,7 @@ function createDefaultSyncData(workId: string): SyncData {
 }
 
 export function SyncPage() {
-  const { works: allWorks, syncMap, setSyncData, loading } = useEditionData();
-  if (loading) return <PageLoader />;
+  const { works: allWorks, syncMap, setSyncData, loading, error } = useEditionData();
   const syncWorks = allWorks.filter((w) =>
     w.exploitationTypes.includes("sync")
   );
@@ -153,6 +154,15 @@ export function SyncPage() {
   // Exploitants modal
   const [exWork, setExWork] = useState<Work | null>(null);
   const [exSync, setExSync] = useState<SyncData | null>(null);
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes données de synchronisation"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_edition")}
+    />
+  );
 
   const openEdit = (work: Work) => {
     setEditWork(work);
