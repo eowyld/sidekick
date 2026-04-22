@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/popover";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NoResult } from "@/components/ui/no-result";
 import { mutate } from "swr";
 
 const BASE_ROLES = [
@@ -458,9 +460,19 @@ export function ContactsPage() {
 
         {/* Table */}
         {contacts.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-[#F5F5F5]/35">
-            Aucun contact pour le moment. Clique sur &quot;Ajouter&quot; pour commencer ton carnet d&apos;adresses.
-          </p>
+          <EmptyState
+            icon={Users}
+            title="Ton carnet d'adresses est vide"
+            description="Tourneurs, labels, presse, partenaires : regroupe ici tous tes contacts pro."
+            action={{ label: "Ajouter un contact", onClick: startCreate }}
+            secondaryAction={{ label: "Importer depuis un CSV", onClick: () => console.warn("Import CSV : fonctionnalité à venir") }}
+          />
+        ) : sortedContacts.length === 0 ? (
+          <NoResult
+            query={searchTerm || undefined}
+            hasFilters={roleFilter !== "__all__"}
+            onReset={() => { setSearchTerm(""); setRoleFilter("__all__"); }}
+          />
         ) : (
           <table className="w-full border-collapse text-sm table-fixed">
             <colgroup>
