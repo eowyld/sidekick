@@ -40,7 +40,9 @@ import {
   X,
   Radio,
   Disc,
+  Clapperboard,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -329,18 +331,12 @@ Document généré le ${date}
 
       {/* List */}
       {syncWorks.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Tv className="mx-auto mb-4 h-12 w-12 text-[#F5F5F5]/20" />
-            <p className="mb-2 text-[#F5F5F5]/60">
-              Aucune œuvre marquée pour la synchronisation.
-            </p>
-            <p className="text-sm text-[#F5F5F5]/40">
-              Activez le type d&apos;exploitation{" "}
-              <span className="font-medium">Synchronisation</span> dans le catalogue.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Clapperboard}
+          title="Aucune sync pour le moment"
+          description="Synchronisations audiovisuelles (pub, film, série, jeu) : suis tes placements, leurs contrats et leurs droits."
+          action={{ label: "Ajouter une sync", onClick: () => { window.location.href = "/edition"; } }}
+        />
       ) : (
         <div className="space-y-4">
           {syncWorks.map((work) => {

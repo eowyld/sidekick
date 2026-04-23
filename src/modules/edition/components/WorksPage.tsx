@@ -41,7 +41,9 @@ import {
   Upload,
   FileText,
   Info,
+  BookOpen,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -1434,15 +1436,12 @@ export function WorksPage() {
 
       {/* List */}
       {works.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Music className="mx-auto mb-4 h-12 w-12 text-[#F5F5F5]/20" />
-            <p className="mb-4 text-[#F5F5F5]/60">Aucune œuvre dans le catalogue.</p>
-            <Button onClick={() => { setNewWork(DEFAULT_WORK); setIsAddOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> Ajouter une première œuvre
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={BookOpen}
+          title="Aucune œuvre déposée"
+          description="Tes œuvres éditoriales (compositions, textes, arrangements) : référence-les ici et suis leurs dépôts SACEM."
+          action={{ label: "Ajouter une œuvre", onClick: () => { setNewWork(DEFAULT_WORK); setIsAddOpen(true); } }}
+        />
       ) : (
         <div className="space-y-4">
           {works.map((work) => (
