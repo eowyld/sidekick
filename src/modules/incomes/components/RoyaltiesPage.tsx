@@ -7,6 +7,8 @@ import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
 import { RoyaltiesDashboard } from "./RoyaltiesDashboard";
 import { RoyaltiesImports } from "./RoyaltiesImports";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FileSpreadsheet } from "lucide-react";
 import type {
   Distributor, DistributorImport, RoyaltyEntry, TabId
 } from "../parsers/royalties-types";
@@ -56,9 +58,18 @@ export function RoyaltiesPage() {
         </p>
       </header>
 
-      <RoyaltiesDashboard entries={allEntries} />
-
-      <div className="border-t border-[rgba(245,245,245,0.08)]" />
+      {allEntries.length === 0 ? (
+        <EmptyState
+          icon={FileSpreadsheet}
+          title="Aucun import de royalties"
+          description="Importe tes relevés DSP (Spotify, Apple Music, Deezer…) ou de distributeur en CSV pour suivre tes revenus de streaming."
+        />
+      ) : (
+        <>
+          <RoyaltiesDashboard entries={allEntries} />
+          <div className="border-t border-[rgba(245,245,245,0.08)]" />
+        </>
+      )}
 
       <RoyaltiesImports
         imports={imports}
