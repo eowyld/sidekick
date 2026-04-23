@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { IdCard, Plus, Pencil, Trash2 } from "lucide-react";
 import { useAdminData } from "@/hooks/useAdminData";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -124,13 +125,12 @@ export function StatutsPage() {
       </div>
 
       {statuses.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              Aucun statut. Clique sur « Ajouter un statut » pour en créer un.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={IdCard}
+          title="Ajoute tes statuts"
+          description="Intermittent, micro-entreprise, SACEM, SACD… Référence ici tes statuts pour garder une vue claire sur ta situation administrative et les connecter aux différents modules Sidekick."
+          action={{ label: "Ajouter un statut", onClick: () => { resetForm(); setIsAddOpen(true); } }}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {statuses.map((s) => (

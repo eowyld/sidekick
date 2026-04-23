@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { FileSignature } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { useContractsData } from "@/hooks/useContractsData";
 import { PageLoader } from "@/components/ui/page-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toDisplayDate } from "@/lib/date-format";
 import type { ContractInstance, ContractStatus, ContractTemplate } from "@/lib/contracts-db";
 import { TemplateEditor } from "@/modules/admin/components/contract/TemplateEditor";
@@ -67,7 +69,6 @@ export function ContractsPage() {
     isLoading,
   } =
     useContractsData();
-  if (isLoading) return <PageLoader />;
 
   const activeSignatureId = useMemo(() => signatures.find((s) => s.isActive)?.id ?? null, [signatures]);
 
@@ -101,6 +102,8 @@ export function ContractsPage() {
   const templateVariableKeys = useMemo(() => selectedTemplate?.variableKeys ?? [], [selectedTemplate]);
 
   const pdfPreviewRef = useRef<HTMLDivElement | null>(null);
+
+  if (isLoading) return <PageLoader />;
 
   const exportContractPdf = async (contract: ContractInstance) => {
     try {
@@ -266,9 +269,13 @@ export function ContractsPage() {
           </CardHeader>
           <CardContent>
             {contracts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun contrat. Crée un contrat spécifique à partir d&apos;un contrat type.
-              </p>
+              <EmptyState
+                icon={FileSignature}
+                title="Aucun contrat pour le moment"
+                description="Centralise tes contrats d'édition, de management, de cession, et leurs signatures."
+                action={{ label: "Ajouter un contrat", onClick: openNewContract }}
+                secondaryAction={{ label: "Créer à partir d'un template", onClick: openNewTemplate }}
+              />
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {contracts.map((c) => (
@@ -451,7 +458,7 @@ function ContractCard({
             {toDisplayDate(contract.statusUpdatedAt)} · {statusLabel(contract.status)}
           </p>
         </div>
-        <Badge variant={contract.status === "signed" ? "default" : "secondary"}>
+        <Badge variant={contract.status === "signed" ? "default" : "outline"}>
           {statusLabel(contract.status)}
         </Badge>
       </div>

@@ -21,8 +21,9 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { ListChecks, Plus, Pencil, Trash2 } from "lucide-react";
 import { useAdminData } from "@/hooks/useAdminData";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -118,14 +119,12 @@ export function ProceduresPage() {
       </div>
 
       {procedures.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              Aucune démarche enregistrée. Ajoute une démarche (ex. renouvellement
-              intermittent, déclaration AGESSA) pour garder le suivi.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={ListChecks}
+          title="Aucune procédure enregistrée"
+          description="Démarches récurrentes, checklists, process à suivre : garde-les ici pour ne rien oublier."
+          action={{ label: "Ajouter une procédure", onClick: () => setIsAddOpen(true) }}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {procedures.map((p) => {
