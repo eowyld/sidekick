@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { FileSignature } from "lucide-react";
+import { FileSignature, PenLine } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -233,9 +233,12 @@ export function ContractsPage() {
           </CardHeader>
           <CardContent>
             {templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun modèle pour le moment. Clique sur « Créer un modèle ».
-              </p>
+              <EmptyState
+                icon={FileSignature}
+                title="Aucun contrat type"
+                description="Crée des modèles de contrats réutilisables avec des variables (cachet, date, lieu…) pour les générer en un clic."
+                action={{ label: "Créer un modèle", onClick: openNewTemplate }}
+              />
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {templates.map((t) => (
@@ -303,9 +306,12 @@ export function ContractsPage() {
           </CardHeader>
           <CardContent>
             {signatures.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucune signature enregistrée. Importe une image (PNG/JPG) ou crée-la (feature v2).
-              </p>
+              <EmptyState
+                icon={PenLine}
+                title="Aucune signature enregistrée"
+                description="Importe une image de ta signature (PNG/JPG) pour signer tes contrats en un clic."
+                action={{ label: "Importer une signature", onClick: () => setSignatureDialogOpen(true) }}
+              />
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {signatures.map((s) => (
