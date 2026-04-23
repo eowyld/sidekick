@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, FolderOpen, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -557,6 +558,15 @@ export function MarketingCalendar() {
           </Button>
         </div>
       </div>
+
+      {events.length === 0 && (
+        <EmptyState
+          icon={CalendarDays}
+          title="Aucun événement marketing"
+          description="Planifie tes annonces de sortie, posts réseaux, campagnes presse sur un calendrier éditorial dédié."
+          action={{ label: "Ajouter un événement", onClick: () => openCreateDialog() }}
+        />
+      )}
 
       <div>
         <Card>
