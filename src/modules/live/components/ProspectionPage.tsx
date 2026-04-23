@@ -21,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Plus, Pencil, Target, Trash2, UserPlus } from "lucide-react";
 import { useLiveData, type ProspectionEntry } from "@/hooks/useLiveData";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 type ContactFromModule = {
@@ -320,11 +321,13 @@ export function ProspectionPage() {
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                  Aucun lieu.{" "}
-                  <Button onClick={openAdd} variant="link" className="p-0 h-auto">
-                    Ajouter un lieu
-                  </Button>
+                <td colSpan={9}>
+                  <EmptyState
+                    icon={Target}
+                    title="Aucune prospection en cours"
+                    description="Suivi de tes démarches pour décrocher des dates : salles, festivals, tourneurs contactés."
+                    action={{ label: "Ajouter un prospect", onClick: openAdd }}
+                  />
                 </td>
               </tr>
             ) : (

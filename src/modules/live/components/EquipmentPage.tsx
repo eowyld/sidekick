@@ -17,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, List, Package } from "lucide-react";
+import { ClipboardList, Plus, Pencil, Trash2, List, Package } from "lucide-react";
 import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -245,18 +246,13 @@ export function EquipmentPage() {
               <tbody>
                 {inventory.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-muted-foreground"
-                    >
-                      Aucun matériel.{" "}
-                      <Button
-                        onClick={openAdd}
-                        variant="link"
-                        className="p-0 h-auto"
-                      >
-                        Ajouter du matériel
-                      </Button>
+                    <td colSpan={5}>
+                      <EmptyState
+                        icon={Package}
+                        title="Ton inventaire est vide"
+                        description="Référence tout ton matériel (instruments, pédaliers, câbles, backline) pour le retrouver vite."
+                        action={{ label: "Ajouter du matériel", onClick: openAdd }}
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -311,17 +307,12 @@ export function EquipmentPage() {
             </Button>
           </div>
           {lists.length === 0 ? (
-            <div className="rounded-md border py-12 text-center text-sm text-muted-foreground">
-              Aucune liste. Crée une liste et sélectionne du matériel dans ton
-              inventaire.
-              <Button
-                onClick={openAddList}
-                variant="link"
-                className="mt-2 block w-full justify-center p-0"
-              >
-                Créer une liste
-              </Button>
-            </div>
+            <EmptyState
+              icon={ClipboardList}
+              title="Aucune liste de matériel"
+              description="Crée des listes pour préparer tes dates et créer tes fiches techniques : tournée été, résidence, plateau solo…"
+              action={{ label: "Créer une liste", onClick: openAddList }}
+            />
           ) : (
             <div className="space-y-4">
               {lists.map((list) => {
