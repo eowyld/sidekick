@@ -17,8 +17,9 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { MapPin, Music2, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useLiveData, type RehearsalItem } from "@/hooks/useLiveData";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type RemunerationEntry = { id: number; label: string; amount?: string };
 type EquipmentEntry = { id: number; label: string };
@@ -312,6 +313,15 @@ export function RehearsalsPage() {
           Ajouter une nouvelle répétition
         </Button>
       </div>
+
+      {rehearsals.length === 0 ? (
+        <EmptyState
+          icon={Music2}
+          title="Aucune répétition planifiée"
+          description="Planifie tes sessions de répétition, les musiciens présents, les morceaux travaillés."
+          action={{ label: "Planifier une répétition", onClick: openAdd }}
+        />
+      ) : null}
 
       <div className="space-y-4">
         {/* Section Passées */}

@@ -27,6 +27,7 @@ import {
   FilePlus2,
   Trash2
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useLiveData } from "@/hooks/useLiveData";
 import {
@@ -571,6 +572,15 @@ export function TourDatesPage() {
         </Button>
       </div>
 
+      {dates.length === 0 ? (
+        <EmptyState
+          icon={MapPin}
+          title="Aucune date de tournée"
+          description="Dates à venir, dates passées, transport, logement, fiche technique, note de frais : tout se gère ici."
+          action={{ label: "Ajouter une date", onClick: openAddDialog }}
+        />
+      ) : null}
+
       <div className="space-y-4">
         {/* Section Passées */}
         <Card>
@@ -1062,13 +1072,15 @@ export function TourDatesPage() {
         <DialogContent
           className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
+          <DialogHeader>
+            <DialogTitle>
+              {editingDate
+                ? `Modifier la date – ${getRepresentationTitle(editingDate)}`
+                : "Modifier la date"}
+            </DialogTitle>
+          </DialogHeader>
           {editingDate && (
             <>
-              <DialogHeader>
-                <DialogTitle>
-                  Modifier la date – {getRepresentationTitle(editingDate)}
-                </DialogTitle>
-              </DialogHeader>
               <div className="space-y-3 py-2 text-sm">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
@@ -1352,13 +1364,19 @@ export function TourDatesPage() {
         <DialogContent
           className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
+          <DialogHeader>
+            <DialogTitle>
+              {optionsDate && optionsDialog.type === "transport"
+                ? `Transports – ${getRepresentationTitle(optionsDate)}`
+                : optionsDate && optionsDialog.type === "lodging"
+                  ? `Logement – ${getRepresentationTitle(optionsDate)}`
+                  : optionsDate && optionsDialog.type === "equipment"
+                    ? `Matériel – ${getRepresentationTitle(optionsDate)}`
+                    : "Options"}
+            </DialogTitle>
+          </DialogHeader>
           {optionsDate && optionsDialog.type === "transport" && (
             <>
-              <DialogHeader>
-                <DialogTitle>
-                  Transports – {getRepresentationTitle(optionsDate)}
-                </DialogTitle>
-              </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
                 <div>
                   <p className="text-xs font-medium uppercase text-muted-foreground mb-1">
@@ -1540,11 +1558,6 @@ export function TourDatesPage() {
 
           {optionsDate && optionsDialog.type === "lodging" && (
             <>
-              <DialogHeader>
-                <DialogTitle>
-                  Logement – {getRepresentationTitle(optionsDate)}
-                </DialogTitle>
-              </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
                 <div>
                   <p className="text-xs font-medium uppercase text-muted-foreground mb-1">
@@ -1744,11 +1757,6 @@ export function TourDatesPage() {
 
           {optionsDate && optionsDialog.type === "equipment" && (
             <>
-              <DialogHeader>
-                <DialogTitle>
-                  Matériel – {getRepresentationTitle(optionsDate)}
-                </DialogTitle>
-              </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
                 <p className="text-xs text-muted-foreground">
                   Choisis une liste de matériel existante pour cette représentation.
@@ -1828,11 +1836,11 @@ export function TourDatesPage() {
         <DialogContent
           className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
+          <DialogHeader>
+            <DialogTitle>Gérer les horaires de la journée</DialogTitle>
+          </DialogHeader>
           {timetableDialogDateId !== null && (
             <>
-              <DialogHeader>
-                <DialogTitle>Gérer les horaires de la journée</DialogTitle>
-              </DialogHeader>
               <div className="space-y-3 py-2 text-sm">
                 <p className="text-xs text-muted-foreground">
                   Ajoute ou modifie les créneaux horaires pour cette date de
@@ -1944,11 +1952,11 @@ export function TourDatesPage() {
         <DialogContent
           className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
+          <DialogHeader>
+            <DialogTitle>Documents liés à la date</DialogTitle>
+          </DialogHeader>
           {documentDialogDateId !== null && (
             <>
-              <DialogHeader>
-                <DialogTitle>Documents liés à la date</DialogTitle>
-              </DialogHeader>
               <div className="space-y-4 py-2 text-sm">
                 <div className="space-y-2 rounded-md border bg-muted/40 p-3">
                   <div>
