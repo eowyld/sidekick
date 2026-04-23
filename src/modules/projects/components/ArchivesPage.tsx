@@ -2,6 +2,8 @@
 
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { ProjectArchiveRow } from "./ProjectArchiveRow";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Archive } from "lucide-react";
 
 export function ArchivesPage() {
   const { data, setData } = useSidekickData();
@@ -32,9 +34,11 @@ export function ArchivesPage() {
       </div>
 
       {archivedProjects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-[#F5F5F5]/30">
-          <p className="text-sm">Aucun projet archivé</p>
-        </div>
+        <EmptyState
+          icon={Archive}
+          title="Aucun projet archivé"
+          description="Retrouve ici tes projets terminés : albums sortis, tournées passées, campagnes closes."
+        />
       ) : (
         <div className="space-y-1">
           {archivedProjects.map((p) => (
