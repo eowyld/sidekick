@@ -28,7 +28,9 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  AudioWaveform,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { usePhonoData } from "@/hooks/usePhonoData";
 import type { StudioSession } from "@/hooks/usePhonoData";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -365,6 +367,14 @@ export function SessionsStudioPage() {
         </Button>
       </div>
 
+      {sessions.length === 0 ? (
+        <EmptyState
+          icon={AudioWaveform}
+          title="Aucune session studio"
+          description="Sessions à venir, sessions passées, studio, intervenants, morceaux enregistrés : garde l'historique de ton activité studio et récupère tes droits voisins."
+          action={{ label: "Planifier une session", onClick: openAdd }}
+        />
+      ) : (
       <div className="space-y-4">
         <Card>
           <CardHeader
@@ -460,6 +470,7 @@ export function SessionsStudioPage() {
           )}
         </Card>
       </div>
+      )}
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-lg">
