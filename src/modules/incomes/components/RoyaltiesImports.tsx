@@ -3,8 +3,7 @@
 import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Upload, Plus, Pencil, Trash2 } from "lucide-react";
 import type {
   Distributor, DistributorImport, ImportsStore, ManualEntry, TabId
 } from "../parsers/royalties-types";
@@ -188,12 +187,9 @@ export function RoyaltiesImports({
             )}
             {!imp && (
               <CardContent className="pt-0">
-                <EmptyState
-                  icon={FileSpreadsheet}
-                  title="Aucun import de royalties"
-                  description="Importe tes relevés DSP (Spotify, Apple Music, Deezer…) ou de distributeur en CSV pour suivre tes revenus de streaming."
-                  action={{ label: "Importer un CSV", onClick: () => fileRefs.current[distributor]?.click() }}
-                />
+                <p className="py-4 text-center text-xs" style={{ color: "rgba(245,245,245,0.4)" }}>
+                  Aucun import pour ce distributeur.
+                </p>
               </CardContent>
             )}
             {imp && (
@@ -237,12 +233,9 @@ export function RoyaltiesImports({
           </CardHeader>
           <CardContent className="pt-0">
             {manualEntries.length === 0 ? (
-              <EmptyState
-                icon={FileSpreadsheet}
-                title="Aucun import de royalties"
-                description="Importe tes relevés DSP (Spotify, Apple Music, Deezer…) ou de distributeur en CSV pour suivre tes revenus de streaming."
-                action={{ label: "Ajouter un titre", onClick: () => { setEditingEntry(null); setModalOpen(true); } }}
-              />
+              <p className="py-4 text-center text-xs" style={{ color: "rgba(245,245,245,0.4)" }}>
+                Aucune entrée manuelle. Clique sur « Ajouter un titre » pour commencer.
+              </p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-[rgba(245,245,245,0.08)]">
                 <table className="w-full text-xs">
