@@ -321,8 +321,7 @@ export function RehearsalsPage() {
           description="Planifie tes sessions de répétition, les musiciens présents, les morceaux travaillés."
           action={{ label: "Planifier une répétition", onClick: openAdd }}
         />
-      ) : null}
-
+      ) : (
       <div className="space-y-4">
         {/* Section Passées */}
         <Card>
@@ -708,6 +707,7 @@ export function RehearsalsPage() {
           )}
         </Card>
       </div>
+      )}
 
       {/* Dialog Ajouter / Modifier répétition */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

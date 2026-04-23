@@ -579,8 +579,7 @@ export function TourDatesPage() {
           description="Dates à venir, dates passées, transport, logement, fiche technique, note de frais : tout se gère ici."
           action={{ label: "Ajouter une date", onClick: openAddDialog }}
         />
-      ) : null}
-
+      ) : (
       <div className="space-y-4">
         {/* Section Passées */}
         <Card>
@@ -1067,6 +1066,7 @@ export function TourDatesPage() {
           )}
         </Card>
       </div>
+      )}
       {/* Dialog d’édition d’une date (hors timetable) */}
       <Dialog open={!!editingDate} onOpenChange={(open) => !open && setEditingId(null)}>
         <DialogContent
