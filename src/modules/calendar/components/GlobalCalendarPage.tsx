@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Calendar,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -39,6 +40,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useCalendarData, type CustomCalendarItem } from "@/hooks/useCalendarData";
 import { PageError } from "@/components/ui/page-error";
+import { EmptyState } from "@/components/ui/empty-state";
 import { mutate } from "swr";
 import { cn } from "@/lib/utils";
 
@@ -1106,12 +1108,23 @@ export function GlobalCalendarPage() {
           </CardHeader>
           <CardContent className="py-3">
             {upcomingEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <p className="text-[13px] text-[#F5F5F5]/30">Aucun événement à venir.</p>
-                <p className="mt-1 text-[12px] text-[#F5F5F5]/20">
-                  Active des filtres ou ajoute des dates.
-                </p>
-              </div>
+              <EmptyState
+                icon={Calendar}
+                title="Aucun événement planifié"
+                description="Ton agenda regroupe automatiquement tes dates de tournée, répétitions, sorties, et événements que tu ajoutes à la main."
+                action={{
+                  label: "Ajouter un événement",
+                  onClick: () => {
+                    setEditingEventId(null);
+                    setNewEventName("");
+                    setNewEventTime("");
+                    setNewEventPlace("");
+                    setNewEventSector("other");
+                    setNewEventDate(toDateKey(currentDate));
+                    setCustomDialogOpen(true);
+                  }
+                }}
+              />
             ) : (
               <ul className="divide-y divide-[rgba(245,245,245,0.06)]">
                 {upcomingEvents.map((ev) => {
