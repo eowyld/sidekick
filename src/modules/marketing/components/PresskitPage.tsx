@@ -10,11 +10,13 @@ import {
   Link2,
   Mail,
   Music2,
+  Newspaper,
   Plus,
   Share2,
   X,
   Trash2
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -515,6 +517,20 @@ export function PresskitPage() {
       customStreamingLinks: (prev.customStreamingLinks || []).filter((item) => item.id !== id)
     }));
   };
+
+  if (presskitFromDb === null) {
+    return (
+      <EmptyState
+        icon={Newspaper}
+        title="Ton presskit n'est pas encore configuré"
+        description="Bio, photos HD, réseaux, citations presse, liens d'écoute : une page publique à partager avec la presse, les programmateurs, les partenaires."
+        action={{
+          label: "Créer mon presskit",
+          onClick: () => setPresskit(DEFAULT_PRESSKIT_PROFILE),
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
