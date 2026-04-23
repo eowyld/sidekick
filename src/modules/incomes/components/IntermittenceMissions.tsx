@@ -157,7 +157,7 @@ export function IntermittenceMissions({
           icon={Briefcase}
           title="Aucune mission déclarée"
           description="Référence tes missions (concerts, sessions, captations) avec cachet, employeur et AEM : tu gardes la main sur tes heures et ton régime."
-          action={{ label: "Ajouter une mission", onClick: onAddMission }}
+          action={onAddMission ? { label: "Ajouter une mission", onClick: onAddMission } : undefined}
         />
       )}
 
