@@ -38,7 +38,8 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { FileUp, Users, UserPlus, ChevronDown, Pencil, Trash2, Plus, Loader2, AlertCircle, Bold, Underline, Link as LinkIcon, Image, Settings, FolderOpen } from "lucide-react";
+import { FileUp, Users, UserPlus, ChevronDown, Pencil, Trash2, Plus, Loader2, AlertCircle, Bold, Underline, Link as LinkIcon, Image, Settings, FolderOpen, Send, UsersRound } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   MAILING_STORAGE_KEYS,
   type MailingCampaign,
@@ -786,7 +787,16 @@ export function MailingPage() {
       </div>
 
       {/* Historique des campagnes */}
-      {activeTab === "campaigns" && (
+      {activeTab === "campaigns" && campaigns.length === 0 && (
+        <EmptyState
+          icon={Send}
+          title="Aucune campagne"
+          description="Crée et envoie des newsletters à ta fanbase : annonces de sortie, dates, actualités."
+          action={{ label: "Créer une campagne", onClick: () => setActiveTab("newCampaign") }}
+        />
+      )}
+
+      {activeTab === "campaigns" && campaigns.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
@@ -825,16 +835,7 @@ export function MailingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {campaigns.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-8 text-center text-muted-foreground"
-                      >
-                        Aucune campagne pour le moment.
-                      </td>
-                    </tr>
-                  ) : (
+                  {(
                     campaigns.map((c) => {
                       const stats = campaignStats[c.id];
                       const ouverts = stats?.ouverts ?? c.ouverts;
@@ -1435,11 +1436,14 @@ export function MailingPage() {
                 <tbody>
                   {contacts.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-8 text-center text-muted-foreground"
-                      >
-                        Aucun contact. Utilisez le bouton &quot;Nouveau&quot; pour en ajouter.
+                      <td colSpan={6} className="px-0 py-0">
+                        <EmptyState
+                          icon={UsersRound}
+                          title="Aucun contact mailing"
+                          description="Ajoute les emails de ta fanbase pour pouvoir l'informer de tes sorties et de tes dates."
+                          action={{ label: "Ajouter un contact", onClick: () => setManualContactOpen(true) }}
+                          secondaryAction={{ label: "Importer depuis un CSV", onClick: () => console.warn("Import CSV : fonctionnalité à venir") }}
+                        />
                       </td>
                     </tr>
                   ) : (
