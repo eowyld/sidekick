@@ -17,7 +17,8 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Download, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, CheckCircle, ChevronDown, ChevronRight, Receipt } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useIncomesData, type Invoice as InvoiceFromHook } from "@/hooks/useIncomesData";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -403,8 +404,18 @@ export function InvoicesPage() {
         </div>
       </div>
 
+      {/* État vide global */}
+      {invoices.length === 0 && (
+        <EmptyState
+          icon={Receipt}
+          title="Aucune facture émise"
+          description="Émets, suis et archive tes factures : cachets, prestations, royalties. Relances et paiements en un coup d'œil."
+          action={{ label: "Créer une facture", onClick: openAdd }}
+        />
+      )}
+
       {/* Sections déroulantes */}
-      <div className="space-y-2">
+      {invoices.length > 0 && <div className="space-y-2">
         {/* En attente */}
         <div className="rounded-md border">
           <button
@@ -581,7 +592,7 @@ export function InvoicesPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Dialog Ajouter / Modifier */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -1,11 +1,12 @@
 // src/modules/incomes/components/CopyrightHistorique.tsx
 "use client"
 
-import { Trash2 } from "lucide-react"
+import { Trash2, Coins } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { CopyrightReleve } from "../parsers/copyright-types"
 import { formatEUR } from "../parsers/copyright-types"
+import { EmptyState } from "@/components/ui/empty-state"
 
 interface CopyrightHistoriqueProps {
   releves: CopyrightReleve[]
@@ -22,9 +23,11 @@ export function CopyrightHistorique({ releves, onDelete }: CopyrightHistoriquePr
       </CardHeader>
       <CardContent>
         {releves.length === 0 ? (
-          <div className="py-8 text-center text-sm text-[rgba(245,245,245,0.4)]">
-            Aucun relevé importé.
-          </div>
+          <EmptyState
+            icon={Coins}
+            title="Aucun versement enregistré"
+            description="Historique de tes versements SACEM et autres sociétés de gestion collective : montants, périodes, catégories de droits."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

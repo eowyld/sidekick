@@ -8,12 +8,13 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Download, Filter, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, Filter, Pencil, Plus, Trash2, Briefcase } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { IntermittenceMission } from "./intermittence-types";
 
 interface IntermittenceMissionsProps {
   intermittenceMissions: IntermittenceMission[];
-  setIntermittenceMissions: (missions: IntermittenceMission[]) => void;
+  setIntermittenceMissions: (fn: (prev: IntermittenceMission[]) => IntermittenceMission[]) => void;
   onAddMission?: () => void;
   onEditMission?: (mission: IntermittenceMission) => void;
   onDeleteMission?: (id: string) => void;
@@ -115,7 +116,7 @@ export function IntermittenceMissions({
       return;
     }
     setIntermittenceMissions(
-      intermittenceMissions.filter((m) => m.id !== id)
+      (prev) => prev.filter((m) => m.id !== id)
     );
   };
 
@@ -150,6 +151,15 @@ export function IntermittenceMissions({
           </Button>
         </div>
       </div>
+
+      {intermittenceMissions.length === 0 && (
+        <EmptyState
+          icon={Briefcase}
+          title="Aucune mission déclarée"
+          description="Référence tes missions (concerts, sessions, captations) avec cachet, employeur et AEM : tu gardes la main sur tes heures et ton régime."
+          action={{ label: "Ajouter une mission", onClick: onAddMission }}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="border-[rgba(245,245,245,0.1)] bg-[rgba(44,44,46,0.7)] text-[#F5F5F5] backdrop-blur-xl">
