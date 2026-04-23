@@ -54,7 +54,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import JSZip from "jszip";
-import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Trash2, X, Music, Disc3, Mic } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -1597,14 +1598,12 @@ export function CatalogPage() {
 
           <div className="space-y-4">
             {tracks.length === 0 && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                  <p>Aucun titre dans le catalogue.</p>
-                  <p className="mt-1 text-sm">
-                    Clique sur « Ajouter un titre » pour commencer.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Music}
+                title="Aucun titre dans ton catalogue"
+                description="Recense tous tes titres : masters, versions instrumentales, remixes, featurings. Tu pourras ensuite les rattacher à un album ou EP."
+                action={{ label: "Ajouter un titre", onClick: () => setNewTrackDialogOpen(true) }}
+              />
             )}
             {tracks.map((track) => (
               <Card key={track.id} className="overflow-hidden">
@@ -2622,14 +2621,12 @@ export function CatalogPage() {
 
           <div className="space-y-4">
             {albums.length === 0 && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                  <p>Aucun album ou EP dans le catalogue.</p>
-                  <p className="mt-1 text-sm">
-                    Clique sur « Ajouter un album ou EP » pour commencer.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Disc3}
+                title="Aucun album ni EP"
+                description="Regroupe tes titres en albums ou EP pour organiser ton catalogue et préparer tes sorties."
+                action={{ label: "Ajouter un album ou EP", onClick: () => setNewAlbumDialogOpen(true) }}
+              />
             )}
             {albums.map((album) => {
               const albumTracks = album.trackIds
@@ -3559,14 +3556,12 @@ export function CatalogPage() {
 
           <div className="space-y-4">
             {podcasts.length === 0 && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                  <p>Aucun podcast dans le catalogue.</p>
-                  <p className="mt-1 text-sm">
-                    Clique sur « Ajouter un podcast » pour commencer.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Mic}
+                title="Aucun podcast"
+                description="DJ sets, mixes, émissions : référence ici les podcasts dans lesquels tu apparais ou que tu produis."
+                action={{ label: "Ajouter un podcast", onClick: () => setNewPodcastDialogOpen(true) }}
+              />
             )}
             {podcasts.map((podcast) => (
               <Card key={podcast.id} className="overflow-hidden">
