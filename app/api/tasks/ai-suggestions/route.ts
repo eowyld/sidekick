@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 const SuggestionSchema = z.object({
   suggestions: z
@@ -28,6 +29,7 @@ function buildPrompt(body: {
   calendarEvents: Array<{ title: string; date: string }>;
   enabledModules: string[];
   aiInstructions: Record<string, string>;
+  ruleSuggestions?: Array<{ title: string; sector: string }>;
   today: string;
 }): string {
   const taskLines =
@@ -44,6 +46,11 @@ function buildPrompt(body: {
     .filter(([, v]) => v && v.trim())
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
+
+  const ruleLines =
+    body.ruleSuggestions && body.ruleSuggestions.length > 0
+      ? body.ruleSuggestions.map((s) => `- "${s.title}" (${s.sector})`).join("\n")
+      : null;
 
   return `Tu es un assistant de productivité pour un artiste musical indépendant.
 Analyse ses données et propose jusqu'à 8 tâches concrètes et actionnables.
@@ -62,6 +69,13 @@ ${
     ? `
 Instructions spécifiques :
 ${instructionLines}`
+    : ""
+}
+${
+  ruleLines
+    ? `
+Suggestions déjà générées automatiquement (ne pas dupliquer) :
+${ruleLines}`
     : ""
 }
 
@@ -83,6 +97,7 @@ export async function POST(req: Request) {
     calendarEvents: Array<{ title: string; date: string }>;
     enabledModules: string[];
     aiInstructions: Record<string, string>;
+    ruleSuggestions?: Array<{ title: string; sector: string }>;
     force?: boolean;
   };
 
@@ -98,6 +113,11 @@ export async function POST(req: Request) {
       .single();
 
     if (cached) {
+      getPostHogClient().capture({
+        distinctId: user.id,
+        event: "ai_suggestions_served_from_cache",
+        properties: { date: today },
+      });
       return Response.json({
         suggestions: cached.suggestions,
         cached: true,
@@ -106,18 +126,30 @@ export async function POST(req: Request) {
   }
 
   // Generate with Claude Haiku
-  const { object } = await generateObject({
-    model: anthropic("claude-haiku-4-5-20251001"),
-    schema: SuggestionSchema,
-    prompt: buildPrompt({ ...body, today }),
-  });
+  try {
+    const { object } = await generateObject({
+      model: anthropic("claude-haiku-4-5-20251001"),
+      schema: SuggestionSchema,
+      prompt: buildPrompt({ ...body, today }),
+    });
 
-  // Save to Supabase cache
-  await supabase.from("task_suggestions").upsert({
-    user_id: user.id,
-    date: today,
-    suggestions: object.suggestions,
-  });
+    // Save to Supabase cache
+    await supabase.from("task_suggestions").upsert({
+      user_id: user.id,
+      date: today,
+      suggestions: object.suggestions,
+    });
 
-  return Response.json({ suggestions: object.suggestions, cached: false });
+    getPostHogClient().capture({
+      distinctId: user.id,
+      event: "ai_suggestions_requested",
+      properties: { suggestion_count: object.suggestions.length, forced: body.force ?? false },
+    });
+
+    return Response.json({ suggestions: object.suggestions, cached: false });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[ai-suggestions] generateObject error:", message);
+    return Response.json({ error: message }, { status: 500 });
+  }
 }
