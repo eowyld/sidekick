@@ -4,6 +4,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Inbox, ListTodo } from "lucide-react";
 import type { Todo } from "@/lib/sidekick-store";
+import type { RuleSuggestion } from "../rules/types";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TaskCard } from "./TaskCard";
 import { AiSuggestions } from "./AiSuggestions";
@@ -14,6 +15,7 @@ interface BacklogPanelProps {
   enabledModules: Record<string, boolean>;
   aiInstructions: Record<string, string>;
   calendarEvents: Array<{ title: string; start: string }>;
+  ruleSuggestions: RuleSuggestion[];
   onStatusChange: (id: string, status: Todo["status"]) => void;
   onAddToToday: (id: string) => void;
   onEdit: (id: string) => void;
@@ -28,6 +30,7 @@ export function BacklogPanel({
   enabledModules,
   aiInstructions,
   calendarEvents,
+  ruleSuggestions,
   onStatusChange,
   onAddToToday,
   onEdit,
@@ -86,6 +89,7 @@ export function BacklogPanel({
           calendarEvents={calendarEvents}
           enabledModules={enabledModules}
           aiInstructions={aiInstructions}
+          ruleSuggestions={ruleSuggestions}
           onAdd={onAddSuggestion}
         />
       </div>
