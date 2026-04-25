@@ -13,6 +13,11 @@ import {
 import type { Todo } from "@/lib/sidekick-store";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useTasksData } from "@/hooks/useTasksData";
+import { useLiveData } from "@/hooks/useLiveData";
+import { useAdminData } from "@/hooks/useAdminData";
+import { useIncomesData } from "@/hooks/useIncomesData";
+import { allRules } from "../rules";
+import type { RuleContext, RuleSuggestion } from "../rules/types";
 import { createClient } from "@/lib/supabase";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -27,6 +32,9 @@ import { TaskCard } from "./TaskCard";
 export function Tasks() {
   const { data, setData } = useSidekickData();
   const { tasks, setTasks, loading, error } = useTasksData();
+  const { tourDates, rehearsals } = useLiveData();
+  const { structures, procedures } = useAdminData();
+  const { invoices, imports } = useIncomesData();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -59,6 +67,8 @@ export function Tasks() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  const enabledModules = data.preferences?.enabledModules ?? {};
+
   const todos = useMemo(
     () =>
       tasks.map((t) => ({
@@ -89,6 +99,17 @@ export function Tasks() {
     [activeId, todos]
   );
 
+  const ruleSuggestions = useMemo<RuleSuggestion[]>(() => {
+    const importsList = Object.values(imports).filter(Boolean) as import("@/hooks/useIncomesData").DistributorImport[];
+    const ctx: RuleContext = {
+      tasks,
+      live: enabledModules.live !== false ? { tourDates, rehearsals } : null,
+      admin: enabledModules.admin !== false ? { structures, procedures } : null,
+      incomes: enabledModules.revenus !== false ? { invoices, imports: importsList } : null,
+    };
+    return allRules.map((rule) => rule(ctx)).filter((s): s is RuleSuggestion => s !== null);
+  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules]);
+
   if (loading) return <PageLoader />;
   if (error) return (
     <PageError
@@ -98,7 +119,6 @@ export function Tasks() {
     />
   );
 
-  const enabledModules = data.preferences?.enabledModules ?? {};
   const aiInstructions = (data.preferences?.aiTaskInstructions ?? {}) as Record<string, string>;
   const calendarEvents = data.calendar?.events ?? [];
 
@@ -298,6 +318,7 @@ export function Tasks() {
             enabledModules={enabledModules as Record<string, boolean>}
             aiInstructions={aiInstructions}
             calendarEvents={calendarEvents}
+            ruleSuggestions={ruleSuggestions}
             onStatusChange={handleStatusChange}
             onAddToToday={handleAddToToday}
             onEdit={handleEdit}
