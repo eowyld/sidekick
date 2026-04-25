@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { Plus, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Todo } from "@/lib/sidekick-store";
+import type { RuleSuggestion } from "../rules/types";
 
 interface Suggestion {
   title: string;
@@ -20,6 +22,7 @@ interface AiSuggestionsProps {
   enabledModules: Record<string, boolean>;
   aiInstructions: Record<string, string>;
   onAdd: (title: string, sector: string) => void;
+  ruleSuggestions: RuleSuggestion[];
 }
 
 export function AiSuggestions({
@@ -29,7 +32,9 @@ export function AiSuggestions({
   enabledModules,
   aiInstructions,
   onAdd,
+  ruleSuggestions,
 }: AiSuggestionsProps) {
+  const posthog = usePostHog();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +73,7 @@ export function AiSuggestions({
           enabledModules: activeModuleNames,
           aiInstructions,
           force,
+          ruleSuggestions: ruleSuggestions.map((s) => ({ title: s.title, sector: s.sector })),
         }),
       });
 
@@ -90,9 +96,18 @@ export function AiSuggestions({
   }, [userId]);
 
   const handleAdd = (s: Suggestion) => {
+    posthog?.capture("ai_suggestion_converted", { module: "tasks" });
     onAdd(s.title, s.sector);
     setAdded((prev) => new Set(prev).add(s.title));
   };
+
+  const algoAsSuggestions: Suggestion[] = ruleSuggestions.map((s) => ({
+    title: s.title,
+    sector: s.sector,
+    reason: s.reason,
+  }));
+
+  const allSuggestions: Suggestion[] = [...algoAsSuggestions, ...suggestions];
 
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 p-3">
@@ -125,7 +140,7 @@ export function AiSuggestions({
         </div>
       ) : error ? (
         <p className="text-xs text-destructive">{error}</p>
-      ) : suggestions.length === 0 ? (
+      ) : allSuggestions.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="Pas encore de suggestions"
@@ -133,7 +148,7 @@ export function AiSuggestions({
         />
       ) : (
         <div className="space-y-1.5">
-          {suggestions.map((s, i) => {
+          {allSuggestions.map((s, i) => {
             const isAdded = added.has(s.title);
             return (
               <div
