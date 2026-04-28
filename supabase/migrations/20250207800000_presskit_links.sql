@@ -8,12 +8,14 @@ create table if not exists public.presskit_links (
 -- Lecture publique pour permettre d'afficher un presskit partagé sans être connecté
 alter table public.presskit_links enable row level security;
 
+drop policy if exists "Anyone can read presskit links" on public.presskit_links;
 create policy "Anyone can read presskit links"
   on public.presskit_links
   for select
   using (true);
 
 -- Tout le monde peut créer un shortlink (création depuis l'app, pas de données sensibles)
+drop policy if exists "Anyone can insert presskit links" on public.presskit_links;
 create policy "Anyone can insert presskit links"
   on public.presskit_links
   for insert
