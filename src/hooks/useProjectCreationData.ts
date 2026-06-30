@@ -1,0 +1,226 @@
+"use client";
+
+import { useCallback } from "react";
+import useSWR, { mutate } from "swr";
+import { createClient } from "@/lib/supabase";
+import type { CreationStep, CreationSector } from "@/lib/sidekick-store";
+import { CREATION_TEMPLATES } from "@/modules/projects/data/creation-templates";
+
+// ─── Row mappers ──────────────────────────────────────────────────────────────
+
+function rowToStep(row: Record<string, unknown>): CreationStep {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    sector: (row.sector as CreationStep["sector"]) ?? "general",
+    label: (row.label as string) ?? "",
+    status: (row.status as CreationStep["status"]) ?? "todo",
+    orderIndex: (row.order_index as number) ?? 0,
+    targetDate: (row.target_date as string) ?? null,
+    assignee: (row.assignee as string) ?? "",
+    linkedEntityType: (row.linked_entity_type as CreationStep["linkedEntityType"]) ?? "",
+    linkedEntityId: (row.linked_entity_id as string) ?? "",
+    links: (row.links as CreationStep["links"]) ?? [],
+    taskId: (row.task_id as string) ?? null,
+  };
+}
+
+function stepToRow(s: CreationStep): Record<string, unknown> {
+  return {
+    id: s.id,
+    project_id: s.projectId,
+    sector: s.sector,
+    label: s.label,
+    status: s.status,
+    order_index: s.orderIndex,
+    target_date: s.targetDate ?? null,
+    assignee: s.assignee,
+    linked_entity_type: s.linkedEntityType,
+    linked_entity_id: s.linkedEntityId,
+    links: s.links,
+    task_id: s.taskId ?? null,
+  };
+}
+
+// ─── Fetcher ──────────────────────────────────────────────────────────────────
+
+async function fetchSteps(projectId: string): Promise<CreationStep[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_project_creation_steps")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("order_index", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => rowToStep(r as Record<string, unknown>));
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+const SECTOR_TO_TASK_SECTOR: Record<CreationSector, string> = {
+  phono: "Phono",
+  edition: "Edition",
+  live: "Live",
+  general: "Projets",
+};
+
+export function useProjectCreationData(projectId: string) {
+  const key = projectId ? `creation:${projectId}` : null;
+
+  const {
+    data: steps = [],
+    isLoading,
+    error: swrError,
+    mutate: mutateLocal,
+  } = useSWR<CreationStep[]>(key, () => fetchSteps(projectId));
+
+  const error = swrError ? (swrError as Error).message : null;
+
+  // ─── Setter optimiste ────────────────────────────────────────────────────────
+
+  const setSteps = useCallback(
+    (fn: (prev: CreationStep[]) => CreationStep[]) => {
+      const snapshot = steps;
+      const next = fn(steps);
+      mutateLocal(next, false);
+
+      (async () => {
+        const supabase = createClient();
+        const prevMap = new Map(snapshot.map((s) => [s.id, s]));
+        const nextMap = new Map(next.map((s) => [s.id, s]));
+
+        const toUpsert = next.filter((s) => {
+          const old = prevMap.get(s.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(s);
+        });
+        const toDelete = snapshot
+          .filter((s) => !nextMap.has(s.id))
+          .map((s) => s.id);
+
+        const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
+
+        if (toUpsert.length > 0) {
+          ops.push(
+            supabase
+              .from("user_project_creation_steps")
+              .upsert(toUpsert.map(stepToRow))
+              .then(({ error }) => ({
+                error: error ? { message: error.message } : null,
+              }))
+          );
+        }
+        if (toDelete.length > 0) {
+          ops.push(
+            supabase
+              .from("user_project_creation_steps")
+              .delete()
+              .in("id", toDelete)
+              .then(({ error }) => ({
+                error: error ? { message: error.message } : null,
+              }))
+          );
+        }
+
+        const results = await Promise.all(ops);
+        if (results.find((r) => r.error)) {
+          mutateLocal(snapshot, false);
+        } else {
+          mutate(key);
+        }
+      })();
+    },
+    [steps, mutateLocal, key]
+  );
+
+  // ─── Seed secteur ────────────────────────────────────────────────────────────
+
+  const seedSector = useCallback(
+    (
+      sector: Exclude<CreationSector, "general">,
+      currentSeededSectors: CreationSector[],
+      updateProject: (updates: { creationSeededSectors: CreationSector[] }) => void
+    ) => {
+      if (currentSeededSectors.includes(sector)) return;
+      const templates = CREATION_TEMPLATES[sector];
+      const existingCount = steps.filter((s) => s.sector === sector).length;
+      const newSteps: CreationStep[] = templates.map((label, i) => ({
+        id: crypto.randomUUID(),
+        projectId,
+        sector,
+        label,
+        status: "todo",
+        orderIndex: existingCount + i,
+        targetDate: null,
+        assignee: "",
+        linkedEntityType: "",
+        linkedEntityId: "",
+        links: [],
+        taskId: null,
+      }));
+      setSteps((prev) => [...prev, ...newSteps]);
+      updateProject({
+        creationSeededSectors: [...currentSeededSectors, sector],
+      });
+    },
+    [steps, projectId, setSteps]
+  );
+
+  // ─── Générer une tâche ───────────────────────────────────────────────────────
+
+  const generateTask = useCallback(
+    async (step: CreationStep): Promise<void> => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("user_tasks")
+        .insert({
+          id: crypto.randomUUID(),
+          user_id: user.id,
+          title: step.label,
+          status: "todo",
+          today_focus: false,
+          deadline: step.targetDate ?? null,
+          sector: SECTOR_TO_TASK_SECTOR[step.sector],
+          subtasks: [],
+        })
+        .select("id")
+        .single();
+
+      if (error || !data) return;
+
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.id === step.id ? { ...s, taskId: (data as { id: string }).id } : s
+        )
+      );
+    },
+    [setSteps]
+  );
+
+  // ─── Progression globale ─────────────────────────────────────────────────────
+
+  const progress = {
+    done: steps.filter((s) => s.status === "done").length,
+    total: steps.length,
+    pct:
+      steps.length === 0
+        ? 0
+        : Math.round(
+            (steps.filter((s) => s.status === "done").length / steps.length) * 100
+          ),
+  };
+
+  return {
+    steps,
+    setSteps,
+    seedSector,
+    generateTask,
+    progress,
+    loading: isLoading,
+    error,
+  };
+}
