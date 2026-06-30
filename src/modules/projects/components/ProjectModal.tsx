@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Project, ProjectMember, ProjectStatus } from "@/lib/sidekick-store";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { ImagePlus, X, Plus } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 
 interface ProjectModalProps {
   open: boolean;
@@ -31,7 +32,8 @@ const SECTOR_OPTIONS: { value: "phono" | "edition" | "live"; label: string }[] =
 ];
 
 export function ProjectModal({ open, onClose, project }: ProjectModalProps) {
-  const { data, setData } = useSidekickData();
+  const { setProjects } = useProjectsData();
+  const posthog = usePostHog();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -97,16 +99,13 @@ export function ProjectModal({ open, onClose, project }: ProjectModalProps) {
 
     if (project) {
       // Mode édition
-      setData((prev) => ({
-        ...prev,
-        projects: {
-          projects: prev.projects.projects.map((p) =>
-            p.id === project.id
-              ? { ...p, title, description, status, sectors, cover, members, notes, updatedAt: now }
-              : p
-          ),
-        },
-      }));
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === project.id
+            ? { ...p, title, description, status, sectors, cover, members, notes, updatedAt: now }
+            : p
+        )
+      );
     } else {
       // Mode création
       const newProject: Project = {
@@ -124,16 +123,17 @@ export function ProjectModal({ open, onClose, project }: ProjectModalProps) {
         linkedWorks: [],
         linkedTourDates: [],
         linkedRehearsals: [],
+        linkedStatutIds: [],
+        keyDates: [],
         createdAt: now,
         updatedAt: now,
         notes,
+        brainstorm: "",
+        creationSeededSectors: [],
       };
-      setData((prev) => ({
-        ...prev,
-        projects: {
-          projects: [...prev.projects.projects, newProject],
-        },
-      }));
+      setProjects((prev) => [newProject, ...prev]);
+      posthog?.capture("project_created", { module: "projects" });
+      posthog?.capture("item_created", { module: "projects" });
     }
     onClose();
   };
