@@ -1,28 +1,30 @@
-import type { CreationSector } from "@/lib/sidekick-store";
+import type { CreationSector, CreationPhase } from "@/lib/sidekick-store";
 
-export const CREATION_TEMPLATES: Record<Exclude<CreationSector, "general">, string[]> = {
+export interface CreationTemplateStep {
+  phase: CreationPhase;
+  label: string;
+}
+
+export const CREATION_TEMPLATES: Record<Exclude<CreationSector, "general">, CreationTemplateStep[]> = {
   phono: [
-    "Écriture",
-    "Composition",
-    "Première maquette",
-    "Pré-prod",
-    "Session studio",
-    "Premières versions",
-    "Mixage",
-    "Mastering",
+    { phase: "creation",   label: "Écriture" },
+    { phase: "creation",   label: "Composition" },
+    { phase: "creation",   label: "Première maquette" },
+    { phase: "production", label: "Session studio" },
+    { phase: "production", label: "Mixage" },
+    { phase: "production", label: "Mastering" },
+    { phase: "sortie",     label: "Distribution" },
   ],
   edition: [
-    "Dépôt des textes",
-    "Composition / arrangement",
-    "Finalisation",
-    "Dépôt SACEM",
+    { phase: "creation", label: "Écriture / Composition" },
+    { phase: "sortie",   label: "Répartition des droits" },
+    { phase: "sortie",   label: "Dépôt SACEM" },
   ],
   live: [
-    "Création du set",
-    "Répétitions",
-    "Résidence",
-    "Entraînement scène",
-    "Filage",
+    { phase: "creation",   label: "Conception du set" },
+    { phase: "production", label: "Répétitions" },
+    { phase: "production", label: "Résidence" },
+    { phase: "sortie",     label: "Stratégie de tournée" },
   ],
 };
 
