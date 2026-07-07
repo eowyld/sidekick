@@ -376,7 +376,7 @@ function PhaseCard({
 export function CreationTab({ project }: { project: Project }) {
   const { setProjects } = useProjectsData();
   const { data } = useSidekickData();
-  const { steps, setSteps, seedSector, generateTask, loading } = useProjectCreationData(project.id);
+  const { steps, setSteps, seedSectors, generateTask, loading } = useProjectCreationData(project.id);
 
   const [editingStep, setEditingStep] = useState<CreationStep | null>(null);
   const [linkedOpen, setLinkedOpen] = useState(false);
@@ -397,10 +397,7 @@ export function CreationTab({ project }: { project: Project }) {
       (s) => !seeded.includes(s as CreationSector)
     ) as Exclude<CreationSector, "general">[];
     if (activeSectors.length === 0) return;
-    for (const sector of activeSectors) {
-      seedSector(sector, seeded, () => {});
-    }
-    updateProject({ creationSeededSectors: [...seeded, ...activeSectors] });
+    seedSectors(activeSectors, seeded, updateProject);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, project.id]);
 
@@ -432,7 +429,7 @@ export function CreationTab({ project }: { project: Project }) {
       tourDates: (data.live?.tourDates ?? []).filter((d) => project.linkedTourDates.includes(d.id)),
       rehearsals: (data.live?.rehearsals ?? []).filter((r) => project.linkedRehearsals.includes(r.id)),
     }),
-    [data, project.linkedTracks, project.linkedSessions, project.linkedWorks, project.linkedTourDates, project.linkedRehearsals]
+    [data.phono, data.edition, data.live, project.linkedTracks, project.linkedSessions, project.linkedWorks, project.linkedTourDates, project.linkedRehearsals]
   );
 
   const handleCycleStatus = (step: CreationStep) =>

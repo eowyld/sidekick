@@ -136,33 +136,43 @@ export function useProjectCreationData(projectId: string) {
 
   // ─── Seed secteur ────────────────────────────────────────────────────────────
 
-  const seedSector = useCallback(
+  const seedSectors = useCallback(
     (
-      sector: Exclude<CreationSector, "general">,
+      sectors: Exclude<CreationSector, "general">[],
       currentSeededSectors: CreationSector[],
       updateProject: (updates: { creationSeededSectors: CreationSector[] }) => void
     ) => {
-      if (currentSeededSectors.includes(sector)) return;
-      const templates = CREATION_TEMPLATES[sector];
-      const existingCount = steps.filter((s) => s.sector === sector).length;
-      const newSteps: CreationStep[] = templates.map((tpl, i) => ({
-        id: crypto.randomUUID(),
-        projectId,
-        phase: tpl.phase,
-        sector,
-        label: tpl.label,
-        status: "todo",
-        orderIndex: existingCount + i,
-        targetDate: null,
-        assignee: "",
-        linkedEntityType: "",
-        linkedEntityId: "",
-        links: [],
-        taskId: null,
-      }));
+      const toSeed = sectors.filter((s) => !currentSeededSectors.includes(s));
+      if (toSeed.length === 0) return;
+
+      const newSteps: CreationStep[] = [];
+      for (const sector of toSeed) {
+        const templates = CREATION_TEMPLATES[sector];
+        const existingCount =
+          steps.filter((s) => s.sector === sector).length +
+          newSteps.filter((s) => s.sector === sector).length;
+        templates.forEach((tpl, i) => {
+          newSteps.push({
+            id: crypto.randomUUID(),
+            projectId,
+            phase: tpl.phase,
+            sector,
+            label: tpl.label,
+            status: "todo",
+            orderIndex: existingCount + i,
+            targetDate: null,
+            assignee: "",
+            linkedEntityType: "",
+            linkedEntityId: "",
+            links: [],
+            taskId: null,
+          });
+        });
+      }
+
       setSteps((prev) => [...prev, ...newSteps]);
       updateProject({
-        creationSeededSectors: [...currentSeededSectors, sector],
+        creationSeededSectors: [...currentSeededSectors, ...toSeed],
       });
     },
     [steps, projectId, setSteps]
@@ -207,7 +217,7 @@ export function useProjectCreationData(projectId: string) {
   return {
     steps,
     setSteps,
-    seedSector,
+    seedSectors,
     generateTask,
     loading: isLoading,
     error,
