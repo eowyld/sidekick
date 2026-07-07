@@ -12,6 +12,7 @@ function rowToStep(row: Record<string, unknown>): CreationStep {
   return {
     id: row.id as string,
     projectId: row.project_id as string,
+    phase: (row.phase as CreationStep["phase"]) ?? "creation",
     sector: (row.sector as CreationStep["sector"]) ?? "general",
     label: (row.label as string) ?? "",
     status: (row.status as CreationStep["status"]) ?? "todo",
@@ -29,6 +30,7 @@ function stepToRow(s: CreationStep): Record<string, unknown> {
   return {
     id: s.id,
     project_id: s.projectId,
+    phase: s.phase,
     sector: s.sector,
     label: s.label,
     status: s.status,
@@ -143,11 +145,12 @@ export function useProjectCreationData(projectId: string) {
       if (currentSeededSectors.includes(sector)) return;
       const templates = CREATION_TEMPLATES[sector];
       const existingCount = steps.filter((s) => s.sector === sector).length;
-      const newSteps: CreationStep[] = templates.map((label, i) => ({
+      const newSteps: CreationStep[] = templates.map((tpl, i) => ({
         id: crypto.randomUUID(),
         projectId,
+        phase: tpl.phase,
         sector,
-        label,
+        label: tpl.label,
         status: "todo",
         orderIndex: existingCount + i,
         targetDate: null,
@@ -201,25 +204,11 @@ export function useProjectCreationData(projectId: string) {
     [setSteps]
   );
 
-  // ─── Progression globale ─────────────────────────────────────────────────────
-
-  const progress = {
-    done: steps.filter((s) => s.status === "done").length,
-    total: steps.length,
-    pct:
-      steps.length === 0
-        ? 0
-        : Math.round(
-            (steps.filter((s) => s.status === "done").length / steps.length) * 100
-          ),
-  };
-
   return {
     steps,
     setSteps,
     seedSector,
     generateTask,
-    progress,
     loading: isLoading,
     error,
   };
