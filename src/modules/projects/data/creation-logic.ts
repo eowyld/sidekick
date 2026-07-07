@@ -2,6 +2,7 @@ import type {
   CreationStep, CreationPhase, Track, Session, Work, TourDate, Rehearsal,
 } from "@/lib/sidekick-store";
 import { CREATION_PHASE_ORDER } from "@/lib/sidekick-store";
+import { frToIso, isValidDateFr } from "@/lib/date-format";
 
 // ─── Phase active & progression ────────────────────────────────────────────────
 
@@ -11,9 +12,12 @@ export function isPhaseDone(steps: CreationStep[], phase: CreationPhase): boolea
   return s.length > 0 && s.every((x) => x.status === "done");
 }
 
-/** Phase active = première phase non terminée dans l'ordre ; sinon "sortie". */
+/** Phase active = première phase (ayant des étapes) non terminée dans l'ordre ; sinon "sortie". */
 export function computeActivePhase(steps: CreationStep[]): CreationPhase {
-  return CREATION_PHASE_ORDER.find((p) => !isPhaseDone(steps, p)) ?? "sortie";
+  return (
+    CREATION_PHASE_ORDER.find((p) => steps.some((s) => s.phase === p) && !isPhaseDone(steps, p)) ??
+    "sortie"
+  );
 }
 
 /** Toutes les phases ayant au moins une étape sont-elles terminées ? */
@@ -68,8 +72,7 @@ function todayKey(): string {
 function toKey(dateStr: string | undefined | null): string | null {
   if (!dateStr) return null;
   const s = String(dateStr).trim();
-  const fr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (fr) return `${fr[3]}-${fr[2].padStart(2, "0")}-${fr[1].padStart(2, "0")}`;
+  if (isValidDateFr(s)) return frToIso(s);
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   return null;
