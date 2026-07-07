@@ -294,6 +294,17 @@ export interface Project {
 
 // --- Project Creation ---
 export type CreationStepStatus = "todo" | "doing" | "done";
+
+export type CreationPhase = "creation" | "production" | "sortie";
+
+export const CREATION_PHASE_ORDER: CreationPhase[] = ["creation", "production", "sortie"];
+
+export const CREATION_PHASE_LABELS: Record<CreationPhase, string> = {
+  creation: "Création",
+  production: "Production",
+  sortie: "Sortie",
+};
+
 export type CreationSector = "phono" | "edition" | "live" | "general";
 export type CreationEntityType =
   | "" | "track" | "album" | "session" | "work" | "tour_date" | "rehearsal";
@@ -306,6 +317,7 @@ export interface CreationStepLink {
 export interface CreationStep {
   id: string;
   projectId: string;
+  phase: CreationPhase;
   sector: CreationSector;
   label: string;
   status: CreationStepStatus;
