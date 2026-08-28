@@ -24,7 +24,7 @@ function readStored(key: string): SidekickData {
 /**
  * Données persistant Sidekick (localStorage), isolées par utilisateur.
  * Chaque user a sa propre clé : sidekick-data-{userId}.
- * Nouvel utilisateur = données vides. Reset via /reset-data.
+ * Nouvel utilisateur = données vides. Reset via "npm run reset-data".
  */
 export function useSidekickData() {
   const [userId, setUserId] = useState<string | null>(null);

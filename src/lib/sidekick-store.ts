@@ -5,7 +5,7 @@
  * Convention : toutes les infos de tous les modules vivent ici.
  * - Ajouter un module : étendre SidekickData + DEFAULT_SIDEKICK_DATA.
  * - Lire/écrire : useSidekickData() → data.<module>.<slice>, setData(prev => ({ ...prev, <module>: { ... } })).
- * - Reset : /reset-data ou "npm run reset-data".
+ * - Reset : "npm run reset-data".
  */
 
 export const SIDEKICK_STORAGE_KEY_PREFIX = "sidekick-data";
