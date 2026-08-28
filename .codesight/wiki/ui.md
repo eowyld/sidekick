@@ -1,0 +1,177 @@
+# UI
+
+> **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
+
+**163 components** (react)
+
+## Client Components
+
+- **TemplatePage** — `app/(app)/admin/contrats/template/page.tsx`
+- **AppLayout** — `app/(app)/layout.tsx`
+- **InscriptionPage** — `app/(auth)/inscription/page.tsx`
+- **LoginPage** — `app/(auth)/login/page.tsx`
+- **BlogLayout** — `app/(blog)/layout.tsx`
+- **LandingTestPage** — `app/landing-test/page.tsx`
+- **PresskitViewClient** — props: payloadParam, payloadDirect — `app/presskit/view/PresskitViewClient.tsx`
+- **ResetDataPage** — `app/reset-data/page.tsx`
+- **TestSupabasePage** — `app/test-supabase/page.tsx`
+- **TemplatePage** — `src/app/(app)/admin/contrats/template/page.tsx`
+- **RootLayout** — `src/app/layout.tsx`
+- **BlogCTA** — props: module, moduleLabel, variant — `src/components/blog/BlogCTA.tsx`
+- **BlogInternalLink** — props: module, label — `src/components/blog/BlogInternalLink.tsx`
+- **AuthGuard** — `src/components/layout/AuthGuard.tsx`
+- **Header** — `src/components/layout/Header.tsx`
+- **SettingsSidebar** — `src/components/layout/SettingsSidebar.tsx`
+- **AdminOverviewPage** — `src/modules/admin/components/AdminOverviewPage.tsx`
+- **ContractsPage** — `src/modules/admin/components/ContractsPage.tsx`
+- **DocumentsPage** — `src/modules/admin/components/DocumentsPage.tsx`
+- **ProceduresPage** — `src/modules/admin/components/ProceduresPage.tsx`
+- **StatutsPage** — `src/modules/admin/components/StatutsPage.tsx`
+- **ContractInstanceEditor** — props: open, onOpenChange, mode, templates, signatures, initial, initialTemplateId, onSave — `src/modules/admin/components/contract/ContractInstanceEditor.tsx`
+- **SignaturePad** — props: onFileReady — `src/modules/admin/components/contract/SignaturePad.tsx`
+- **TemplateEditor** — props: open, onOpenChange, mode, initial, onSave — `src/modules/admin/components/contract/TemplateEditor.tsx`
+- **TemplateEditorFullPage** — props: mode, initial, onSave, onCancel — `src/modules/admin/components/contract/TemplateEditorFullPage.tsx`
+- **GlobalCalendarPage** — `src/modules/calendar/components/GlobalCalendarPage.tsx`
+- **ICalSyncPanel** — props: allEvents — `src/modules/calendar/components/ICalSyncPanel.tsx`
+- **ContactsPage** — `src/modules/contacts/components/ContactsPage.tsx`
+- **DashboardPage** — `src/modules/dashboard/components/DashboardPage.tsx`
+- **SyncPage** — `src/modules/edition/components/SyncPage.tsx`
+- **WorksPage** — `src/modules/edition/components/WorksPage.tsx`
+- **CopyrightDashboard** — props: entries — `src/modules/incomes/components/CopyrightDashboard.tsx`
+- **CopyrightHistorique** — props: releves, onDelete — `src/modules/incomes/components/CopyrightHistorique.tsx`
+- **CopyrightPage** — `src/modules/incomes/components/CopyrightPage.tsx`
+- **IntermittencePage** — `src/modules/incomes/components/IntermittencePage.tsx`
+- **InvoicesPage** — `src/modules/incomes/components/InvoicesPage.tsx`
+- **RoyaltiesDashboard** — props: entries — `src/modules/incomes/components/RoyaltiesDashboard.tsx`
+- **RoyaltiesImports** — props: imports, manualEntries, defaultTab, onImport, onTabChange, onAddManual, onEditManual, onDeleteManual — `src/modules/incomes/components/RoyaltiesImports.tsx`
+- **RoyaltiesManualModal** — props: open, onClose, onSave, entry — `src/modules/incomes/components/RoyaltiesManualModal.tsx`
+- **RoyaltiesPage** — `src/modules/incomes/components/RoyaltiesPage.tsx`
+- **EquipmentPage** — `src/modules/live/components/EquipmentPage.tsx`
+- **LiveOverviewPage** — `src/modules/live/components/LiveOverviewPage.tsx`
+- **ProspectionPage** — `src/modules/live/components/ProspectionPage.tsx`
+- **RehearsalsPage** — `src/modules/live/components/RehearsalsPage.tsx`
+- **TourDatesPage** — `src/modules/live/components/TourDatesPage.tsx`
+- **MailingPage** — `src/modules/marketing/components/MailingPage.tsx`
+- **MarketingCalendar** — `src/modules/marketing/components/MarketingCalendar.tsx`
+- **PresskitPage** — `src/modules/marketing/components/PresskitPage.tsx`
+- **CatalogPage** — `src/modules/phono/components/CatalogPage.tsx`
+- **SessionsStudioPage** — `src/modules/phono/components/SessionsStudioPage.tsx`
+- **ArchivesPage** — `src/modules/projects/components/ArchivesPage.tsx`
+- **ProjectArchiveRow** — props: project, onUnarchive — `src/modules/projects/components/ProjectArchiveRow.tsx`
+- **ProjectCard** — props: project, onEdit, onArchive, onDelete — `src/modules/projects/components/ProjectCard.tsx`
+- **ProjectDashboard** — props: projectId — `src/modules/projects/components/ProjectDashboard.tsx`
+- **ProjectModal** — props: open, onClose, project — `src/modules/projects/components/ProjectModal.tsx`
+- **ProjectsPage** — `src/modules/projects/components/ProjectsPage.tsx`
+- **EditionSection** — props: project — `src/modules/projects/components/sections/EditionSection.tsx`
+- **LiveSection** — props: project — `src/modules/projects/components/sections/LiveSection.tsx`
+- **PhonoSection** — props: project — `src/modules/projects/components/sections/PhonoSection.tsx`
+- **WorkTrackLinker** — props: project — `src/modules/projects/components/sections/WorkTrackLinker.tsx`
+- **CustomizationPage** — `src/modules/settings/components/CustomizationPage.tsx`
+- **MailSettingsPage** — `src/modules/settings/components/MailSettingsPage.tsx`
+- **SettingsPage** — `src/modules/settings/components/SettingsPage.tsx`
+- **AiSuggestions** — props: userId, tasks, calendarEvents, enabledModules, aiInstructions, onAdd — `src/modules/tasks/components/AiSuggestions.tsx`
+- **BacklogPanel** — props: tasks, userId, enabledModules, aiInstructions, calendarEvents, onStatusChange, onAddToToday, onEdit, onDelete, onAddSuggestion — `src/modules/tasks/components/BacklogPanel.tsx`
+- **TaskCard** — props: task, context, onStatusChange, onAddToToday, onRemoveFromToday, onEdit, onDelete, dragHandleProps, isDragging, onSubtaskToggle — `src/modules/tasks/components/TaskCard.tsx`
+- **TaskModal** — props: open, onClose, onSave, task, allowedSectors — `src/modules/tasks/components/TaskModal.tsx`
+- **Tasks** — `src/modules/tasks/components/Tasks.tsx`
+- **TodayPanel** — props: tasks, onStatusChange, onRemoveFromToday, onEdit, onDelete, onSubtaskToggle, onSubtaskAdd, onSubtaskRename — `src/modules/tasks/components/TodayPanel.tsx`
+
+## Components
+
+- **Page** — `app/(app)/admin/contrats/page.tsx`
+- **AdminDemarchesPage** — `app/(app)/admin/demarches/page.tsx`
+- **AdminDocumentsPage** — `app/(app)/admin/documents/page.tsx`
+- **AdminPage** — `app/(app)/admin/page.tsx`
+- **AdminStatutsPage** — `app/(app)/admin/statuts/page.tsx`
+- **CalendarRoute** — `app/(app)/calendar/page.tsx`
+- **ContactsRoutePage** — `app/(app)/contacts/page.tsx`
+- **DashboardRoute** — `app/(app)/dashboard/page.tsx`
+- **EditionPage** — `app/(app)/edition/page.tsx`
+- **EditionSyncPage** — `app/(app)/edition/sync/page.tsx`
+- **IncomesDroitsAuteurPage** — `app/(app)/incomes/droits-auteur/page.tsx`
+- **IncomesDroitsVoisinsPage** — `app/(app)/incomes/droits-voisins/page.tsx`
+- **IncomesFacturationPage** — `app/(app)/incomes/facturation/page.tsx`
+- **IncomesIntermittencePage** — `app/(app)/incomes/intermittence/page.tsx`
+- **IncomesPage** — `app/(app)/incomes/page.tsx`
+- **IncomesRoyaltiesPage** — `app/(app)/incomes/royalties/page.tsx`
+- **LiveMaterielPage** — `app/(app)/live/materiel/page.tsx`
+- **LivePage** — `app/(app)/live/page.tsx`
+- **LiveProspectionPage** — `app/(app)/live/prospection/page.tsx`
+- **LiveRepetitionsPage** — `app/(app)/live/repetitions/page.tsx`
+- **LiveRepresentationsPage** — `app/(app)/live/representations/page.tsx`
+- **CalendrierEditorialPage** — `app/(app)/marketing/calendrier-editorial/page.tsx`
+- **MailingRoute** — `app/(app)/marketing/mailing/page.tsx`
+- **MaillingPage** — `app/(app)/marketing/mailling/page.tsx`
+- **MarketingPage** — `app/(app)/marketing/page.tsx`
+- **PresskitRoute** — `app/(app)/marketing/presskit/page.tsx`
+- **PublicationsPage** — `app/(app)/marketing/publications/page.tsx`
+- **PhonoCataloguePage** — `app/(app)/phono/catalogue/page.tsx`
+- **PhonoPage** — `app/(app)/phono/page.tsx`
+- **PhonoSessionsStudioPage** — `app/(app)/phono/sessions-studio/page.tsx`
+- **ProjectDetailPage** — props: params — `app/(app)/projects/[id]/page.tsx`
+- **ProjectArchivesPage** — `app/(app)/projects/archives/page.tsx`
+- **ActiveProjectsPage** — `app/(app)/projects/page.tsx`
+- **MailSettingsRoute** — `app/(app)/settings/mail/page.tsx`
+- **SettingsRoute** — `app/(app)/settings/page.tsx`
+- **SettingsCustomizationRoute** — `app/(app)/settings/personnalisation/page.tsx`
+- **TasksRoute** — `app/(app)/tasks/page.tsx`
+- **ArticlePage** — props: params — `app/(blog)/blog/[slug]/page.tsx`
+- **CategoriePage** — props: params — `app/(blog)/blog/categorie/[slug]/page.tsx`
+- **BlogIndexPage** — `app/(blog)/blog/page.tsx`
+- **RootLayout** — `app/layout.tsx`
+- **PresskitViewIdPage** — props: params — `app/presskit/view/[id]/page.tsx`
+- **PresskitViewPage** — props: searchParams — `app/presskit/view/page.tsx`
+- **Page** — `src/app/(app)/admin/contrats/page.tsx`
+- **Page** — `src/app/(app)/admin/documents/page.tsx`
+- **AdminPage** — `src/app/(app)/admin/page.tsx`
+- **CalendarPage** — `src/app/(app)/calendar/page.tsx`
+- **ContactsRoutePage** — `src/app/(app)/contacts/page.tsx`
+- **DashboardPage** — `src/app/(app)/dashboard/page.tsx`
+- **EditionPage** — `src/app/(app)/edition/page.tsx`
+- **IncomesDroitsAuteurPage** — `src/app/(app)/incomes/droits-auteur/page.tsx`
+- **IncomesDroitsVoisinsPage** — `src/app/(app)/incomes/droits-voisins/page.tsx`
+- **IncomesFacturationPage** — `src/app/(app)/incomes/facturation/page.tsx`
+- **IncomesIntermittencePage** — `src/app/(app)/incomes/intermittence/page.tsx`
+- **IncomesPage** — `src/app/(app)/incomes/page.tsx`
+- **IncomesRoyaltiesPage** — `src/app/(app)/incomes/royalties/page.tsx`
+- **AppLayout** — `src/app/(app)/layout.tsx`
+- **LiveMaterielPage** — `src/app/(app)/live/materiel/page.tsx`
+- **LivePage** — `src/app/(app)/live/page.tsx`
+- **LiveRepetitionsPage** — `src/app/(app)/live/repetitions/page.tsx`
+- **LiveRepresentationsPage** — `src/app/(app)/live/representations/page.tsx`
+- **MarketingPage** — `src/app/(app)/marketing/page.tsx`
+- **PhonoCataloguePage** — `src/app/(app)/phono/catalogue/page.tsx`
+- **PhonoPage** — `src/app/(app)/phono/page.tsx`
+- **PhonoSessionsStudioPage** — `src/app/(app)/phono/sessions-studio/page.tsx`
+- **SettingsCustomizationRoute** — `src/app/(app)/settings/personnalisation/page.tsx`
+- **TasksRoutePage** — `src/app/(app)/tasks/page.tsx`
+- **LoginPage** — `src/app/(auth)/login/page.tsx`
+- **DriveLayout** — `src/app/drive/layout.tsx`
+- **Page** — `src/app/drive/page.tsx`
+- **LandingTestPage** — `src/app/landing-test/page.tsx`
+- **LandingPage** — `src/app/page.tsx`
+- **BlogBreadcrumb** — props: categorie, articleTitle — `src/components/blog/BlogBreadcrumb.tsx`
+- **BlogCard** — props: article — `src/components/blog/BlogCard.tsx`
+- **BlogContent** — `src/components/blog/BlogContent.tsx`
+- **BlogHeader** — props: article — `src/components/blog/BlogHeader.tsx`
+- **BlogSidebar** — props: articlesLies — `src/components/blog/BlogSidebar.tsx`
+- **IntermittenceDashboardPage** — `src/modules/admin/components/IntermittenceDashboardPage.tsx`
+- **IntermittenceMissionsPage** — `src/modules/admin/components/IntermittenceMissionsPage.tsx`
+- **StructuresPage** — `src/modules/admin/components/StructuresPage.tsx`
+- **ProspectionPage** — `src/modules/contacts/components/ProspectionPage.tsx`
+- **ProfilePage** — `src/modules/dashboard/components/ProfilePage.tsx`
+- **IncomesOverviewPage** — `src/modules/incomes/components/IncomesOverviewPage.tsx`
+- **IntermittenceDashboard** — props: missions, onNavigate, onAddMission — `src/modules/incomes/components/IntermittenceDashboard.tsx`
+- **IntermittenceMissions** — props: intermittenceMissions, setIntermittenceMissions, onAddMission, onEditMission, onDeleteMission — `src/modules/incomes/components/IntermittenceMissions.tsx`
+- **IntermittenceModal** — props: open, onClose, onSave, mission — `src/modules/incomes/components/IntermittenceModal.tsx`
+- **NeighboringRightsPage** — `src/modules/incomes/components/NeighboringRightsPage.tsx`
+- **MarketingOverviewPage** — `src/modules/marketing/components/MarketingOverviewPage.tsx`
+- **MAILING_STORAGE_KEYS** — `src/modules/marketing/data/mailing.tsx`
+- **AlbumsPage** — `src/modules/phono/components/AlbumsPage.tsx`
+- **PhonoOverviewPage** — `src/modules/phono/components/PhonoOverviewPage.tsx`
+- **SessionsPage** — `src/modules/phono/components/SessionsPage.tsx`
+- **TracksPage** — `src/modules/phono/components/TracksPage.tsx`
+- **TasksPage** — `src/modules/tasks/components/TasksPage.tsx`
+
+---
+_Back to [overview.md](./overview.md)_

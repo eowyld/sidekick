@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, memo, useEffect } from "react";
+import { usePostHog } from "posthog-js/react";
 import { useSearchParams } from "next/navigation";
 import { useEditionData } from "@/hooks/useEditionData";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -44,6 +45,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -1313,6 +1315,7 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
 // ─── WorksPage ─────────────────────────────────────────────────────────────────
 
 export function WorksPage() {
+  const posthog = usePostHog();
   const { works, setWorks, loading, error } = useEditionData();
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
@@ -1366,6 +1369,8 @@ export function WorksPage() {
     }
     setIsAddOpen(false);
     setNewWork(DEFAULT_WORK);
+    posthog?.capture("work_created", { module: "edition" });
+    posthog?.capture("item_created", { module: "edition" });
     toast.success(`« ${work.title} » ajoutée au catalogue.`);
   };
 
@@ -1542,6 +1547,24 @@ export function WorksPage() {
                       <Button variant="outline" size="sm" onClick={() => openEdit(work)}>
                         <Edit2 className="mr-1 h-3.5 w-3.5" /> Éditer
                       </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                disabled
+                                className="opacity-40 cursor-not-allowed"
+                              >
+                                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                                Publier
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>À venir</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Button variant="destructive" size="sm" onClick={() => handleDeleteWork(work.id, work.title)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

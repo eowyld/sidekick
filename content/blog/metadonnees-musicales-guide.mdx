@@ -1,0 +1,177 @@
+---
+title: "Les métadonnées musicales : le guide complet pour artistes indépendants"
+slug: "metadonnees-musicales-guide"
+description: "Tags ID3, ISRC, UPC, métadonnées DSP : tout ce que tu dois savoir sur les métadonnées musicales pour ne pas perdre de droits et bien référencer ta musique."
+categorie: "phono"
+tags: ["métadonnées musicales", "tags ID3", "métadonnées distribution", "DSP metadata", "ISRC UPC"]
+module: "phono"
+date: "2026-04-05"
+readingTime: 9
+niveau: "intermediaire"
+published: true
+---
+
+Tu exportes ton master depuis ton DAW, tu le soumets à ton distributeur, et tu penses que c'est bon. Mais est-ce que ton fichier audio contient le bon artiste ? Le bon compositeur ? Le bon ISRC ? Est-ce que le nom du titre est orthographié exactement comme il doit l'être partout — dans les tags du fichier, dans le formulaire du distributeur, dans ta déclaration SACEM ?
+
+Les métadonnées sont l'ADN invisible de ta musique. Ce sont elles qui permettent à Spotify de savoir que c'est ton morceau, à la SACEM de te verser tes droits, et aux DSP d'afficher la bonne pochette, le bon artiste, le bon genre. Une erreur dans ces données, c'est potentiellement des droits mal attribués, un titre mal référencé, ou des royalties qui se perdent.
+
+Ce guide te donne une vue complète de tout ce que tu dois savoir et faire sur les métadonnées, avant chaque sortie.
+
+## Pourquoi les métadonnées sont critiques pour tes revenus
+
+Les métadonnées ne servent pas qu'à l'affichage. Elles sont au cœur de tous les systèmes de gestion des droits et de versement des royalties.
+
+**Pour les droits voisins.** Quand ton morceau est streamé, la plateforme enregistre l'ISRC. Cet ISRC est ensuite utilisé pour identifier l'enregistrement auprès des systèmes de collecte des droits voisins (SCPP, SPPF, ADAMI). Si l'ISRC est manquant ou incorrect, le lien entre la diffusion et toi est cassé.
+
+**Pour les droits de composition (SACEM).** La SACEM identifie les œuvres diffusées sur les plateformes à partir des métadonnées transmises par ces plateformes. Si le nom du compositeur est mal orthographié, si le titre ne correspond pas à la déclaration SACEM, la réconciliation peut échouer.
+
+**Pour le référencement sur les DSP.** Les algorithmes de recommandation de Spotify, Apple Music et Deezer utilisent les métadonnées (genre, humeur, langue, contributeurs) pour placer ta musique dans les bonnes playlists et la recommander aux bons auditeurs. Des métadonnées incomplètes = une réduction de ta visibilité potentielle.
+
+**Pour la longévité de ton catalogue.** Dans 10 ans, si tu veux retrouver tous tes titres, toutes leurs versions, tous leurs collaborateurs, tu seras content d'avoir des données propres et cohérentes.
+
+## Les tags ID3 : les métadonnées embarquées dans le fichier audio
+
+Les tags ID3 sont les métadonnées stockées directement dans le fichier audio. Ils existent pour les MP3 (ID3v2 étant le standard), et des équivalents existent pour les WAV (Broadcast Wave Format chunks) et les FLAC (Vorbis comments).
+
+Les champs les plus importants :
+
+- **TIT2 / TITLE** : le titre du morceau (exactement tel qu'il doit apparaître partout)
+- **TPE1 / ARTIST** : l'artiste principal
+- **TPE2 / ALBUM ARTIST** : l'artiste de l'album (utile pour les compilations)
+- **TALB / ALBUM** : le titre de l'album ou du single
+- **TCOM / COMPOSER** : le compositeur
+- **TCON / GENRE** : le genre musical
+- **TDRC / YEAR** : l'année d'enregistrement ou de sortie
+- **TRCK / TRACK** : le numéro de piste
+- **TSRC / ISRC** : l'ISRC de l'enregistrement — champ critique
+- **TPUB / PUBLISHER** : l'éditeur musical
+- **TCOP / COPYRIGHT** : la mention de copyright (ex : "2026 Ton Nom / Ton Label")
+
+Les outils pour éditer ces tags : **MP3tag** (Windows, gratuit, de loin le plus utilisé), **Kid3** (multiplateforme), ou **beets** (en ligne de commande, très puissant pour automatiser le tagging en masse).
+
+Pour les WAV spécifiquement : certains logiciels d'enregistrement (Pro Tools, Logic) écrivent les métadonnées dans les chunks BWF. Mais attention, tous les lecteurs ne lisent pas ces tags correctement. En cas de doute, exporte en FLAC pour une meilleure compatibilité des métadonnées.
+
+## Les métadonnées de distribution (DSP metadata) : ce que ton distributeur envoie
+
+Quand tu soumets une sortie à ton distributeur, tu remplis un formulaire. Ces données sont ensuite transmises aux DSP dans un format standardisé (DDEX, CWR selon le contexte). Ce sont ces données — et non les tags de ton fichier — qui vont s'afficher sur Spotify, Apple Music, etc.
+
+Les champs critiques dans le formulaire de distribution :
+
+**Titre :** orthographe exacte, casse respectée. Si tu écris "mon titre" en minuscules, c'est ce qui apparaîtra sur Spotify.
+
+**Artiste principal :** doit correspondre exactement à ton nom de scène tel qu'il est enregistré sur les DSP (Spotify for Artists, Apple Music for Artists). Une différence même minime peut créer un doublon de profil artiste.
+
+**Featuring :** le nom des artistes invités, dans le bon ordre.
+
+**Compositeurs et auteurs :** les noms tels qu'ils sont déclarés à la SACEM. L'orthographe doit être identique pour faciliter la réconciliation.
+
+**ISRC :** ton code d'enregistrement. Si tu n'en fournis pas, ton distributeur en génère un. Pour comprendre tout sur l'ISRC, consulte [le guide complet sur l'ISRC](/blog/isrc-guide-complet).
+
+**UPC/EAN :** le code-barres de la release (album ou single). Généré automatiquement par ton distributeur.
+
+**Genre et sous-genre :** important pour le référencement. Sois précis — "Electronic > House" est plus utile que "Pop".
+
+**Date de sortie et territoire :** pour une sortie mondiale, sélectionne tous les territoires disponibles.
+
+**Langue des paroles :** utile pour les playlists éditoriales et l'algorithme.
+
+## ISRC, UPC, ISWC : les identifiants à connaître
+
+Ces trois codes sont souvent confondus. Voici ce qu'ils identifient :
+
+**ISRC (International Standard Recording Code)** : identifie un enregistrement spécifique. Chaque version d'un morceau a son propre ISRC. C'est l'identifiant central pour les droits voisins et le suivi des streams. Format : FR-AB1-26-00001.
+
+**UPC/EAN (Universal Product Code / European Article Number)** : identifie une sortie commerciale (un album, un single, un EP). Un single a un UPC, ses titres ont chacun un ISRC. Format : 13 chiffres.
+
+**ISWC (International Standard Musical Work Code)** : identifie une composition (l'œuvre intellectuelle, indépendamment des enregistrements). Attribué par la SACEM lors de la déclaration. Format : T-XXXXXXXXX.X.
+
+La relation : une composition (un ISWC) peut avoir plusieurs enregistrements (chacun avec son ISRC), qui peuvent être regroupés en plusieurs releases (chacune avec son UPC).
+
+Pour comprendre la distinction entre la composition et le master, l'article [master et composition : les deux types de droits](/blog/master-vs-composition) l'explique en détail.
+
+<BlogCTA module="phono" moduleLabel="la phonographie" variant="mid" />
+
+## Les erreurs de métadonnées qui font perdre des droits
+
+Voici les erreurs les plus fréquentes et leurs conséquences :
+
+**ISRC manquant ou dupliqué.** Sans ISRC, tes droits voisins ne peuvent pas être correctement attribués. Un ISRC dupliqué (le même code sur deux enregistrements différents) crée des confusions irrécupérables côté DSP.
+
+**Nom de compositeur mal orthographié.** Si tu t'appelles "Jean-Marc Dupont" à la SACEM mais que tu entres "Jean Marc Dupont" (sans tiret) dans les métadonnées de distribution, la SACEM ne peut pas faire le lien automatiquement. Des droits peuvent rester non attribués.
+
+**Nom d'artiste incohérent entre les sorties.** "The Artist", "The Artist.", "the artist" — trois orthographes différentes = trois profils artistes différents sur Spotify. Conséquence : ton audience est fragmentée, ton profil est affaibli.
+
+**Genre incorrect ou trop vague.** "Pop" pour un titre de musique électronique hardcore va nuire à ton référencement dans les playlists éditoriales.
+
+**Copyright mal formulé.** Le champ copyright doit mentionner l'année et le propriétaire du master. La convention standard : "© 2026 Ton Label" pour le master, "℗ 2026 Ton Label" pour les droits de production.
+
+**Featuring non déclaré.** Si un artiste en featuring n'est pas correctement listé dans les métadonnées, il ne sera pas crédité sur les DSP et ne percevra pas les éventuelles royalties liées à sa contribution.
+
+**Titres de versions non standardisés.** "Radio Edit" dans les parenthèses est la convention — pas "edit radio", pas "version radio", pas "radio". Les DSP et les systèmes de droits reconnaissent les termes standardisés.
+
+## Outils pour gérer et vérifier ses métadonnées
+
+**MP3tag** (Windows, gratuit) : l'outil de référence pour éditer les tags ID3 d'un fichier ou d'un lot de fichiers. Interface claire, support de tous les formats courants.
+
+**Kid3** (Windows, Mac, Linux, gratuit) : alternative multiplateforme à MP3tag, avec des fonctionnalités similaires.
+
+**beets** (Python, gratuit) : outil en ligne de commande très puissant pour les utilisateurs à l'aise avec le terminal. Permet d'automatiser le tagging en masse via des scripts, d'interroger MusicBrainz pour les métadonnées, et de maintenir une bibliothèque cohérente.
+
+**MusicBrainz Picard** (gratuit, multiplateforme) : utilise l'empreinte acoustique de tes fichiers pour identifier et tagger automatiquement tes morceaux. Utile pour les imports de catalogue existant.
+
+**Réconciliation avec les DSP.** Une fois ta musique en ligne, vérifie les métadonnées directement sur Spotify (onglet "About" de ta sortie), Apple Music, et via les outils pour artistes (Spotify for Artists, Apple Music for Artists). Des corrections mineures peuvent être demandées via ton distributeur.
+
+## Les bonnes pratiques : une checklist avant chaque sortie
+
+Avant de cliquer sur "Soumettre" chez ton distributeur, vérifie chaque point :
+
+**Fichier audio**
+- [ ] Format correct (WAV 24bit/44.1kHz minimum pour la plupart des distributeurs)
+- [ ] Tags ID3/métadonnées embarquées correctement renseignés (titre, artiste, ISRC, compositeur, copyright)
+- [ ] Nom du fichier clair et sans caractères spéciaux
+
+**Formulaire de distribution**
+- [ ] Titre exactement orthographié (casse, ponctuation, mention de version si applicable)
+- [ ] Nom d'artiste identique à tous tes profils DSP existants
+- [ ] ISRC correct (ou laissé vide pour génération automatique — jamais un mauvais code)
+- [ ] Compositeurs et auteurs listés avec l'orthographe SACEM exacte
+- [ ] Genre et sous-genre précis
+- [ ] Date de sortie confirmée
+- [ ] Artwork aux bonnes dimensions (minimum 3000x3000px, JPG ou PNG, sans texte dans les coins)
+
+**Vérification croisée**
+- [ ] Les noms des compositeurs correspondent à la déclaration SACEM
+- [ ] Si featuring : l'artiste invité est correctement listé et a validé sa participation
+- [ ] Si remix : accord écrit en place, droits du remixeur clarifiés
+
+Pour aller plus loin sur les formats audio et les exigences techniques des plateformes, l'article [WAV, FLAC ou MP3 : quel format audio choisir](/blog/formats-audio-wav-flac-mp3) couvre tout ce sujet.
+
+## Conclusion
+
+Les métadonnées ne sont pas un détail de dernière minute — elles sont aussi importantes que le morceau lui-même pour la bonne circulation de tes droits et la visibilité de ta musique. Prends le temps de les renseigner correctement à chaque sortie, et mets en place un système de vérification avant soumission.
+
+La règle d'or : **cohérence partout**. Le même nom d'artiste, la même orthographe du titre, le même ISRC, sur tous les supports — tags du fichier, formulaire distributeur, déclaration SACEM, registre personnel. Une fois ce réflexe installé, tu t'épargnes des heures de correction et des droits perdus.
+
+<BlogCTA module="phono" moduleLabel="la phonographie" variant="end" />
+
+---
+
+**Qu'est-ce que les métadonnées musicales exactement ?**
+
+Les métadonnées musicales sont toutes les informations associées à un enregistrement : titre, artiste, compositeur, genre, ISRC, UPC, copyright, date de sortie, etc. Elles existent sous deux formes : embarquées dans le fichier audio (tags ID3) et transmises aux plateformes de distribution via les formulaires de soumission.
+
+**Puis-je corriger des métadonnées après la mise en ligne d'un titre ?**
+
+Oui, dans la plupart des cas, via ton distributeur. Mais les corrections prennent du temps (parfois plusieurs semaines pour se propager sur tous les DSP), et certains champs comme l'ISRC sont très difficiles à modifier une fois en ligne. La prévention reste la meilleure stratégie.
+
+**L'orthographe du nom de compositeur dans les métadonnées a-t-elle vraiment un impact sur mes droits SACEM ?**
+
+Oui. La SACEM effectue des réconciliations automatiques entre les données de diffusion transmises par les DSP et les déclarations d'œuvres. Si le nom est différent (même d'un caractère), la réconciliation peut échouer et des droits rester en suspens. Utilise toujours le nom exactement tel qu'il est enregistré à la SACEM.
+
+**Quel outil utiliser pour vérifier les tags de mes fichiers audio ?**
+
+MP3tag est la référence sur Windows, gratuit et très complet. Sur Mac, Meta ou Kid3 sont de bonnes options. Pour automatiser le traitement de catalogues entiers, beets (en ligne de commande) est l'outil le plus puissant.
+
+**Mes métadonnées peuvent-elles affecter mon référencement sur Spotify ?**
+
+Oui. Spotify utilise les métadonnées (genre, sous-genre, langue, humeur) pour alimenter ses algorithmes de recommandation et déterminer dans quelles playlists éditoriales ta musique est éligible. Des métadonnées précises et complètes augmentent tes chances d'apparaître dans les bonnes playlists.

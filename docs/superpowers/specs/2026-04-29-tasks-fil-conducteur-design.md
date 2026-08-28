@@ -27,7 +27,7 @@ Renommage sémantique uniquement (UI), pas de changement de data model. Le table
 - **Édition** : clic sur le texte d'une étape ouvre un input inline (comportement déjà en place dans `SubtaskEditableRow`). Enter valide, Escape annule, vidage supprime.
 - **Réordonnancement** : drag-handle `⋮⋮` à gauche de chaque étape **à venir uniquement** (pas l'étape courante, pas les terminées). Visible au hover sur la card.
 - **Cochage de l'étape courante** : son passage à `done` fait remonter automatiquement la suivante en position "ÉTAPE EN COURS" (dérivation, pas de mutation explicite de l'ordre).
-- **Auto-complétion de la tâche parente** : quand toutes les étapes sont `done`, la tâche n'est **pas** automatiquement marquée `done`. La card affiche un état visuel discret ("Toutes les étapes sont faites — clique sur ✓ pour clôturer") mais la clôture reste un acte manuel via le bouton ✓ existant.
+- **Auto-complétion de la tâche parente** : quand toutes les étapes sont `done`, la tâche n'est **pas** automatiquement marquée `done`. La card affiche un état visuel discret ("Clique sur ✓ pour clôturer") mais la clôture reste un acte manuel via le bouton ✓ existant.
 - **Tâches sans étapes** : aucun changement, la card reste compacte comme aujourd'hui.
 
 **Wording côté modale d'édition** :

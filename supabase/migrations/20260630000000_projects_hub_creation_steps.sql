@@ -14,7 +14,7 @@ create table if not exists public.user_project_creation_steps (
   linked_entity_type text not null default '',
   linked_entity_id   text not null default '',
   links              jsonb not null default '[]'::jsonb,
-  task_id            uuid null,
+  task_id            text null references public.user_tasks(id) on delete set null,
   created_at         timestamptz default now()
 );
 

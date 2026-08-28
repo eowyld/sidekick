@@ -1,7 +1,11 @@
 // src/modules/incomes/components/CopyrightPage.tsx
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
+import { usePostHog } from "posthog-js/react"
+import { Upload } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   MOCK_RELEVES,
   type CopyrightReleve,
@@ -11,8 +15,27 @@ import { CopyrightDashboard } from "./CopyrightDashboard"
 import { CopyrightHistorique } from "./CopyrightHistorique"
 
 export function CopyrightPage() {
+  const posthog = usePostHog()
   const [releves, setReleves] = useState<CopyrightReleve[]>(MOCK_RELEVES)
   const [filter, setFilter] = useState<PeriodFilter>({ mode: "global" })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImportClick = () => fileInputRef.current?.click()
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const newReleve: CopyrightReleve = {
+      id: `releve-${Date.now()}`,
+      filename: file.name,
+      importedAt: new Date().toISOString().split("T")[0],
+      periodeLabel: "À définir",
+      entries: [],
+    }
+    setReleves(prev => [newReleve, ...prev])
+    posthog?.capture("publishing_statement_imported", { module: "incomes" })
+    e.target.value = ""
+  }
 
   // State séparé pour les dates custom (pour conserver les valeurs quand on change de mode)
   const [customFrom, setCustomFrom] = useState(
@@ -91,6 +114,19 @@ export function CopyrightPage() {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <Button variant="default" size="sm" onClick={handleImportClick}>
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              Importer un relevé
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-xs text-[rgba(245,245,245,0.4)]">Période</span>
             <select
               value={filterValue}
@@ -112,20 +148,20 @@ export function CopyrightPage() {
             </select>
           </div>
           {filter.mode === "custom" && (
-            <div className="flex items-center gap-2 text-xs text-[rgba(245,245,245,0.4)]">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[rgba(245,245,245,0.4)]">
               <span>Du</span>
-              <input
-                type="date"
+              <DatePicker
                 value={customFrom}
-                onChange={e => handleCustomFrom(e.target.value)}
-                className="rounded-lg border border-[rgba(245,245,245,0.15)] bg-[rgba(44,44,46,0.9)] px-2.5 py-1.5 text-xs text-[#f5f5f5] outline-none focus:border-[#F0FF00]"
+                onChange={handleCustomFrom}
+                className="h-8 w-[min(100%,10.5rem)] shrink-0 gap-1.5 px-2 py-0 text-xs font-normal"
+                calendarIconClassName="h-3.5 w-3.5"
               />
               <span>→</span>
-              <input
-                type="date"
+              <DatePicker
                 value={customTo}
-                onChange={e => handleCustomTo(e.target.value)}
-                className="rounded-lg border border-[rgba(245,245,245,0.15)] bg-[rgba(44,44,46,0.9)] px-2.5 py-1.5 text-xs text-[#f5f5f5] outline-none focus:border-[#F0FF00]"
+                onChange={handleCustomTo}
+                className="h-8 w-[min(100%,10.5rem)] shrink-0 gap-1.5 px-2 py-0 text-xs font-normal"
+                calendarIconClassName="h-3.5 w-3.5"
               />
             </div>
           )}

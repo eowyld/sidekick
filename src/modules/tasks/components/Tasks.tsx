@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
   DndContext,
@@ -16,6 +17,7 @@ import { useTasksData } from "@/hooks/useTasksData";
 import { useLiveData } from "@/hooks/useLiveData";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useIncomesData } from "@/hooks/useIncomesData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { allRules } from "../rules";
 import type { RuleContext, RuleSuggestion } from "../rules/types";
 import { createClient } from "@/lib/supabase";
@@ -23,23 +25,29 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { TaskModal, type TaskFormData, type TaskSector } from "./TaskModal";
 import { TodayPanel } from "./TodayPanel";
 import { BacklogPanel } from "./BacklogPanel";
 import { TaskCard } from "./TaskCard";
+import { DayStartDialog } from "./DayStartDialog";
 
 export function Tasks() {
-  const { data, setData } = useSidekickData();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editTaskId = searchParams.get("editTask");
+  const { data } = useSidekickData();
   const { tasks, setTasks, loading, error } = useTasksData();
   const { tourDates, rehearsals } = useLiveData();
   const { structures, procedures } = useAdminData();
   const { invoices, imports } = useIncomesData();
+  const { projects } = useProjectsData();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [dayStartOpen, setDayStartOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -47,21 +55,6 @@ export function Tasks() {
       setUserId(user?.id ?? null);
     });
   }, []);
-
-  // Auto-promote overdue/due-today tasks — runs once after tasks are loaded
-  const promotedRef = useRef(false);
-  useEffect(() => {
-    if (promotedRef.current || tasks.length === 0 || loading) return;
-    promotedRef.current = true;
-    const today = new Date().toISOString().slice(0, 10);
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.deadline && t.deadline <= today && !t.todayFocus && t.status !== "done"
-          ? { ...t, todayFocus: true }
-          : t
-      )
-    );
-  }, [tasks, loading, setTasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -84,10 +77,24 @@ export function Tasks() {
     [todos]
   );
 
-  const backlogTasks = useMemo(
-    () => todos.filter((t) => !t.todayFocus && t.status !== "done"),
-    [todos]
-  );
+  const backlogTasks = useMemo(() => {
+    const list = todos.filter((t) => !t.todayFocus && t.status !== "done");
+    const deadlineKey = (deadline: string | null | undefined) => {
+      if (!deadline) return Number.POSITIVE_INFINITY;
+      const ts = new Date(`${deadline}T12:00:00`).getTime();
+      return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts;
+    };
+    return [...list].sort((a, b) => {
+      const da = deadlineKey(a.deadline ?? null);
+      const db = deadlineKey(b.deadline ?? null);
+      const aMissing = da === Number.POSITIVE_INFINITY;
+      const bMissing = db === Number.POSITIVE_INFINITY;
+      if (!aMissing && !bMissing && da !== db) return da - db;
+      if (!aMissing && bMissing) return -1;
+      if (aMissing && !bMissing) return 1;
+      return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
+    });
+  }, [todos]);
 
   const doneTasks = useMemo(
     () => todos.filter((t) => t.status === "done"),
@@ -106,23 +113,30 @@ export function Tasks() {
       live: enabledModules.live !== false ? { tourDates, rehearsals } : null,
       admin: enabledModules.admin !== false ? { structures, procedures } : null,
       incomes: enabledModules.revenus !== false ? { invoices, imports: importsList } : null,
+      projects: projects.length > 0 ? projects : null,
     };
     return allRules.map((rule) => rule(ctx)).filter((s): s is RuleSuggestion => s !== null);
-  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules]);
+  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules, projects]);
 
-  if (loading) return <PageLoader />;
-  if (error) return (
-    <PageError
-      title="Impossible de charger tes tâches"
-      description="Vérifie ta connexion ou réessaie dans quelques instants."
-      onRetry={() => mutate("user_tasks")}
-    />
-  );
-
-  const aiInstructions = (data.preferences?.aiTaskInstructions ?? {}) as Record<string, string>;
   const calendarEvents = data.calendar?.events ?? [];
 
   // --- Handlers ---
+
+  const clearEditTaskParam = useCallback(() => {
+    if (!searchParams.has("editTask")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("editTask");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!editTaskId || loading) return;
+    if (modalOpen && editingId === editTaskId) return;
+    if (!todos.some((task) => task.id === editTaskId)) return;
+    setEditingId(editTaskId);
+    setModalOpen(true);
+  }, [editTaskId, editingId, loading, modalOpen, todos]);
 
   const handleStatusChange = (id: string, status: Todo["status"]) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
@@ -178,6 +192,7 @@ export function Tasks() {
     }
     setEditingId(null);
     setModalOpen(false);
+    clearEditTaskParam();
   };
 
   const handleSubtaskToggle = (taskId: string, subtaskId: string, done: boolean) => {
@@ -215,6 +230,39 @@ export function Tasks() {
     );
   };
 
+  const handleSubtaskReorder = (taskId: string, fromIndex: number, toIndex: number) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const subtasks = [...(t.subtasks ?? [])];
+        const [moved] = subtasks.splice(fromIndex, 1);
+        if (!moved) return t;
+        subtasks.splice(toIndex, 0, moved);
+        return { ...t, subtasks };
+      })
+    );
+  };
+
+  const handleSubtaskSetCurrent = (taskId: string, subtaskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (task.id !== taskId) return task;
+        const subtasks = task.subtasks ?? [];
+        const targetIndex = subtasks.findIndex((step) => step.id === subtaskId);
+        if (targetIndex < 0) return task;
+        const currentIndex = subtasks.findIndex((step) => !step.done);
+        const shouldCompleteCurrent = currentIndex === targetIndex;
+        return {
+          ...task,
+          subtasks: subtasks.map((step, index) => ({
+            ...step,
+            done: shouldCompleteCurrent ? index <= targetIndex : index < targetIndex,
+          })),
+        };
+      })
+    );
+  };
+
   const handleAddSuggestion = (title: string, sector: string) => {
     const newTask: Todo = {
       id: crypto.randomUUID(),
@@ -225,6 +273,14 @@ export function Tasks() {
       createdAt: new Date().toISOString(),
     };
     setTasks((prev) => [...prev, newTask]);
+  };
+
+  const handleStartDayConfirm = (selectedIds: string[]) => {
+    if (selectedIds.length === 0) return;
+    const idsSet = new Set(selectedIds);
+    setTasks((prev) =>
+      prev.map((t) => (idsSet.has(t.id) ? { ...t, todayFocus: true } : t))
+    );
   };
 
   // --- Drag & Drop ---
@@ -275,6 +331,15 @@ export function Tasks() {
     });
   }, [enabledModules]);
 
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes tâches"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_tasks")}
+    />
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -304,6 +369,8 @@ export function Tasks() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TodayPanel
             tasks={todayTasks}
+            hasBacklog={backlogTasks.length > 0}
+            onStartDay={() => setDayStartOpen(true)}
             onStatusChange={handleStatusChange}
             onRemoveFromToday={handleRemoveFromToday}
             onEdit={handleEdit}
@@ -311,12 +378,13 @@ export function Tasks() {
             onSubtaskToggle={handleSubtaskToggle}
             onSubtaskAdd={handleSubtaskAdd}
             onSubtaskRename={handleSubtaskRename}
+            onSubtaskReorder={handleSubtaskReorder}
+            onSubtaskSetCurrent={handleSubtaskSetCurrent}
           />
           <BacklogPanel
             tasks={backlogTasks}
             userId={userId}
             enabledModules={enabledModules as Record<string, boolean>}
-            aiInstructions={aiInstructions}
             calendarEvents={calendarEvents}
             ruleSuggestions={ruleSuggestions}
             onStatusChange={handleStatusChange}
@@ -367,52 +435,19 @@ export function Tasks() {
         onClose={() => {
           setModalOpen(false);
           setEditingId(null);
+          clearEditTaskParam();
         }}
         onSave={handleSave}
         task={editingTask}
         allowedSectors={allowedSectors}
       />
 
-      <details className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)] p-4">
-        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40 hover:text-[#F5F5F5]/60 transition-colors">
-          Instructions IA — personnaliser les suggestions
-        </summary>
-        <div className="mt-4 space-y-3">
-          {(
-            [
-              { key: "general", label: "Général" },
-              ...(enabledModules.live ? [{ key: "live", label: "Live" }] : []),
-              ...(enabledModules.phono ? [{ key: "phono", label: "Phono" }] : []),
-              ...(enabledModules.admin ? [{ key: "admin", label: "Admin" }] : []),
-              ...(enabledModules.marketing ? [{ key: "marketing", label: "Marketing" }] : []),
-              ...(enabledModules.edition ? [{ key: "edition", label: "Édition" }] : []),
-              ...(enabledModules.revenus ? [{ key: "revenus", label: "Revenus" }] : []),
-            ] as { key: string; label: string }[]
-          ).map(({ key, label }) => (
-            <div key={key} className="space-y-1">
-              <label className="text-[11px] font-medium uppercase tracking-[0.1em] text-[#F5F5F5]/40">
-                {label}
-              </label>
-              <Input
-                placeholder={`Instructions pour ${label}...`}
-                value={aiInstructions[key] ?? ""}
-                onChange={(e) => {
-                  setData((prev) => ({
-                    ...prev,
-                    preferences: {
-                      ...prev.preferences,
-                      aiTaskInstructions: {
-                        ...prev.preferences.aiTaskInstructions,
-                        [key]: e.target.value,
-                      },
-                    },
-                  }));
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      </details>
+      <DayStartDialog
+        open={dayStartOpen}
+        onClose={() => setDayStartOpen(false)}
+        backlogTasks={backlogTasks}
+        onConfirm={handleStartDayConfirm}
+      />
     </div>
   );
 }

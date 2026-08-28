@@ -310,8 +310,8 @@ export function IntermittenceDashboard({
               Évolution des cachets (8 derniers mois)
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="min-w-0">
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <BarChart data={barData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                 <XAxis
@@ -360,8 +360,8 @@ export function IntermittenceDashboard({
               Heures cumulées par mois
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="min-w-0">
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
                 <XAxis

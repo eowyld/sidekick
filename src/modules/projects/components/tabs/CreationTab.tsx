@@ -1,16 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
-  Circle, CircleDot, CheckCircle2, Plus, Trash2, MoreHorizontal,
+  CircleDot, CheckCircle2, Plus, Trash2,
   ChevronDown, ChevronRight, ExternalLink, Zap, Calendar, User,
 } from "lucide-react";
 import type {
-  Project, CreationStep, CreationSector, CreationEntityType, CreationPhase,
+  Project, CreationStep, CreationSector, CreationEntityType, CreationPhase, Todo,
 } from "@/lib/sidekick-store";
 import { CREATION_PHASE_ORDER, CREATION_PHASE_LABELS } from "@/lib/sidekick-store";
 import { useProjectsData } from "@/hooks/useProjectsData";
 import { useProjectCreationData } from "@/hooks/useProjectCreationData";
+import { useTasksData } from "@/hooks/useTasksData";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { SECTOR_LABELS } from "@/modules/projects/data/creation-templates";
 import {
@@ -23,17 +26,6 @@ import { LiveSection } from "../sections/LiveSection";
 import { WorkTrackLinker } from "../sections/WorkTrackLinker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -42,6 +34,18 @@ const STATUS_CYCLE: Record<CreationStep["status"], CreationStep["status"]> = {
   todo: "doing",
   doing: "done",
   done: "todo",
+};
+
+const STEP_TO_TASK_STATUS: Record<CreationStep["status"], Todo["status"]> = {
+  todo: "todo",
+  doing: "in_progress",
+  done: "done",
+};
+
+const TASK_TO_STEP_STATUS: Record<Todo["status"], CreationStep["status"]> = {
+  todo: "todo",
+  in_progress: "doing",
+  done: "done",
 };
 
 const ENTITY_TYPE_LABELS: Record<CreationEntityType, string> = {
@@ -73,147 +77,62 @@ function StepStatusIcon({ status, onClick }: { status: CreationStep["status"]; o
       type="button"
       onClick={onClick}
       className="shrink-0 transition-opacity hover:opacity-70"
-      title={`Statut : ${status} — clic pour changer`}
+      title={status === "todo" ? "Activer l'étape" : `Statut : ${status} — clic pour changer`}
     >
-      {status === "todo" && <Circle size={16} className="text-[#F5F5F5]/30" />}
+      {status === "todo" && <Zap size={16} className="text-[#F5F5F5]/30" />}
       {status === "doing" && <CircleDot size={16} className="text-[#F0FF00]/80" />}
       {status === "done" && <CheckCircle2 size={16} className="text-[#F0FF00]" />}
     </button>
   );
 }
 
-// ─── StepDialog ────────────────────────────────────────────────────────────────
-
-function StepDialog({
-  step, members, onSave, onClose,
-}: {
-  step: CreationStep;
-  members: Project["members"];
-  onSave: (patch: Partial<CreationStep>) => void;
-  onClose: () => void;
-}) {
-  const [label, setLabel] = useState(step.label);
-  const [targetDate, setTargetDate] = useState(step.targetDate ?? "");
-  const [assignee, setAssignee] = useState(step.assignee);
-  const [linkedEntityType, setLinkedEntityType] = useState<CreationEntityType>(step.linkedEntityType);
-  const [links, setLinks] = useState(step.links);
-
-  const addLink = () => setLinks((prev) => [...prev, { label: "", url: "" }]);
-  const updateLink = (i: number, patch: { label?: string; url?: string }) =>
-    setLinks((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  const removeLink = (i: number) => setLinks((prev) => prev.filter((_, idx) => idx !== i));
-
-  const handleSave = () => {
-    onSave({ label: label.trim() || step.label, targetDate: targetDate || null, assignee, linkedEntityType, links });
-    onClose();
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-[15px]">Modifier l&apos;étape</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-[#F5F5F5]/60">Intitulé</Label>
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} className="h-8 text-xs" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-[#F5F5F5]/60">Date cible</Label>
-            <DatePicker value={targetDate} onChange={(iso) => setTargetDate(iso)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-[#F5F5F5]/60">Responsable</Label>
-            {members.length > 0 ? (
-              <Select value={assignee} onValueChange={setAssignee}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Choisir un membre" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                placeholder="Nom du responsable"
-                className="h-8 text-xs"
-              />
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-[#F5F5F5]/60">Type de livrable</Label>
-            <Select value={linkedEntityType} onValueChange={(v) => setLinkedEntityType(v as CreationEntityType)}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.entries(ENTITY_TYPE_LABELS) as [CreationEntityType, string][]).map(([value, lbl]) => (
-                  <SelectItem key={value} value={value}>{lbl}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-[#F5F5F5]/60">Liens</Label>
-              <Button type="button" variant="ghost" size="xs" onClick={addLink} className="h-6 text-[11px]">
-                <Plus size={10} className="mr-1" /> Ajouter
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {links.map((link, i) => (
-                <div key={i} className="flex gap-1.5">
-                  <Input value={link.label} onChange={(e) => updateLink(i, { label: e.target.value })} placeholder="Label" className="h-7 text-[11px] flex-1" />
-                  <Input value={link.url} onChange={(e) => updateLink(i, { url: e.target.value })} placeholder="https://…" className="h-7 text-[11px] flex-1" />
-                  <button type="button" onClick={() => removeLink(i)} className="text-[#F5F5F5]/30 hover:text-red-400 shrink-0">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
-          <Button type="button" size="sm" onClick={handleSave}>Enregistrer</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── StepRow ───────────────────────────────────────────────────────────────────
 
 function StepRow({
-  step, onCycleStatus, onEdit, onDelete, onGenerateTask,
+  step, isNaming, onCycleStatus, onDelete, onRename, onFinishNaming,
 }: {
   step: CreationStep;
+  isNaming: boolean;
   onCycleStatus: () => void;
-  onEdit: () => void;
   onDelete: () => void;
-  onGenerateTask: () => void;
+  onRename: (label: string) => void;
+  onFinishNaming: () => void;
 }) {
+  const [draft, setDraft] = useState(step.label);
+
+  const commit = () => {
+    onRename(draft.trim() || step.label);
+    onFinishNaming();
+  };
+
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(245,245,245,0.04)] group">
       <StepStatusIcon status={step.status} onClick={onCycleStatus} />
-      <span
-        className={cn(
-          "flex-1 text-[13px] truncate",
-          step.status === "done" ? "line-through text-[#F5F5F5]/40" : "text-[#F5F5F5]/90"
-        )}
-      >
-        {step.label}
-      </span>
+      {isNaming ? (
+        <Input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") onFinishNaming();
+          }}
+          className="flex-1 h-6 text-[13px] px-1.5"
+        />
+      ) : (
+        <span
+          className={cn(
+            "flex-1 text-[13px] truncate",
+            step.status === "done" && "line-through text-[#F5F5F5]/40",
+            step.status === "todo" && "text-[#F5F5F5]/35",
+            step.status === "doing" && "text-[#F5F5F5]/90"
+          )}
+        >
+          {step.label}
+        </span>
+      )}
       <div className="flex items-center gap-1.5 shrink-0">
         {step.targetDate && (
           <span className="flex items-center gap-1 text-[10px] text-[#F5F5F5]/40 bg-[rgba(245,245,245,0.06)] rounded px-1.5 py-0.5">
@@ -245,18 +164,14 @@ function StepRow({
           </a>
         )}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className="opacity-0 group-hover:opacity-100 text-[#F5F5F5]/40 hover:text-[#F5F5F5] transition-all shrink-0">
-            <MoreHorizontal size={14} />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="text-[13px]">
-          <DropdownMenuItem onSelect={onEdit}>Modifier</DropdownMenuItem>
-          {!step.taskId && <DropdownMenuItem onSelect={onGenerateTask}>Générer une tâche</DropdownMenuItem>}
-          <DropdownMenuItem onSelect={onDelete} className="text-red-400 focus:text-red-400">Supprimer</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type="button"
+        onClick={onDelete}
+        title="Supprimer l'étape"
+        className="opacity-0 group-hover:opacity-100 text-[#F5F5F5]/30 hover:text-red-400 transition-all shrink-0"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
@@ -287,8 +202,8 @@ function PhaseSignals({ signals }: { signals: CreationSignal[] }) {
 // ─── PhaseCard ─────────────────────────────────────────────────────────────────
 
 function PhaseCard({
-  phase, steps, signals, isActive, open, onToggle,
-  onCycleStatus, onEdit, onDelete, onGenerateTask, onAddStep,
+  phase, steps, signals, isActive, open, onToggle, namingStepId,
+  onCycleStatus, onDelete, onAddStep, onRename, onFinishNaming,
 }: {
   phase: CreationPhase;
   steps: CreationStep[];
@@ -296,11 +211,12 @@ function PhaseCard({
   isActive: boolean;
   open: boolean;
   onToggle: () => void;
+  namingStepId: string | null;
   onCycleStatus: (step: CreationStep) => void;
-  onEdit: (step: CreationStep) => void;
   onDelete: (step: CreationStep) => void;
-  onGenerateTask: (step: CreationStep) => void;
   onAddStep: (phase: CreationPhase) => void;
+  onRename: (step: CreationStep, label: string) => void;
+  onFinishNaming: () => void;
 }) {
   const { done, total } = phaseProgress(steps, phase);
   const phaseSteps = steps.filter((s) => s.phase === phase);
@@ -349,10 +265,11 @@ function PhaseCard({
                   <StepRow
                     key={step.id}
                     step={step}
+                    isNaming={step.id === namingStepId}
                     onCycleStatus={() => onCycleStatus(step)}
-                    onEdit={() => onEdit(step)}
                     onDelete={() => onDelete(step)}
-                    onGenerateTask={() => onGenerateTask(step)}
+                    onRename={(label) => onRename(step, label)}
+                    onFinishNaming={onFinishNaming}
                   />
                 ))}
             </div>
@@ -374,11 +291,13 @@ function PhaseCard({
 // ─── CreationTab ───────────────────────────────────────────────────────────────
 
 export function CreationTab({ project }: { project: Project }) {
+  const router = useRouter();
   const { setProjects } = useProjectsData();
   const { data } = useSidekickData();
   const { steps, setSteps, seedSectors, generateTask, loading } = useProjectCreationData(project.id);
+  const { tasks, setTasks } = useTasksData();
 
-  const [editingStep, setEditingStep] = useState<CreationStep | null>(null);
+  const [namingStepId, setNamingStepId] = useState<string | null>(null);
   const [linkedOpen, setLinkedOpen] = useState(false);
   const [openPhases, setOpenPhases] = useState<Set<CreationPhase>>(new Set());
   const userToggledRef = useRef(false);
@@ -400,6 +319,26 @@ export function CreationTab({ project }: { project: Project }) {
     seedSectors(activeSectors, seeded, updateProject);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, project.id]);
+
+  // Synchronisation Tâches → Étapes : répercute un changement de statut fait
+  // depuis le module Tâches sur l'étape de création liée.
+  useEffect(() => {
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+    setSteps((prev) => {
+      let changed = false;
+      const next = prev.map((s) => {
+        if (!s.taskId) return s;
+        const task = taskById.get(s.taskId);
+        if (!task) return s;
+        const mapped = TASK_TO_STEP_STATUS[task.status];
+        if (mapped === s.status) return s;
+        changed = true;
+        return { ...s, status: mapped };
+      });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   const active = computeActivePhase(steps);
   const progress = globalProgress(steps);
@@ -432,11 +371,33 @@ export function CreationTab({ project }: { project: Project }) {
     [data.phono, data.edition, data.live, project.linkedTracks, project.linkedSessions, project.linkedWorks, project.linkedTourDates, project.linkedRehearsals]
   );
 
-  const handleCycleStatus = (step: CreationStep) =>
-    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: STATUS_CYCLE[s.status] } : s)));
+  const handleCycleStatus = (step: CreationStep) => {
+    const newStatus = STATUS_CYCLE[step.status];
 
-  const handleSaveStep = (step: CreationStep, patch: Partial<CreationStep>) =>
-    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, ...patch } : s)));
+    if (!step.taskId) {
+      // Première activation : crée la tâche AVANT d'écrire, pour combiner statut + taskId
+      // en un seul setSteps (deux écritures successives se marcheraient dessus).
+      generateTask(step, STEP_TO_TASK_STATUS[newStatus]).then((taskId) => {
+        setSteps((prev) =>
+          prev.map((s) => (s.id === step.id ? { ...s, status: newStatus, taskId: taskId ?? s.taskId } : s))
+        );
+        if (taskId) {
+          toast.success("Tâche créée", {
+            action: { label: "Voir dans Tâches", onClick: () => router.push("/tasks") },
+          });
+        }
+      });
+    } else {
+      setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: newStatus } : s)));
+      // Étape déjà liée : répercute le nouveau statut sur la tâche existante.
+      setTasks((prev) =>
+        prev.map((t) => (t.id === step.taskId ? { ...t, status: STEP_TO_TASK_STATUS[newStatus] } : t))
+      );
+    }
+  };
+
+  const handleRenameStep = (step: CreationStep, label: string) =>
+    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, label } : s)));
 
   const handleDeleteStep = (step: CreationStep) =>
     setSteps((prev) => prev.filter((s) => s.id !== step.id));
@@ -459,10 +420,8 @@ export function CreationTab({ project }: { project: Project }) {
       taskId: null,
     };
     setSteps((prev) => [...prev, newStep]);
-    setEditingStep(newStep);
+    setNamingStepId(newStep.id);
   };
-
-  const handleGenerateTask = async (step: CreationStep) => { await generateTask(step); };
 
   const hasSectors = project.sectors.length > 0;
 
@@ -475,16 +434,8 @@ export function CreationTab({ project }: { project: Project }) {
           Parcours créatif · {project.title}
         </div>
 
-        <h1 className="mt-4 text-[34px] font-extralight leading-[1.1] tracking-[-0.02em] text-[#F5F5F5]">
-          {bouclé ? (
-            "Projet bouclé."
-          ) : (
-            <>Tu es en <em className="not-italic font-light text-[#F0FF00]">{CREATION_PHASE_LABELS[active]}</em>.</>
-          )}
-        </h1>
-
         {/* Stepper 3 phases */}
-        <div className="mt-6 flex gap-2">
+        <div className="mt-4 flex gap-2">
           {CREATION_PHASE_ORDER.map((phase) => {
             const pp = phaseProgress(steps, phase);
             const done = isPhaseDone(steps, phase);
@@ -535,11 +486,12 @@ export function CreationTab({ project }: { project: Project }) {
               isActive={phase === active && !bouclé}
               open={openPhases.has(phase)}
               onToggle={() => togglePhase(phase)}
+              namingStepId={namingStepId}
               onCycleStatus={handleCycleStatus}
-              onEdit={setEditingStep}
               onDelete={handleDeleteStep}
-              onGenerateTask={handleGenerateTask}
               onAddStep={handleAddStep}
+              onRename={handleRenameStep}
+              onFinishNaming={() => setNamingStepId(null)}
             />
           ))}
         </div>
@@ -573,15 +525,6 @@ export function CreationTab({ project }: { project: Project }) {
           </div>
         )}
       </div>
-
-      {editingStep && (
-        <StepDialog
-          step={editingStep}
-          members={project.members}
-          onSave={(patch) => handleSaveStep(editingStep, patch)}
-          onClose={() => setEditingStep(null)}
-        />
-      )}
     </div>
   );
 }

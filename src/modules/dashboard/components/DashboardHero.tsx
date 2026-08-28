@@ -1,21 +1,22 @@
 // src/modules/dashboard/components/DashboardHero.tsx
 "use client";
 
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Stat = { value: number; label: string; accent?: boolean };
+type Stat = { value: number; label: string; accent?: boolean; href?: string };
 
 type Props = {
   now: Date;
   phrase: string | null;
   accent: string | null;
   loading: boolean;
-  stats: [Stat, Stat, Stat];
+  stats: [Stat, Stat];
 };
 
 function formatHeader(now: Date): string {
-  const day = now.toLocaleDateString("fr-FR", { weekday: "long" });
-  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const day = now.toLocaleDateString("fr-FR", { weekday: "long", timeZone: "Europe/Paris" });
+  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
   return `${day.charAt(0).toUpperCase()}${day.slice(1)} · ${time.replace(":", "h")}`;
 }
 
@@ -51,21 +52,30 @@ export function DashboardHero({ now, phrase, accent, loading, stats }: Props) {
       </h1>
 
       <div className="mt-10 flex items-baseline gap-14 border-b border-[rgba(245,245,245,0.08)] pb-6">
-        {stats.map((s, i) => (
-          <div key={i} className="flex items-baseline gap-3">
-            <span
-              className={cn(
-                "text-[36px] font-extralight leading-none tracking-[-0.02em]",
-                s.accent ? "text-[#F0FF00]" : "text-[#F5F5F5]",
-              )}
-            >
-              {s.value}
-            </span>
-            <span className="max-w-[110px] text-[11px] leading-[1.3] text-[#F5F5F5]/55">
-              {s.label}
-            </span>
-          </div>
-        ))}
+        {stats.map((s, i) => {
+          const inner = (
+            <div key={i} className={cn("flex items-baseline gap-3", s.href && "cursor-pointer")}>
+              <span
+                className={cn(
+                  "text-[36px] font-extralight leading-none tracking-[-0.02em]",
+                  s.accent ? "text-[#F0FF00]" : "text-[#F5F5F5]",
+                )}
+              >
+                {s.value}
+              </span>
+              <span className="max-w-[110px] text-[11px] leading-[1.3] text-[#F5F5F5]/55">
+                {s.label}
+              </span>
+            </div>
+          );
+          return s.href ? (
+            <Link key={i} href={s.href} className="inline-flex origin-left transition-transform duration-200 ease-out hover:scale-[1.05]">
+              {inner}
+            </Link>
+          ) : (
+            <div key={i}>{inner}</div>
+          );
+        })}
       </div>
     </div>
   );

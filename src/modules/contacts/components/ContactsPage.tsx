@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUpDown, Pencil, Plus, Trash2, Users, ChevronDown } from "lucide-react";
+import { Fragment, useState } from "react";
+import { usePostHog } from "posthog-js/react";
+import { ArrowUpDown, Pencil, Plus, Trash2, Users, ChevronDown, ChevronRight, ListFilter, Mail, Instagram, Phone, MapPin, StickyNote, type LucideIcon } from "lucide-react";
 import { useContactsData, type Contact } from "@/hooks/useContactsData";
+import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,7 @@ const emptyForm: Omit<Contact, "id" | "createdAt"> = {
 };
 
 export function ContactsPage() {
+  const posthog = usePostHog();
   const { contacts, setContacts, loading, error } = useContactsData();
   const [customRoles, setCustomRoles] = useLocalStorage<string[]>(
     "contacts:customRoles",
@@ -71,7 +74,9 @@ export function ContactsPage() {
   const [newRoleInput, setNewRoleInput] = useState("");
   const [showAddRoleInput, setShowAddRoleInput] = useState(false);
   const [rolePopoverOpen, setRolePopoverOpen] = useState(false);
+  const [roleFilterPopoverOpen, setRoleFilterPopoverOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<
     "firstName" | "lastName" | "role" | "city" | "email" | "instagram" | "phone" | "createdAt"
   >("firstName");
@@ -161,6 +166,8 @@ export function ContactsPage() {
           createdAt: new Date().toISOString()
         }
       ]);
+      posthog?.capture("contact_created", { module: "contacts" });
+      posthog?.capture("item_created", { module: "contacts" });
     } else if (typeof editingId === "string") {
       setContacts((prev) =>
         prev.map((c) => (c.id === editingId ? { ...c, ...form } : c))
@@ -171,6 +178,7 @@ export function ContactsPage() {
 
   const handleDelete = (id: string) => {
     setContacts((prev) => prev.filter((c) => c.id !== id));
+    posthog?.capture("contact_deleted", { module: "contacts" });
     if (editingId === id) closeDialog();
   };
 
@@ -241,7 +249,7 @@ export function ContactsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40 mb-1">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40 mb-1">
             Organisation
           </p>
           <h1 className="text-xl font-bold tracking-tight text-[#F5F5F5]">Contacts</h1>
@@ -426,7 +434,7 @@ export function ContactsPage() {
       {/* Filters + table */}
       <div className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)]">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-[rgba(245,245,245,0.08)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-3 border-b border-[rgba(245,245,245,0.08)] px-4 py-2.5">
           <div className="flex items-center gap-2">
             <Users size={13} className="text-[#F5F5F5]/40 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40">
@@ -434,26 +442,51 @@ export function ContactsPage() {
             </span>
           </div>
           {contacts.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Rechercher…"
-                className="h-7 w-40 text-xs"
+                className="h-6 w-28 text-[11px]"
               />
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="h-7 w-[160px] text-xs">
-                  <SelectValue placeholder="Tous les métiers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tous les métiers</SelectItem>
-                  {roleOptionsForFilter.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={roleFilterPopoverOpen} onOpenChange={setRoleFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    title="Filtrer par métier"
+                    className={cn(
+                      "flex h-6 w-6 items-center justify-center border transition-colors duration-150",
+                      roleFilter !== "__all__"
+                        ? "border-[#F0FF00]/50 bg-[#F0FF00]/10 text-[#F0FF00]"
+                        : "border-[rgba(245,245,245,0.12)] bg-[rgba(245,245,245,0.04)] text-[#F5F5F5]/50 hover:border-[rgba(245,245,245,0.25)] hover:text-[#F5F5F5]"
+                    )}
+                  >
+                    <ListFilter className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-[160px] border border-[rgba(245,245,245,0.15)] bg-[#1a1a1a] p-0 shadow-xl"
+                >
+                  <div className="py-1">
+                    {["__all__", ...roleOptionsForFilter].map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => { setRoleFilter(role); setRoleFilterPopoverOpen(false); }}
+                        className={cn(
+                          "flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors",
+                          roleFilter === role
+                            ? "bg-[rgba(240,255,0,0.08)] text-[#F0FF00]"
+                            : "text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.06)] hover:text-[#F5F5F5]"
+                        )}
+                      >
+                        {role === "__all__" ? "Tous les métiers" : role}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
         </div>
@@ -476,29 +509,23 @@ export function ContactsPage() {
         ) : (
           <table className="w-full border-collapse text-sm table-fixed">
             <colgroup>
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[12%]" />
-              <col className="w-[8%]" />
-              <col className="w-[17%]" />
-              <col className="w-[13%]" />
-              <col className="w-[11%]" />
-              <col className="w-[8%]" />
-              <col className="w-[11%]" />
-              <col className="w-[68px]" />
+              <col className="w-[28px]" />
+              <col className="w-[18%]" />
+              <col className="w-[18%]" />
+              <col className="w-[20%]" />
+              <col className="w-[15%]" />
+              <col className="w-[100px]" />
+              <col className="w-[110px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-[rgba(245,245,245,0.06)]">
+                <th className="px-2 py-2" />
                 {(
                   [
                     { key: "firstName", label: "Prénom" },
                     { key: "lastName", label: "Nom" },
                     { key: "role", label: "Métier" },
                     { key: "city", label: "Ville" },
-                    { key: "email", label: "Email" },
-                    { key: "instagram", label: "Instagram" },
-                    { key: "phone", label: "Téléphone" },
-                    { key: "createdAt", label: "Ajouté le" },
                   ] as { key: typeof sortKey; label: string }[]
                 ).map(({ key, label }) => (
                   <th key={key} className="px-3 py-2 text-left">
@@ -513,104 +540,194 @@ export function ContactsPage() {
                   </th>
                 ))}
                 <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35">
-                  Notes
+                  Coordonnées
                 </th>
-                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35">
-                  Actions
+                <th className="px-3 py-2 text-left">
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/35 hover:text-[#F5F5F5]/60 transition-colors"
+                    onClick={() => handleSort("createdAt")}
+                  >
+                    Ajouté le
+                    <SortIcon col="createdAt" />
+                  </button>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[rgba(245,245,245,0.05)]">
-              {sortedContacts.map((contact) => (
-                <tr
-                  key={contact.id}
-                  className="group transition-colors hover:bg-[rgba(245,245,245,0.02)]"
-                >
-                  <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
-                    {contact.firstName}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
-                    {contact.lastName}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle">
-                    {contact.role ? (
-                      <span className="block truncate border border-[rgba(245,245,245,0.12)] bg-[rgba(245,245,245,0.05)] px-1.5 py-0.5 text-xs text-[#F5F5F5]/65 text-center whitespace-nowrap overflow-hidden">
-                        {contact.role}
-                      </span>
-                    ) : (
-                      <span className="text-[#F5F5F5]/25">—</span>
+              {sortedContacts.map((contact) => {
+                const isExpanded = expandedId === contact.id;
+                const presenceIcon = (active: boolean, Icon: typeof Mail, title: string) => (
+                  <span
+                    title={title}
+                    className={cn(
+                      "inline-flex h-5 w-5 items-center justify-center transition-colors",
+                      active ? "text-[#F0FF00]/70" : "text-[#F5F5F5]/15"
                     )}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle text-[#F5F5F5]/60 truncate text-xs">
-                    {contact.city || <span className="text-[#F5F5F5]/25">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle truncate">
-                    {contact.email ? (
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="text-[#F0FF00]/70 hover:text-[#F0FF00] transition-colors text-xs truncate block"
-                      >
-                        {contact.email}
-                      </a>
-                    ) : (
-                      <span className="text-[#F5F5F5]/25">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle truncate">
-                    {contact.instagram ? (
-                      <a
-                        href={`https://instagram.com/${contact.instagram}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[#F0FF00]/70 hover:text-[#F0FF00] transition-colors text-xs truncate block"
-                      >
-                        @{contact.instagram}
-                      </a>
-                    ) : (
-                      <span className="text-[#F5F5F5]/25">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle text-xs text-[#F5F5F5]/60 truncate">
-                    {contact.phone || <span className="text-[#F5F5F5]/25">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle whitespace-nowrap text-xs text-[#F5F5F5]/30">
-                    {contact.createdAt
-                      ? new Date(contact.createdAt).toLocaleDateString("fr-FR")
-                      : <span className="text-[#F5F5F5]/25">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle">
-                    <p className="line-clamp-2 text-xs text-[#F5F5F5]/40">
-                      {contact.notes || <span className="text-[#F5F5F5]/25">—</span>}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2.5 align-middle">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-[#F5F5F5]/40 hover:text-[#F5F5F5]"
-                        onClick={() => startEdit(contact)}
-                        title="Modifier"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-red-400/40 hover:text-red-400"
-                        onClick={() => handleDelete(contact.id)}
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  >
+                    <Icon className="h-3 w-3" />
+                  </span>
+                );
+                return (
+                  <Fragment key={contact.id}>
+                    <tr
+                      onClick={() => setExpandedId((prev) => (prev === contact.id ? null : contact.id))}
+                      className={cn(
+                        "group cursor-pointer transition-colors duration-150",
+                        isExpanded
+                          ? "bg-[rgba(240,255,0,0.03)]"
+                          : "hover:bg-[rgba(245,245,245,0.025)]"
+                      )}
+                    >
+                      <td className="px-2 py-2.5 align-middle text-[#F5F5F5]/40">
+                        <ChevronRight
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform duration-200",
+                            isExpanded && "rotate-90 text-[#F0FF00]/80"
+                          )}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
+                        {contact.firstName}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle font-medium text-[#F5F5F5] truncate">
+                        {contact.lastName}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle">
+                        {contact.role ? (
+                          <span className="inline-block max-w-full truncate border border-[rgba(245,245,245,0.12)] bg-[rgba(245,245,245,0.05)] px-1.5 py-0.5 text-xs text-[#F5F5F5]/65 whitespace-nowrap">
+                            {contact.role}
+                          </span>
+                        ) : (
+                          <span className="text-[#F5F5F5]/25">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle text-[#F5F5F5]/60 truncate text-xs">
+                        {contact.city || <span className="text-[#F5F5F5]/25">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 align-middle">
+                        <div className="flex items-center gap-1">
+                          {presenceIcon(!!contact.email, Mail, contact.email || "Pas d'email")}
+                          {presenceIcon(!!contact.instagram, Instagram, contact.instagram ? `@${contact.instagram}` : "Pas d'Instagram")}
+                          {presenceIcon(!!contact.phone, Phone, contact.phone || "Pas de téléphone")}
+                          {presenceIcon(!!contact.notes, StickyNote, contact.notes ? "Notes présentes" : "Pas de notes")}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 align-middle whitespace-nowrap text-xs text-[#F5F5F5]/35">
+                        {contact.createdAt
+                          ? new Date(contact.createdAt).toLocaleDateString("fr-FR")
+                          : <span className="text-[#F5F5F5]/25">—</span>}
+                      </td>
+                    </tr>
+                    <tr className="border-t-0">
+                      <td colSpan={7} className="p-0">
+                        <div
+                          className={cn(
+                            "grid transition-[grid-template-rows] duration-200 ease-out",
+                            isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                          )}
+                        >
+                          <div className="overflow-hidden">
+                            <div className="border-l-2 border-[#F0FF00]/40 bg-[rgba(245,245,245,0.02)] px-6 py-4">
+                              <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <DetailField icon={Mail} label="Email">
+                                  {contact.email ? (
+                                    <a
+                                      href={`mailto:${contact.email}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[#F0FF00]/80 hover:text-[#F0FF00] transition-colors break-all"
+                                    >
+                                      {contact.email}
+                                    </a>
+                                  ) : <span className="text-[#F5F5F5]/25">Non renseigné</span>}
+                                </DetailField>
+                                <DetailField icon={Phone} label="Téléphone">
+                                  {contact.phone ? (
+                                    <a
+                                      href={`tel:${contact.phone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[#F5F5F5]/80 hover:text-[#F5F5F5] transition-colors"
+                                    >
+                                      {contact.phone}
+                                    </a>
+                                  ) : <span className="text-[#F5F5F5]/25">Non renseigné</span>}
+                                </DetailField>
+                                <DetailField icon={Instagram} label="Instagram">
+                                  {contact.instagram ? (
+                                    <a
+                                      href={`https://instagram.com/${contact.instagram}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[#F0FF00]/80 hover:text-[#F0FF00] transition-colors"
+                                    >
+                                      @{contact.instagram}
+                                    </a>
+                                  ) : <span className="text-[#F5F5F5]/25">Non renseigné</span>}
+                                </DetailField>
+                                <DetailField icon={MapPin} label="Ville">
+                                  {contact.city || <span className="text-[#F5F5F5]/25">Non renseignée</span>}
+                                </DetailField>
+                                <DetailField icon={StickyNote} label="Notes" className="sm:col-span-2">
+                                  {contact.notes ? (
+                                    <p className="whitespace-pre-wrap text-[#F5F5F5]/75 leading-relaxed">{contact.notes}</p>
+                                  ) : <span className="text-[#F5F5F5]/25">Aucune note</span>}
+                                </DetailField>
+                              </div>
+                              <div className="mt-4 flex items-center justify-end gap-2 border-t border-[rgba(245,245,245,0.06)] pt-3">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => { e.stopPropagation(); startEdit(contact); }}
+                                  className="gap-1.5 text-[#F5F5F5]/70 hover:text-[#F5F5F5]"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Modifier
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(contact.id); }}
+                                  className="gap-1.5 text-red-400/70 hover:text-red-400"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Supprimer
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function DetailField({
+  icon: Icon,
+  label,
+  className,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/35">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+      <div className="text-sm text-[#F5F5F5]/85">{children}</div>
     </div>
   );
 }

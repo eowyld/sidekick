@@ -7,8 +7,6 @@ export interface CreationTemplateStep {
 
 export const CREATION_TEMPLATES: Record<Exclude<CreationSector, "general">, CreationTemplateStep[]> = {
   phono: [
-    { phase: "creation",   label: "Écriture" },
-    { phase: "creation",   label: "Composition" },
     { phase: "creation",   label: "Première maquette" },
     { phase: "production", label: "Session studio" },
     { phase: "production", label: "Mixage" },
@@ -16,9 +14,10 @@ export const CREATION_TEMPLATES: Record<Exclude<CreationSector, "general">, Crea
     { phase: "sortie",     label: "Distribution" },
   ],
   edition: [
-    { phase: "creation", label: "Écriture / Composition" },
-    { phase: "sortie",   label: "Répartition des droits" },
-    { phase: "sortie",   label: "Dépôt SACEM" },
+    { phase: "creation",   label: "Écriture / Composition" },
+    { phase: "production", label: "Texte et partitions" },
+    { phase: "sortie",     label: "Répartition des droits" },
+    { phase: "sortie",     label: "Dépôt SACEM" },
   ],
   live: [
     { phase: "creation",   label: "Conception du set" },

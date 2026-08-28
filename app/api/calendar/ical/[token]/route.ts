@@ -27,7 +27,7 @@ export async function GET(
 
   const { data: events, error: eventsError } = await supabase
     .from("calendar_events")
-    .select("id, date, time, label, sub_label, sector, place")
+    .select("id, date, end_date, time, end_time, label, sub_label, sector, place")
     .eq("user_id", tokenRow.user_id)
     .in("sector", tokenRow.enabled_sectors);
 
@@ -39,7 +39,9 @@ export async function GET(
     (events ?? []).map((e) => ({
       id: e.id,
       date: e.date,
+      end_date: (e as { end_date?: string }).end_date ?? e.date,
       time: e.time ?? null,
+      end_time: e.end_time ?? null,
       label: e.label,
       sub_label: e.sub_label ?? null,
       sector: e.sector,

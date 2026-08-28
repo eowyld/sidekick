@@ -6,10 +6,12 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
 import type { Work, SyncData, Exploitant, PersonRole } from "@/lib/sidekick-store";
+import { toIsoDatePickerValue } from "@/lib/date-format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -871,14 +873,13 @@ Document généré le ${date}
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">Date</Label>
-                          <Input
-                            type="date"
-                            value={exp.date}
-                            onChange={(e) =>
+                          <DatePicker
+                            value={toIsoDatePickerValue(exp.date)}
+                            onChange={(iso) =>
                               setExSync((p) => {
                                 if (!p) return p;
                                 const exps = [...p.exploitants];
-                                exps[i] = { ...exps[i]!, date: e.target.value };
+                                exps[i] = { ...exps[i]!, date: iso };
                                 return { ...p, exploitants: exps };
                               })
                             }

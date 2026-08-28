@@ -13,7 +13,6 @@ interface BacklogPanelProps {
   tasks: Todo[]; // todayFocus: false ET status !== "done"
   userId: string | null;
   enabledModules: Record<string, boolean>;
-  aiInstructions: Record<string, string>;
   calendarEvents: Array<{ title: string; start: string }>;
   ruleSuggestions: RuleSuggestion[];
   onStatusChange: (id: string, status: Todo["status"]) => void;
@@ -28,7 +27,6 @@ export function BacklogPanel({
   tasks,
   userId,
   enabledModules,
-  aiInstructions,
   calendarEvents,
   ruleSuggestions,
   onStatusChange,
@@ -59,12 +57,24 @@ export function BacklogPanel({
         </span>
       </div>
 
+      <div className="mb-4">
+        <AiSuggestions
+          userId={userId}
+          tasks={tasks}
+          calendarEvents={calendarEvents}
+          enabledModules={enabledModules}
+          ruleSuggestions={ruleSuggestions}
+          onAdd={onAddSuggestion}
+        />
+      </div>
+
       {tasks.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="Ton backlog est vide"
-          description="Tout ce que tu dois faire sans date précise atterrit ici. Ajoute une tâche pour t'en souvenir plus tard."
+          description="Toutes tes tâches créées atterrissent ici. Ajoute une tâche pour la garder en mémoire."
           action={{ label: "Ajouter une tâche", onClick: onAddTask }}
+          className="py-8"
         />
       ) : (
         <div className="flex flex-col divide-y divide-[rgba(245,245,245,0.05)]">
@@ -81,18 +91,6 @@ export function BacklogPanel({
           ))}
         </div>
       )}
-
-      <div className="mt-4">
-        <AiSuggestions
-          userId={userId}
-          tasks={tasks}
-          calendarEvents={calendarEvents}
-          enabledModules={enabledModules}
-          aiInstructions={aiInstructions}
-          ruleSuggestions={ruleSuggestions}
-          onAdd={onAddSuggestion}
-        />
-      </div>
     </div>
   );
 }

@@ -770,7 +770,8 @@ export async function renameStorageFolder(
   for (const oldPath of paths) {
     const suffix = oldPath.slice(folderPath.length);
     const newPath = newPrefix + suffix;
-    await supabase.storage.from(DRIVE_BUCKET).move(oldPath, newPath);
+    const { error } = await supabase.storage.from(DRIVE_BUCKET).move(oldPath, newPath);
+    if (error) throw new Error(error.message ?? String(error));
   }
 }
 
@@ -811,6 +812,35 @@ export async function renameStorageFile(
     ? filePath.slice(0, filePath.lastIndexOf("/"))
     : "";
   const newPath = parentPath ? `${parentPath}/${safeName}` : safeName;
+  const { error } = await supabase.storage.from(DRIVE_BUCKET).move(filePath, newPath);
+  if (error) throw new Error(error.message ?? String(error));
+}
+
+/** Déplace un dossier Storage vers un nouveau chemin parent. */
+export async function moveStorageFolder(
+  supabase: SupabaseClient,
+  folderPath: string,   // e.g. "uid/Admin/OldParent/MonDossier"
+  newParentPath: string // e.g. "uid/Live"  (full path, including uid)
+): Promise<void> {
+  const name = folderPath.split("/").pop()!;
+  const newPrefix = `${newParentPath}/${name}`;
+  const paths = await listAllFilePathsUnderPrefix(supabase, folderPath);
+  for (const oldPath of paths) {
+    const suffix = oldPath.slice(folderPath.length);
+    const newPath = newPrefix + suffix;
+    const { error } = await supabase.storage.from(DRIVE_BUCKET).move(oldPath, newPath);
+    if (error) throw new Error(error.message ?? String(error));
+  }
+}
+
+/** Déplace un fichier Storage vers un nouveau dossier. */
+export async function moveStorageFile(
+  supabase: SupabaseClient,
+  filePath: string,     // e.g. "uid/Admin/Contrats/doc.pdf"
+  newParentPath: string // e.g. "uid/Live"
+): Promise<void> {
+  const name = filePath.split("/").pop()!;
+  const newPath = `${newParentPath}/${name}`;
   const { error } = await supabase.storage.from(DRIVE_BUCKET).move(filePath, newPath);
   if (error) throw new Error(error.message ?? String(error));
 }

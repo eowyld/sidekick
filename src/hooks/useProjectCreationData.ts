@@ -181,12 +181,12 @@ export function useProjectCreationData(projectId: string) {
   // ─── Générer une tâche ───────────────────────────────────────────────────────
 
   const generateTask = useCallback(
-    async (step: CreationStep): Promise<void> => {
+    async (step: CreationStep, initialStatus: "todo" | "in_progress" | "done" = "todo"): Promise<string | null> => {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return null;
 
       const { data, error } = await supabase
         .from("user_tasks")
@@ -194,7 +194,7 @@ export function useProjectCreationData(projectId: string) {
           id: crypto.randomUUID(),
           user_id: user.id,
           title: step.label,
-          status: "todo",
+          status: initialStatus,
           today_focus: false,
           deadline: step.targetDate ?? null,
           sector: SECTOR_TO_TASK_SECTOR[step.sector],
@@ -203,15 +203,16 @@ export function useProjectCreationData(projectId: string) {
         .select("id")
         .single();
 
-      if (error || !data) return;
+      if (error || !data) return null;
 
-      setSteps((prev) =>
-        prev.map((s) =>
-          s.id === step.id ? { ...s, taskId: (data as { id: string }).id } : s
-        )
-      );
+      // Invalide le cache SWR des tâches pour que le module Tâches voie la nouvelle tâche.
+      mutate("user_tasks");
+
+      // Ne touche pas `steps` ici : le taskId est combiné au statut par l'appelant
+      // en un seul setSteps, pour éviter d'écraser une mise à jour optimiste concurrente.
+      return (data as { id: string }).id;
     },
-    [setSteps]
+    []
   );
 
   return {

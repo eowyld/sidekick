@@ -23,6 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ALPHA_TESTER_STATUSES } from "@/lib/waitlist";
 
 type Testimonial = {
   quote: string;
@@ -38,6 +46,22 @@ type ModuleCard = {
   kicker: string;
   details: string[];
   badge?: string;
+};
+
+type AlphaTesterStatus = (typeof ALPHA_TESTER_STATUSES)[number];
+
+type WaitlistFormState = {
+  lastName: string;
+  firstName: string;
+  email: string;
+  status: AlphaTesterStatus | "";
+};
+
+const INITIAL_WAITLIST_FORM: WaitlistFormState = {
+  lastName: "",
+  firstName: "",
+  email: "",
+  status: "",
 };
 
 function usePrefersReducedMotion() {
@@ -329,39 +353,81 @@ export default function LandingTestPage() {
     return () => observer.disconnect();
   }, [reducedMotion]);
 
-  const [email, setEmail] = useState("");
+  const [form, setForm] = useState<WaitlistFormState>(INITIAL_WAITLIST_FORM);
   const [submitState, setSubmitState] = useState<"idle" | "ok" | "error">("idle");
   const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const resetSubmitFeedback = () => {
+    if (submitState !== "idle") {
+      setSubmitState("idle");
+      setSubmitMessage("");
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidEmail(email)) {
+
+    if (!form.lastName.trim()) {
+      setSubmitState("error");
+      setSubmitMessage("Ajoute ton nom.");
+      return;
+    }
+
+    if (!form.firstName.trim()) {
+      setSubmitState("error");
+      setSubmitMessage("Ajoute ton prénom.");
+      return;
+    }
+
+    if (!isValidEmail(form.email)) {
       setSubmitState("error");
       setSubmitMessage("Entre une adresse email valide.");
       return;
     }
+
+    if (!form.status) {
+      setSubmitState("error");
+      setSubmitMessage("Choisis ton statut.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() })
+        body: JSON.stringify({
+          lastName: form.lastName.trim(),
+          firstName: form.firstName.trim(),
+          email: form.email.trim(),
+          status: form.status,
+        })
       });
-      const data = (await res.json()) as { ok?: boolean; persisted?: boolean; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        persisted?: boolean;
+        action?: "created" | "updated" | "submitted" | "none";
+        error?: string;
+      };
 
       if (res.ok && data.ok) {
         setSubmitState("ok");
+        setForm(INITIAL_WAITLIST_FORM);
         setSubmitMessage(
-          data.persisted
-            ? "Nickel. Tu es sur la liste."
-            : "Merci ! Nous avons bien reçu ta demande."
+          data.action === "updated"
+            ? "Tes infos ont bien été mises à jour."
+            : "Nickel. Tu es sur la liste alpha."
         );
         return;
       }
 
       setSubmitState("error");
-      if (data.error === "webhook_rejected" || data.error === "webhook_failed") {
+      if (data.error === "invalid_form") {
+        setSubmitMessage("Le formulaire est incomplet. Vérifie tes informations.");
+      } else if (data.error === "waitlist_not_configured") {
+        setSubmitMessage("La liste alpha n'est pas encore configurée. Réessaie un peu plus tard.");
+      } else if (data.error === "webhook_rejected" || data.error === "webhook_failed") {
         setSubmitMessage("Envoi impossible pour le moment. Réessaie plus tard ou contacte-nous.");
       } else {
         setSubmitMessage("Une erreur est survenue. Réessaie dans un instant.");
@@ -856,26 +922,86 @@ export default function LandingTestPage() {
                   </p>
                 </div>
 
-                <form onSubmit={onSubmit} className="w-full space-y-4 sm:max-w-sm">
+                <form onSubmit={onSubmit} className="w-full space-y-4 sm:max-w-md">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name-cta" className="text-xs text-[#f5f5f5]/60">Nom</Label>
+                      <Input
+                        id="last-name-cta"
+                        placeholder="Ton nom"
+                        value={form.lastName}
+                        onChange={(e) => {
+                          setForm((prev) => ({ ...prev, lastName: e.target.value }));
+                          resetSubmitFeedback();
+                        }}
+                        aria-invalid={submitState === "error" ? "true" : "false"}
+                        aria-describedby="waitlist-cta-help"
+                        required
+                        className="rounded-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name-cta" className="text-xs text-[#f5f5f5]/60">Prénom</Label>
+                      <Input
+                        id="first-name-cta"
+                        placeholder="Ton prénom"
+                        value={form.firstName}
+                        onChange={(e) => {
+                          setForm((prev) => ({ ...prev, firstName: e.target.value }));
+                          resetSubmitFeedback();
+                        }}
+                        aria-invalid={submitState === "error" ? "true" : "false"}
+                        aria-describedby="waitlist-cta-help"
+                        required
+                        className="rounded-sm"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="email-cta" className="text-xs text-[#f5f5f5]/60">Email</Label>
                     <Input
                       id="email-cta"
                       type="email"
                       placeholder="ton.email@exemple.fr"
-                      value={email}
+                      value={form.email}
                       onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (submitState !== "idle") {
-                          setSubmitState("idle");
-                          setSubmitMessage("");
-                        }
+                        setForm((prev) => ({ ...prev, email: e.target.value }));
+                        resetSubmitFeedback();
                       }}
                       aria-invalid={submitState === "error" ? "true" : "false"}
-                      aria-describedby="email-cta-help"
+                      aria-describedby="waitlist-cta-help"
                       required
                       className="rounded-sm"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="status-cta" className="text-xs text-[#f5f5f5]/60">Statut</Label>
+                    <Select
+                      value={form.status || undefined}
+                      onValueChange={(value) => {
+                        setForm((prev) => ({ ...prev, status: value as AlphaTesterStatus }));
+                        resetSubmitFeedback();
+                      }}
+                    >
+                      <SelectTrigger
+                        id="status-cta"
+                        aria-invalid={submitState === "error" ? "true" : "false"}
+                        aria-describedby="waitlist-cta-help"
+                        className="h-9 rounded-sm border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] text-[#F5F5F5]"
+                      >
+                        <SelectValue placeholder="Choisir ton profil" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-sm border-[rgba(245,245,245,0.16)] bg-[#151515]">
+                        {ALPHA_TESTER_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <Button
@@ -890,7 +1016,7 @@ export default function LandingTestPage() {
 
                   {submitState !== "idle" && (
                     <p
-                      id="email-cta-help"
+                      id="waitlist-cta-help"
                       className={`text-xs ${submitState === "error" ? "text-rose-300" : "text-[#F0FF00]"}`}
                       role={submitState === "error" ? "alert" : "status"}
                     >
@@ -899,8 +1025,8 @@ export default function LandingTestPage() {
                   )}
 
                   {submitState === "idle" && (
-                    <p id="email-cta-help" className="text-[11px] text-[#f5f5f5]/40">
-                      Pas de carte bancaire. Juste une liste pour te prévenir.
+                    <p id="waitlist-cta-help" className="text-[11px] text-[#f5f5f5]/40">
+                      Pas de carte bancaire. On te prévient dès qu&apos;une nouvelle vague alpha s&apos;ouvre.
                     </p>
                   )}
 

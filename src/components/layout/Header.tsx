@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ type HeaderUser = {
 export function Header() {
   const [user, setUser] = useState<HeaderUser | null>(null);
   const router = useRouter();
+  const posthog = usePostHog();
 
   useEffect(() => {
     const supabase = createClient();
@@ -81,6 +83,8 @@ export function Header() {
   }, []);
 
   const handleLogout = async () => {
+    posthog?.capture("user_signed_out");
+    posthog?.reset();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -91,12 +95,7 @@ export function Header() {
   };
 
   return (
-    <header className="flex items-center justify-between border-b border-[rgba(245,245,245,0.12)] bg-[rgba(16,16,16,0.78)] px-4 py-3 backdrop-blur-xl md:px-6">
-      <div>
-        <h1 className="text-lg font-semibold leading-tight tracking-tight text-[#F5F5F5]">
-          Sidekick
-        </h1>
-      </div>
+    <header className="flex items-center justify-end border-b border-[rgba(245,245,245,0.12)] bg-[rgba(16,16,16,0.78)] px-4 py-3 backdrop-blur-xl md:px-6">
       <div className="flex items-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

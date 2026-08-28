@@ -35,16 +35,35 @@ export type EquipmentList = {
   itemIds: string[];
 };
 
+export type ProspectionChannel = "mail" | "instagram" | "phone" | "in-person";
+export type ProspectionDirection = "outbound" | "inbound" | "replied" | "no-answer";
+export type ReliabilityTier = "easy" | "neutral" | "hard";
+
+export type ContactTouchpoint = {
+  id: string;
+  date: string;
+  channel: ProspectionChannel;
+  direction?: ProspectionDirection;
+  note?: string;
+  eventType?: "contact" | "status-change";
+  statusValue?: string;
+  previousStatus?: string;
+};
+
 export type ProspectionEntry = {
   id: string;
   venueName: string;
   city: string;
   contact: string;
   email: string;
+  instagram: string;
+  facebook: string;
   phone: string;
   status: string;
   notes?: string;
   lastContact?: string;
+  touchpoints: ContactTouchpoint[];
+  reliabilityTier: ReliabilityTier;
 };
 
 type LiveData = {
@@ -83,6 +102,8 @@ function tourDateToRow(d: TourDate, userId: string): Record<string, unknown> {
     remuneration: d.remuneration,
     equipment: d.equipment,
     timetable: d.timetable ?? [],
+    invoice_ids: d.invoiceIds ?? [],
+    mission_ids: d.missionIds ?? [],
   };
 }
 
@@ -101,6 +122,8 @@ function rowToTourDate(row: Record<string, unknown>): TourDate {
     remuneration: row.remuneration as boolean,
     equipment: row.equipment as boolean,
     timetable: (row.timetable as TimetableItem[]) ?? [],
+    invoiceIds: (row.invoice_ids as string[]) ?? [],
+    missionIds: (row.mission_ids as string[]) ?? [],
   };
 }
 
@@ -175,7 +198,24 @@ function rowToEquipmentList(row: Record<string, unknown>): EquipmentList {
   };
 }
 
+function isValidTier(value: unknown): value is ReliabilityTier {
+  return value === "easy" || value === "neutral" || value === "hard";
+}
+
+function getLastContactFromTouchpoints(touchpoints: ContactTouchpoint[]): string | undefined {
+  const timestamps = touchpoints
+    .map((tp) => ({ date: tp.date, ts: new Date(tp.date).getTime() }))
+    .filter((item) => Number.isFinite(item.ts));
+
+  if (timestamps.length === 0) return undefined;
+
+  timestamps.sort((a, b) => b.ts - a.ts);
+  return timestamps[0].date;
+}
+
 function prospectionToRow(e: ProspectionEntry, userId: string): Record<string, unknown> {
+  const touchpoints = e.touchpoints ?? [];
+  const lastContact = getLastContactFromTouchpoints(touchpoints);
   return {
     id: String(e.id),
     user_id: userId,
@@ -183,24 +223,34 @@ function prospectionToRow(e: ProspectionEntry, userId: string): Record<string, u
     city: e.city,
     contact: e.contact,
     email: e.email,
+    instagram: e.instagram,
+    facebook: e.facebook,
     phone: e.phone,
     status: e.status,
     notes: e.notes ?? null,
-    last_contact: e.lastContact ?? null,
+    touchpoints,
+    reliability_tier: e.reliabilityTier ?? "neutral",
+    last_contact: lastContact ?? null,
   };
 }
 
 function rowToProspection(row: Record<string, unknown>): ProspectionEntry {
+  const touchpoints = ((row.touchpoints as ContactTouchpoint[]) ?? []).filter(Boolean);
+  const reliabilityTier = isValidTier(row.reliability_tier) ? row.reliability_tier : "neutral";
   return {
     id: row.id as string,
     venueName: row.venue_name as string,
     city: row.city as string,
     contact: row.contact as string,
     email: row.email as string,
+    instagram: (row.instagram as string) ?? "",
+    facebook: (row.facebook as string) ?? "",
     phone: row.phone as string,
     status: row.status as string,
     notes: (row.notes as string) ?? undefined,
-    lastContact: (row.last_contact as string) ?? undefined,
+    touchpoints,
+    reliabilityTier,
+    lastContact: getLastContactFromTouchpoints(touchpoints),
   };
 }
 
@@ -314,7 +364,7 @@ function makeOptimisticSetter<T extends { id: string | number }>(
 export function useLiveData() {
   const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading } = useSWR(KEY, fetchLiveData, {
+  const { data, isLoading, error: fetchError } = useSWR(KEY, fetchLiveData, {
     fallbackData: EMPTY,
   });
 
@@ -352,6 +402,6 @@ export function useLiveData() {
     prospection: allData.prospection,
     setProspection,
     loading: isLoading,
-    error,
+    error: error ?? (fetchError ? String(fetchError) : null),
   };
 }

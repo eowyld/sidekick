@@ -25,28 +25,37 @@ interface IntermittenceModalProps {
   onClose: () => void;
   onSave: (mission: Omit<IntermittenceMission, "id">) => void;
   mission: IntermittenceMission | null;
+  /** Pré-remplit le lien statut sur les nouvelles missions */
+  defaultStatutId?: string;
+  /** Nom du statut sélectionné, affiché dans le titre */
+  selectedStatutName?: string;
 }
 
 type MissionFormData = Omit<IntermittenceMission, "id">;
 
-const EMPTY_FORM: MissionFormData = {
-  date: new Date().toISOString().slice(0, 10),
-  employer: "",
-  type: "Spectacle",
-  hours: 0,
-  grossAmount: 0,
-  charges: 0,
-  netAmount: 0,
-  notes: ""
-};
+function emptyForm(defaultStatutId?: string): MissionFormData {
+  return {
+    date: new Date().toISOString().slice(0, 10),
+    employer: "",
+    type: "Spectacle",
+    hours: 0,
+    grossAmount: 0,
+    charges: 0,
+    netAmount: 0,
+    notes: "",
+    statutJuridiqueId: defaultStatutId,
+  };
+}
 
 export function IntermittenceModal({
   open,
   onClose,
   onSave,
-  mission
+  mission,
+  defaultStatutId,
+  selectedStatutName,
 }: IntermittenceModalProps) {
-  const [formData, setFormData] = useState<MissionFormData>(EMPTY_FORM);
+  const [formData, setFormData] = useState<MissionFormData>(() => emptyForm(defaultStatutId));
 
   useEffect(() => {
     if (open) {
@@ -54,10 +63,10 @@ export function IntermittenceModal({
         const { id: _id, ...rest } = mission;
         setFormData(rest);
       } else {
-        setFormData(EMPTY_FORM);
+        setFormData(emptyForm(defaultStatutId));
       }
     }
-  }, [open, mission]);
+  }, [open, mission, defaultStatutId]);
 
   const handleGrossAmountChange = (value: number) => {
     const charges = Math.round(value * 0.2);
@@ -86,7 +95,11 @@ export function IntermittenceModal({
     onSave(formData);
   };
 
-  const title = mission ? "Mettre à jour la mission" : "Ajouter une mission";
+  const title = mission
+    ? "Mettre à jour la mission"
+    : selectedStatutName
+    ? `Ajouter une mission — ${selectedStatutName}`
+    : "Ajouter une mission";
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>

@@ -22,6 +22,7 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { SidekickLogo } from "@/components/branding/SidekickLogo";
 
 const SIDEBAR_COLLAPSED_KEY = "sidekick-sidebar-collapsed";
 
@@ -36,22 +37,11 @@ const groupOrganisation = [
 
 const groupMusique = [
   {
-    label: "Projets",
-    icon: FolderKanban,
-    key: "projects",
-    href: "/projects",
-    sub: [
-      { href: "/projects", label: "Projets actifs" },
-      { href: "/projects/archives", label: "Anciens projets" },
-    ],
-  },
-  {
     label: "Phono",
     icon: Music2,
     key: "phono",
-    href: "/phono",
+    href: "/phono/catalogue",
     sub: [
-      { href: "/phono", label: "Vue d'ensemble" },
       { href: "/phono/catalogue", label: "Catalogue" },
       { href: "/phono/sessions-studio", label: "Sessions Studio" },
     ],
@@ -92,7 +82,6 @@ const groupBusiness = [
       { href: "/incomes/facturation", label: "Facturation" },
       { href: "/incomes/royalties", label: "Royalties" },
       { href: "/incomes/droits-auteur", label: "Droits d'auteur" },
-      { href: "/incomes/droits-voisins", label: "Droits voisins" },
       { href: "/incomes/intermittence", label: "Intermittence" },
     ],
   },
@@ -114,11 +103,10 @@ const groupBusiness = [
     key: "admin",
     href: "/admin",
     sub: [
-      { href: "/admin", label: "Vue d'ensemble" },
-      { href: "/admin/statuts", label: "Mes statuts" },
+      { href: "/admin", label: "Mes statuts" },
+      { href: "/admin/comptabilite", label: "Ma comptabilité" },
       { href: "/admin/demarches", label: "Mes démarches" },
       { href: "/admin/contrats", label: "Mes contrats" },
-      { href: "/migrate", label: "Migration données" },
     ],
   },
 ];
@@ -219,7 +207,7 @@ function NavGroup({
       {open && (
         <div className="ml-[18px] mt-0.5 mb-1 space-y-0.5 border-l border-[rgba(245,245,245,0.08)] pl-3">
           {sub.map((item) => {
-            const subActive = isActive(pathname, item.href);
+            const subActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
@@ -294,9 +282,9 @@ export function Sidebar() {
         }`}
       >
         {!collapsed && (
-          <span className="text-[15px] font-bold uppercase tracking-[0.18em] text-[#F0FF00]">
-            Sidekick
-          </span>
+          <Link href="/" className="mr-3 block flex-1">
+            <SidekickLogo className="max-w-[180px]" />
+          </Link>
         )}
         <button
           type="button"
@@ -319,10 +307,23 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* BUSINESS */}
-          <SectionLabel>Business</SectionLabel>
+          {/* PROJETS — pivot central */}
+          <Link
+            href="/projects"
+            className={`my-3 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+              pathname.startsWith("/projects")
+                ? "border-[#F0FF00]/40 bg-[#F0FF00]/10 text-[#F0FF00]"
+                : "border-[#F0FF00]/20 bg-[#F0FF00]/5 text-[#F5F5F5] hover:bg-[#F0FF00]/10 hover:text-[#F0FF00]"
+            }`}
+          >
+            <FolderKanban size={18} />
+            Projets
+          </Link>
+
+          {/* ARTISTIQUE */}
+          <SectionLabel>Artistique</SectionLabel>
           <div className="space-y-0.5">
-            {groupBusiness.map((item) => (
+            {groupMusique.map((item) => (
               <NavGroup
                 key={item.key}
                 label={item.label}
@@ -338,10 +339,10 @@ export function Sidebar() {
             ))}
           </div>
 
-          {/* MUSIQUE */}
-          <SectionLabel>Musique</SectionLabel>
+          {/* BUSINESS */}
+          <SectionLabel>Business</SectionLabel>
           <div className="space-y-0.5">
-            {groupMusique.map((item) => (
+            {groupBusiness.map((item) => (
               <NavGroup
                 key={item.key}
                 label={item.label}

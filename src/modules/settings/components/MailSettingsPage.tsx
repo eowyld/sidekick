@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Mail, CheckCircle, AlertCircle, Loader2, Lightbulb } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 
 type MailStatus = {
   gmail: string | null;
@@ -27,6 +28,8 @@ export function MailSettingsPage() {
   const [disconnecting, setDisconnecting] = useState<"gmail" | "outlook" | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const searchParams = useSearchParams();
+  const posthog = usePostHog();
+  const capturedRef = useRef(false);
 
   const refreshStatus = useCallback(() => {
     const supabase = createClient();
@@ -91,6 +94,17 @@ export function MailSettingsPage() {
 
   const urlStatus = searchParams.get("status");
   const urlError = searchParams.get("error");
+
+  useEffect(() => {
+    if (capturedRef.current) return;
+    if (urlStatus === "google_connected") {
+      posthog?.capture("gmail_connected", { module: "settings" });
+      capturedRef.current = true;
+    } else if (urlStatus === "outlook_connected") {
+      posthog?.capture("outlook_connected", { module: "settings" });
+      capturedRef.current = true;
+    }
+  }, [urlStatus, posthog]);
 
   return (
     <div className="space-y-6">

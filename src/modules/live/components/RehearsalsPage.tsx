@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -66,6 +67,7 @@ function isRehearsalPast(dateStr: string): boolean {
 }
 
 export function RehearsalsPage() {
+  const posthog = usePostHog();
   const { rehearsals, setRehearsals, equipmentLists, equipmentInventory, loading, error } = useLiveData();
 
   if (loading) return <PageLoader />;
@@ -193,6 +195,8 @@ export function RehearsalsPage() {
         )
       );
     } else {
+      posthog?.capture("rehearsal_created", { module: "live" });
+      posthog?.capture("item_created", { module: "live" });
       setRehearsals((prev) => [
         {
           id: crypto.randomUUID(),
@@ -213,6 +217,7 @@ export function RehearsalsPage() {
   };
 
   const deleteRehearsal = (id: string) => {
+    posthog?.capture("rehearsal_deleted", { module: "live" });
     setRehearsals((prev) => prev.filter((r) => r.id !== id));
     setDeleteConfirmId(null);
   };
@@ -221,6 +226,7 @@ export function RehearsalsPage() {
     if (remunerationDialog.rehearsalId == null) return;
     const label = remunerationForm.label.trim();
     if (!label) return;
+    posthog?.capture("rehearsal_fee_added", { module: "live" });
     setRehearsals((prev) =>
       prev.map((r) => {
         if (r.id !== remunerationDialog.rehearsalId) return r;
@@ -257,6 +263,7 @@ export function RehearsalsPage() {
     if (equipmentDialog.rehearsalId == null) return;
     const label = equipmentForm.label.trim();
     if (!label) return;
+    posthog?.capture("rehearsal_equipment_added", { module: "live" });
     setRehearsals((prev) =>
       prev.map((r) => {
         if (r.id !== equipmentDialog.rehearsalId) return r;

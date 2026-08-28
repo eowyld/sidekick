@@ -15,6 +15,7 @@ export interface RoyaltyEntry {
   streams: number;
   revenue: number;
   currency: string;
+  projectId?: string;   // → user_projects.id (phase 2+)
 }
 
 export interface DistributorImport {

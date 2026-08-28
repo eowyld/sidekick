@@ -20,7 +20,6 @@ interface AiSuggestionsProps {
   tasks: Todo[];
   calendarEvents: Array<{ title: string; start: string }>;
   enabledModules: Record<string, boolean>;
-  aiInstructions: Record<string, string>;
   onAdd: (title: string, sector: string) => void;
   ruleSuggestions: RuleSuggestion[];
 }
@@ -30,7 +29,6 @@ export function AiSuggestions({
   tasks,
   calendarEvents,
   enabledModules,
-  aiInstructions,
   onAdd,
   ruleSuggestions,
 }: AiSuggestionsProps) {
@@ -71,7 +69,7 @@ export function AiSuggestions({
           tasks: activeTasks,
           calendarEvents: upcomingEvents,
           enabledModules: activeModuleNames,
-          aiInstructions,
+          aiInstructions: {},
           force,
           ruleSuggestions: ruleSuggestions.map((s) => ({ title: s.title, sector: s.sector })),
         }),

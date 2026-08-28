@@ -18,6 +18,7 @@ export interface EditorialEvent extends MarketingEvent {
   text?: string;
   attachments?: string[];
   notes?: string;
+  projectId?: string;   // → user_projects.id (phase 3+)
 }
 
 export interface EditorialEventForm {

@@ -1,5 +1,5 @@
 // src/modules/tasks/rules/types.ts
-import type { Todo } from "@/lib/sidekick-store";
+import type { Todo, Project } from "@/lib/sidekick-store";
 import type { TourDate, RehearsalItem } from "@/hooks/useLiveData";
 import type { AdminStructure, AdminProcedure } from "@/lib/sidekick-store";
 import type { DistributorImport, Invoice } from "@/hooks/useIncomesData";
@@ -10,6 +10,7 @@ export interface RuleContext {
   live: { tourDates: TourDate[]; rehearsals: RehearsalItem[] } | null;
   admin: { structures: AdminStructure[]; procedures: AdminProcedure[] } | null;
   incomes: { invoices: Invoice[]; imports: DistributorImport[] } | null;
+  projects: Project[] | null;
 }
 
 export interface RuleSuggestion {

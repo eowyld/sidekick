@@ -1,7 +1,81 @@
+/** Début / fin de la représentation (calendrier global) ; étapes optionnelles entre les deux. */
+export type TimetableSlotKind =
+  | "representation_start"
+  | "representation_end"
+  | "step";
+
 export type TimetableItem = {
   time: string;
   activity: string;
+  kind?: TimetableSlotKind;
 };
+
+export function createDefaultRepresentationTimetable(): TimetableItem[] {
+  return [
+    {
+      time: "20:00",
+      activity: "Début de la représentation",
+      kind: "representation_start"
+    },
+    {
+      time: "23:00",
+      activity: "Fin de la représentation",
+      kind: "representation_end"
+    }
+  ];
+}
+
+function assignKindsByPosition(items: TimetableItem[]): TimetableItem[] {
+  if (items.length === 0) return createDefaultRepresentationTimetable();
+  if (items.length === 1) {
+    return [
+      { ...items[0], kind: "representation_start" },
+      {
+        time: "",
+        activity: "Fin de la représentation",
+        kind: "representation_end"
+      }
+    ];
+  }
+  return items.map((item, i) => {
+    if (i === 0) return { ...item, kind: "representation_start" as const };
+    if (i === items.length - 1)
+      return { ...item, kind: "representation_end" as const };
+    return { ...item, kind: "step" as const };
+  });
+}
+
+/** Affichage / édition : garantit début + fin ; migre l’ancien format sans `kind`. */
+export function normalizeTimetableStructure(items: TimetableItem[]): TimetableItem[] {
+  if (!items.length) return createDefaultRepresentationTimetable();
+  const stripped = items.map(({ time, activity }) => ({ time, activity }));
+  return assignKindsByPosition(stripped);
+}
+
+/** Persistance : retire les étapes vides, conserve toujours début et fin. */
+export function finalizeTimetableForPersist(items: TimetableItem[]): TimetableItem[] {
+  const normalized = normalizeTimetableStructure(items);
+  if (normalized.length < 2) return createDefaultRepresentationTimetable();
+  const start = normalized[0];
+  const end = normalized[normalized.length - 1];
+  const middle = normalized
+    .slice(1, -1)
+    .filter((s) => s.time.trim() || s.activity.trim());
+  return assignKindsByPosition([start, ...middle, end]);
+}
+
+/** Heures utilisées par le calendrier global (créneau représentation). */
+export function getRepresentationScheduleTimes(
+  items: TimetableItem[]
+): { start?: string; end?: string } {
+  const t = finalizeTimetableForPersist(items);
+  const startSlot = t[0];
+  const endSlot = t[t.length - 1];
+  return {
+    start: startSlot?.time?.trim() || undefined,
+    end: endSlot?.time?.trim() || undefined
+  };
+}
 
 export type TourStatus =
   | "Finalisée"
@@ -24,6 +98,8 @@ export type TourDate = {
   remuneration: boolean;
   equipment: boolean;
   note?: string;
+  invoiceIds?: string[];
+  missionIds?: string[];
 };
 
 export const defaultRepresentations: TourDate[] = [

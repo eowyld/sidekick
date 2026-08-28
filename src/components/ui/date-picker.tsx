@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { DATE_FORMAT_PLACEHOLDER } from "@/lib/date-format";
 import { Button } from "./button";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { cn } from "./utils";
@@ -9,7 +10,13 @@ interface DatePickerProps {
   onChange: (date: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Relie le déclencheur au `<Label htmlFor="…">`. */
+  id?: string;
   className?: string;
+  size?: "xs" | "sm" | "md" | "lg";
+  /** Classes Tailwind pour l’icône calendrier dans le bouton (ex. h-6 w-6) */
+  calendarIconClassName?: string;
+  formatDisplay?: (dateStr: string) => string;
 }
 
 const MONTH_NAMES = [
@@ -18,12 +25,38 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
+/** Boutons maîtres du mois / année — évite les styles Outline trop fades dans Dialog + Portal */
+function CalendarNavButton({
+  ariaLabel,
+  onClick,
+  children,
+}: {
+  ariaLabel: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[rgba(245,245,245,0.35)] bg-[rgba(245,245,245,0.08)] text-white hover:bg-[rgba(245,245,245,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0FF00]/55"
+    >
+      {children}
+    </button>
+  );
+}
+
 export function DatePicker({
   value,
   onChange,
-  placeholder = "Sélectionner une date",
+  placeholder = DATE_FORMAT_PLACEHOLDER,
   disabled = false,
-  className
+  id,
+  className,
+  size = "md",
+  calendarIconClassName,
+  formatDisplay,
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<"days" | "months">("days");
@@ -122,66 +155,64 @@ export function DatePicker({
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
+          size={size}
           disabled={disabled}
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "justify-start text-left font-normal",
+            size === "md" && "w-full",
             !value && "text-muted-foreground",
             className
           )}
         >
-          <Calendar className="mr-2 h-4 w-4 text-[#F5F5F5]/70" />
-          {value ? formatDisplayDate(value) : placeholder}
+          <Calendar
+            className={cn(
+              "mr-2 h-4 w-4 shrink-0 text-[#F5F5F5]/70",
+              calendarIconClassName
+            )}
+          />
+          {value ? (formatDisplay ? formatDisplay(value) : formatDisplayDate(value)) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         className="w-auto border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] p-0 text-[#F5F5F5] shadow-lg"
         align="start"
       >
-        <div className="p-3">
+        <div className="p-2">
           {view === "days" ? (
             <>
-              <div className="flex items-center justify-between mb-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={previousMonth}
-                  className="h-7 w-7 p-0"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center justify-between mb-2">
+                <CalendarNavButton ariaLabel="Mois précédent" onClick={previousMonth}>
+                  <ChevronLeft className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden />
+                </CalendarNavButton>
                 <button
                   type="button"
                   onClick={goToMonthsView}
-                  className="text-sm font-medium rounded px-2 py-1 hover:bg-muted transition-colors min-w-[140px]"
+                  className="text-xs font-medium rounded px-2 py-0.5 hover:bg-muted transition-colors min-w-[110px]"
                   title="Choisir le mois"
                 >
                   {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={nextMonth}
-                  className="h-7 w-7 p-0"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                <CalendarNavButton ariaLabel="Mois suivant" onClick={nextMonth}>
+                  <ChevronRight className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden />
+                </CalendarNavButton>
               </div>
 
               <div className="grid grid-cols-7 mb-1">
                 {DAY_NAMES.map((day) => (
                   <div
                     key={day}
-                    className="flex h-8 items-center justify-center text-center text-xs font-medium text-[#F5F5F5]/60"
+                    className="flex h-6 items-center justify-center text-center text-[10px] font-medium text-[#F5F5F5]/60"
                   >
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-0.5">
                 {Array.from({ length: startingDayOfWeek }).map((_, i) => (
-                  <div key={`empty-${i}`} className="h-8" />
+                  <div key={`empty-${i}`} className="h-7" />
                 ))}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -192,7 +223,7 @@ export function DatePicker({
                       key={day}
                       onClick={() => selectDate(day)}
                       className={cn(
-                        "h-8 w-8 rounded-md text-sm transition-colors hover:bg-[rgba(245,245,245,0.12)]",
+                        "h-7 w-7 rounded text-xs transition-colors hover:bg-[rgba(245,245,245,0.12)]",
                         selected && "bg-[#F0FF00] text-[#101010] hover:bg-[#F0FF00]/90",
                         today &&
                           !selected &&
@@ -208,33 +239,23 @@ export function DatePicker({
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={previousYear}
-                  className="h-7 w-7 p-0"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium tabular-nums">{yearView}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={nextYear}
-                  className="h-7 w-7 p-0"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center justify-between mb-2">
+                <CalendarNavButton ariaLabel="Année précédente" onClick={previousYear}>
+                  <ChevronLeft className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden />
+                </CalendarNavButton>
+                <span className="text-xs font-medium tabular-nums">{yearView}</span>
+                <CalendarNavButton ariaLabel="Année suivante" onClick={nextYear}>
+                  <ChevronRight className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden />
+                </CalendarNavButton>
               </div>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-3 gap-0.5">
                 {MONTH_NAMES.map((name, index) => (
                   <button
                     key={name}
                     type="button"
                     onClick={() => selectMonth(index)}
                     className={cn(
-                      "h-9 rounded-md text-sm transition-colors hover:bg-[rgba(245,245,245,0.12)]",
+                      "h-8 rounded text-xs transition-colors hover:bg-[rgba(245,245,245,0.12)]",
                       currentMonth.getMonth() === index &&
                         currentMonth.getFullYear() === yearView
                         ? "bg-[#F0FF00] text-[#101010] hover:bg-[#F0FF00]/90"

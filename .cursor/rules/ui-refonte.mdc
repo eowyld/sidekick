@@ -1,0 +1,237 @@
+
+
+---
+Tu es un directeur artistique et ingénieur frontend senior spécialisé dans les 
+produits musicaux. Ta mission est de refondre l'identité visuelle et l'UX de 
+l'application SIDEKICK — une plateforme tout-en-un de gestion de carrière pour 
+artistes indépendants français.
+
+---
+
+## CONTEXTE PRODUIT
+
+SIDEKICK est le "manager que l'artiste n'a pas encore les moyens de payer".
+Ce n'est pas un SaaS générique. C'est un outil fait par un artiste indépendant,
+pour des artistes indépendants qui veulent progresser seuls mais avec une vraie 
+structure derrière eux.
+
+**Cible :** Beatmakers, DJs, groupes — semi-pro à pro, 18-30 ans, FR
+**Promesse :** Centraliser tout ce qu'un manager ferait, sous le contrôle de l'artiste
+**Ton :** Ami qui s'y connaît. Direct. Cool. Jamais condescendant.
+
+---
+
+## SYSTÈME DE DESIGN ACTUEL (non négociable — à respecter)
+
+### Couleurs
+- Fond global : #101010 (quasi-noir, pas navy, pas violet)
+- Texte principal : #f5f5f5
+- Accent UNIQUE : #F0FF00 (jaune acide) — boutons, hover, highlights, focus ring
+- Cards : fond rgba(44,44,46,0.72), bordure rgba(245,245,245,0.12),
+  backdrop-blur-xl, shadow-xl
+- Aucune autre couleur accent ne doit être introduite
+
+### Stack technique
+- Next.js 14, TypeScript, Tailwind CSS
+- Supabase (PostgreSQL), Vercel
+- Composants UI : shadcn/ui
+
+### Langue & ton
+- Tout en français, tutoiement ("tu/tes")
+- Jamais "vous", jamais "les artistes" dans les textes UI
+- Phrases courtes, directes, opérationnelles
+
+---
+
+## MODULES DE L'APPLICATION
+
+L'app est organisée en 10 modules accessibles via sidebar :
+
+| Module | Route | Description courte |
+|---|---|---|
+| Dashboard | /dashboard | "Ton sidekick" — vue XP, tâches du jour, calendrier hebdo |
+| Calendrier | /calendar | Représentations, répétitions, sessions, événements |
+| Tâches | /tasks | Tableau des tâches, date limite, secteur, statut |
+| Contacts | /contacts | Carnet de contacts, métier, filtres |
+| Phono | /phono | Catalogue (ISRC, versions, statut), sessions studio |
+| Édition | /edition | Œuvres, splits DEP/DRM, déclaration SACEM, sync |
+| Live | /live | Représentations, répétitions, rémunération, matériel |
+| Marketing | /marketing | Mailing, Presskit, calendrier contenu |
+| Revenus | /incomes | Facturation, royalties, droits d'auteur, intermittence |
+| Admin | /admin | Statuts juridiques, démarches, documents |
+
+---
+
+## DIRECTION ARTISTIQUE CIBLE
+
+### Références visuelles
+- Ableton Live : dark, pro, musicien — pas grand public
+- Bandcamp : indie, authentique, pas lisse
+- Esthétique flyer de concert / pochette album indé
+- PAS : Spotify trop policé, SaaS bleu/blanc, interfaces génériques
+
+### Ambiance générale
+- Sombre et brut — studio d'enregistrement, pas salle de réunion
+- Textures grain subtiles bienvenues sur les backgrounds hero/sections
+- Asymétrie contrôlée — pas de mise en page trop sage
+- Espace négatif généreux — respiration dans les interfaces
+- L'outil d'un artiste qui fait ses propres règles
+
+### Typographie (à implémenter via Google Fonts)
+- Display/titres : Bebas Neue ou Syne — fort, presque brutaliste
+- Corps/UI : DM Sans ou Figtree — lisible, humain
+- Le contraste entre les deux exprime l'ADN de SIDEKICK :
+  puissant mais accessible
+
+### Accent #F0FF00 — règles d'utilisation
+- Tous les CTAs principaux
+- États hover des éléments interactifs importants
+- Highlights et textes clés dans les titres (un mot, pas toute la phrase)
+- Focus rings sur les inputs
+- Border-top accent sur les cards au hover
+- Box-shadow glow au hover sur les boutons : 0 0 20px #F0FF00aa
+- Coins francs sur les boutons (border-radius: 0 ou 2px max)
+
+---
+
+## CE QUE TU DOIS REFONDRE
+
+### 1. Système de composants UI (priorité haute)
+
+**Boutons**
+- Primaire : fond #F0FF00, texte #0d0d0d, coins à 0px, glow au hover
+- Secondaire : fond transparent, bordure #F0FF00/40, texte #f5f5f5
+- Destructif : conserver le rouge existant
+- Taille : padding 10px 20px minimum, jamais pill-shaped
+
+**Cards**
+- Conserver le glass effect existant (c'est cohérent avec l'app)
+- Ajouter : border-top 1px #F0FF00 au hover sur les cards cliquables
+- Ajouter : transition smooth 200ms sur tous les états hover
+
+**Inputs / Formulaires**
+- Focus ring : #F0FF00/70 (déjà en place — conserver)
+- Placeholder : #f5f5f5/40
+- Background input : rgba(255,255,255,0.05)
+- Bordure : rgba(255,255,255,0.12), passe à #F0FF00/40 au focus
+
+**Badges / Statuts**
+- "En production" : fond amber sombre, texte amber clair
+- "Mixé" : fond blue sombre, texte blue clair
+- "Mastérisé" : fond purple sombre, texte purple clair
+- "Publié" : fond green sombre, texte green clair
+- "En attente" (factures) : fond orange sombre
+- "Payée" : fond green sombre
+- Tous les badges : coins 2px max, jamais pill
+
+**Navigation / Sidebar**
+- Item actif : fond #F0FF00/10, bordure-left 2px #F0FF00, texte #F0FF00
+- Item hover : fond rgba(255,255,255,0.05)
+- Icons : 16px, même couleur que le texte
+- Nom du module : taille 13px, weight 400
+
+**Tables de données**
+- Header : texte #f5f5f5/50, 12px uppercase, letter-spacing 0.08em
+- Rows : border-bottom rgba(255,255,255,0.06)
+- Row hover : fond rgba(255,255,255,0.03)
+- Alternance : non (trop corporate)
+
+### 2. Dashboard (/dashboard) — refonte complète
+
+La page dashboard doit sentir comme un cockpit de carrière, pas un tableau de bord SaaS.
+
+**Structure recommandée :**
+[Header] "Ton sidekick" + prénom + niveau XP barre
+[Greeting contextuel] Message selon l'heure / jour
+[Grid 2 colonnes]
+Colonne gauche (60%) :
+- Tâches du jour (max 5, avec checkbox)
+- Prochaines échéances (3 items max)
+Colonne droite (40%) :
+- Calendrier hebdomadaire (vue 7 jours)
+- Prochain événement (card highlight)
+[Bottom row] Stats rapides : tracks actives / factures en attente /
+prochaine date live
+
+**Éléments visuels :**
+- La barre XP doit être fine (4px), #F0FF00, animée au chargement
+- Le greeting doit changer selon contexte (matin/soir/jour de sortie...)
+- Les stats rapides en bas : fond card glass, chiffre en grand (24px/500),
+  label en petit (12px/#f5f5f5/50)
+
+### 3. Module Phono (/phono) — amélioration UX
+
+**Catalogue de tracks :**
+- Chaque track = card avec : titre, artiste, statut badge, ISRC, durée
+- Statut visible immédiatement (badge coloré, pas dans un menu caché)
+- Actions inline : éditer, voir sessions studio, voir distribution
+- Filtre rapide par statut (En production / Mixé / Mastérisé / Publié)
+- Vue liste par défaut, option vue grille (artworks)
+
+**Sessions studio :**
+- Timeline visuelle des sessions (type Gantt simplifié)
+- Type de session : Recording / Demo / Mixage / Mastering — chacun 
+  avec sa couleur
+
+### 4. Module Revenus (/incomes) — clarté avant tout
+
+**Vue d'ensemble :**
+- Total revenus du mois : grand chiffre central, comparaison mois précédent
+- Répartition par source : Facturation / Royalties / Droits d'auteur / 
+  Intermittence — graphique donut ou barres horizontales
+
+**Facturation :**
+- Statut "En attente" très visible (badge + couleur row)
+- Action "Marquer payée" accessible en un clic
+- Total HT / TTC affiché clairement
+
+### 5. Sidebar & Navigation globale
+
+La sidebar est le fil conducteur de toute l'app.
+
+**Structure :**
+[Logo SIDEKICK] — typographie display, #F0FF00 sur fond sombre
+[User info] — prénom, statut (auto-entrepreneur / intermittent / etc.)
+[Navigation modules] — groupés par catégorie :
+MUSIQUE : Phono, Édition, Live
+BUSINESS : Revenus, Admin, Facturation
+ORGANISATION : Dashboard, Calendrier, Tâches
+RÉSEAU : Contacts, Marketing
+[Bottom] — Paramètres, Aide, Déconnexion
+
+---
+
+## RÈGLES ABSOLUES
+
+- Ne jamais passer à l'anglais dans un texte visible
+- Ne jamais introduire une couleur accent autre que #F0FF00
+- Ne jamais supprimer le glass effect des cards
+- Conserver toutes les routes existantes sans exception
+- Tutoiement partout, toujours
+- Boutons : jamais pill-shaped, toujours coins francs
+- Aucun gradient fond sombre → couleur (style "startup générique")
+
+---
+
+## CE QU'IL NE FAUT PAS FAIRE
+
+- Rendre l'interface plus "safe" ou plus "accessible grand public"
+- Ajouter des illustrations ou icônes décoratives non fonctionnelles  
+- Utiliser des polices génériques (Inter, Roboto, Arial)
+- Faire ressembler SIDEKICK à un outil de comptabilité
+- Ajouter de l'animation excessive qui ralentit la navigation
+- Changer les libellés UI existants (Représentations, Facturation, etc.)
+
+---
+
+## FORMAT DE LIVRAISON
+
+Pour chaque composant ou page retravaillé :
+1. Liste les changements effectués (5 lignes max)
+2. Le code complet du fichier modifié
+3. Si nouveaux composants créés : chemin exact du fichier
+
+Commence par les composants UI de base (boutons, cards, badges, inputs),
+puis le Dashboard, puis la Sidebar.
+Ne traite qu'un composant ou une page à la fois.
+Attends ma validation avant de passer au suivant.

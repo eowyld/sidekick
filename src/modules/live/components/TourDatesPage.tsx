@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -30,8 +31,14 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useLiveData } from "@/hooks/useLiveData";
+import { useIncomesData } from "@/hooks/useIncomesData";
+import type { Invoice, IntermittenceMission } from "@/hooks/useIncomesData";
+import { InvoiceEditDialog } from "@/modules/incomes/components/InvoiceEditDialog";
+import { MissionEditDialog } from "@/modules/incomes/components/MissionEditDialog";
 import {
-  defaultRepresentations,
+  createDefaultRepresentationTimetable,
+  finalizeTimetableForPersist,
+  normalizeTimetableStructure,
   type TimetableItem,
   type TourDate,
   type TourStatus
@@ -85,6 +92,7 @@ type DocumentEntry = {
 };
 
 export function TourDatesPage() {
+  const posthog = usePostHog();
   const [openSection, setOpenSection] = useState<"past" | "upcoming" | null>("upcoming");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingStatusType, setEditingStatusType] = useState<"past" | "future">("future");
@@ -157,6 +165,18 @@ export function TourDatesPage() {
     note: ""
   });
 
+  const [invoiceEditDialog, setInvoiceEditDialog] = useState<{
+    open: boolean;
+    invoice?: Invoice;
+    defaults?: { subject?: string; client?: string; number?: string };
+  }>({ open: false });
+
+  const [missionEditDialog, setMissionEditDialog] = useState<{
+    open: boolean;
+    mission?: IntermittenceMission;
+    defaults?: { date?: string; employer?: string };
+  }>({ open: false });
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState<{
     city: string;
@@ -181,6 +201,7 @@ export function TourDatesPage() {
   const [editingAddress, setEditingAddress] = useState<string>("");
 
   const { tourDates: dates, setTourDates: setDates, equipmentInventory, equipmentLists, loading, error } = useLiveData();
+  const { invoices, setInvoices, missions, setMissions } = useIncomesData();
 
   const pastDates = useMemo(
     () => dates.filter((d) => isRepresentationPast(d.date)),
@@ -265,6 +286,7 @@ export function TourDatesPage() {
       .filter((i): i is typeof equipmentInventory[number] => i != null);
 
   const handleDeleteDate = (id: number) => {
+    posthog?.capture("tour_date_deleted", { module: "live" });
     setDates((prev) => prev.filter((d) => d.id !== id));
     setTransportsByDate((prev) => {
       const next = { ...prev };
@@ -287,6 +309,7 @@ export function TourDatesPage() {
     const trimmedDetails = transportForm.details.trim();
     const amount = transportForm.amount.trim();
 
+    posthog?.capture("tour_transport_added", { module: "live" });
     setTransportsByDate((prev) => {
       const existing = prev[optionsDate.id] ?? [];
       const nextEntry: TransportEntry = {
@@ -326,6 +349,7 @@ export function TourDatesPage() {
     const amount = lodgingForm.amount.trim();
     const details = lodgingForm.details.trim();
 
+    posthog?.capture("tour_accommodation_added", { module: "live" });
     setLodgingsByDate((prev) => {
       const existing = prev[optionsDate.id] ?? [];
       const nextEntry: LodgingEntry = {
@@ -503,6 +527,68 @@ export function TourDatesPage() {
     doc.save(fileName);
   };
 
+  const getNextInvoiceNumber = (invs: Invoice[]): string => {
+    let max = 0;
+    const year = new Date().getFullYear();
+    for (const inv of invs) {
+      const match = inv.number.match(/-(\d+)$/);
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    }
+    return `${year}-${String(max + 1).padStart(3, "0")}`;
+  };
+
+  const handleSaveInvoice = (inv: Invoice, tourDate: TourDate) => {
+    const isNew = !invoices.find((i) => i.id === inv.id);
+    setInvoices((prev) =>
+      isNew ? [...prev, inv] : prev.map((i) => (i.id === inv.id ? inv : i))
+    );
+    if (isNew) {
+      setDates((prev) =>
+        prev.map((d) =>
+          d.id === tourDate.id
+            ? { ...d, invoiceIds: [...(d.invoiceIds ?? []), inv.id] }
+            : d
+        )
+      );
+    }
+  };
+
+  const handleSaveMission = (m: IntermittenceMission, tourDate: TourDate) => {
+    const isNew = !missions.find((x) => x.id === m.id);
+    setMissions((prev) =>
+      isNew ? [...prev, m] : prev.map((x) => (x.id === m.id ? m : x))
+    );
+    if (isNew) {
+      setDates((prev) =>
+        prev.map((d) =>
+          d.id === tourDate.id
+            ? { ...d, missionIds: [...(d.missionIds ?? []), m.id] }
+            : d
+        )
+      );
+    }
+  };
+
+  const handleUnlinkInvoice = (invoiceId: string, tourDateId: number) => {
+    setDates((prev) =>
+      prev.map((d) =>
+        d.id === tourDateId
+          ? { ...d, invoiceIds: (d.invoiceIds ?? []).filter((id) => id !== invoiceId) }
+          : d
+      )
+    );
+  };
+
+  const handleUnlinkMission = (missionId: string, tourDateId: number) => {
+    setDates((prev) =>
+      prev.map((d) =>
+        d.id === tourDateId
+          ? { ...d, missionIds: (d.missionIds ?? []).filter((id) => id !== missionId) }
+          : d
+      )
+    );
+  };
+
   const openAddDialog = () => {
     const today = new Date();
     const isoToday =
@@ -524,6 +610,8 @@ export function TourDatesPage() {
   };
 
   const saveNewRepresentation = () => {
+    posthog?.capture("tour_date_created", { module: "live" });
+    posthog?.capture("item_created", { module: "live" });
     const nextId =
       dates.length > 0 ? Math.max(...dates.map((d) => d.id)) + 1 : 1;
     const dateStr = addForm.date.trim()
@@ -546,7 +634,7 @@ export function TourDatesPage() {
       status: addForm.status,
       address: addForm.address.trim(),
       organisateur: addForm.organisateur.trim() || undefined,
-      timetable: [],
+      timetable: createDefaultRepresentationTimetable(),
       transport: false,
       lodging: false,
       remuneration: false,
@@ -658,21 +746,21 @@ export function TourDatesPage() {
                             Timetable
                           </p>
                           <div className="mt-1 space-y-1 rounded-md bg-background/40 p-2">
-                            {(timetablesByDate[date.id] ?? date.timetable).map(
-                              (slot, index) => (
+                            {normalizeTimetableStructure(
+                              timetablesByDate[date.id] ?? date.timetable
+                            ).map((slot, index) => (
                               <div
                                 key={`${date.id}-past-${index}`}
                                 className="flex items-center gap-2 text-[11px]"
                               >
                                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono">
-                                  {slot.time}
+                                  {slot.time || "—"}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {slot.activity}
                                 </span>
                               </div>
-                              )
-                            )}
+                            ))}
                             <Button
                               type="button"
                               size="sm"
@@ -681,7 +769,11 @@ export function TourDatesPage() {
                               onClick={() => {
                                 const base =
                                   timetablesByDate[date.id] ?? date.timetable;
-                                setTimetableDraft(base.map((s) => ({ ...s })));
+                                setTimetableDraft(
+                                  normalizeTimetableStructure(base).map((s) => ({
+                                    ...s
+                                  }))
+                                );
                                 setTimetableDialogDateId(date.id);
                               }}
                             >
@@ -740,15 +832,22 @@ export function TourDatesPage() {
                               </button>
                             );
                           })()}
-                          <button
-                            type="button"
-                            className="focus-visible:outline-none"
-                            onClick={() =>
-                              setOptionsDialog({ dateId: date.id, type: "remuneration" })
-                            }
-                          >
-                            <Tag label="Rémunération" />
-                          </button>
+                          {(() => {
+                            const remunerationCount = isHydrated
+                              ? (date.invoiceIds ?? []).length + (date.missionIds ?? []).length
+                              : 0;
+                            return (
+                              <button
+                                type="button"
+                                className="focus-visible:outline-none"
+                                onClick={() =>
+                                  setOptionsDialog({ dateId: date.id, type: "remuneration" })
+                                }
+                              >
+                                <Tag label="Rémunération" active={remunerationCount > 0} count={remunerationCount > 0 ? remunerationCount : undefined} />
+                              </button>
+                            );
+                          })()}
                           {(() => {
                             const hasList = !!selectedListIdByDate[date.id];
                             return (
@@ -904,21 +1003,21 @@ export function TourDatesPage() {
                             Timetable
                           </p>
                           <div className="mt-1 space-y-1 rounded-md bg-background/40 p-2">
-                            {(timetablesByDate[date.id] ?? date.timetable).map(
-                              (slot, index) => (
+                            {normalizeTimetableStructure(
+                              timetablesByDate[date.id] ?? date.timetable
+                            ).map((slot, index) => (
                               <div
                                 key={`${date.id}-upcoming-${index}`}
                                 className="flex items-center gap-2 text-[11px]"
                               >
                                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono">
-                                  {slot.time}
+                                  {slot.time || "—"}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {slot.activity}
                                 </span>
                               </div>
-                              )
-                            )}
+                            ))}
                             <Button
                               type="button"
                               size="sm"
@@ -927,7 +1026,11 @@ export function TourDatesPage() {
                               onClick={() => {
                                 const base =
                                   timetablesByDate[date.id] ?? date.timetable;
-                                setTimetableDraft(base.map((s) => ({ ...s })));
+                                setTimetableDraft(
+                                  normalizeTimetableStructure(base).map((s) => ({
+                                    ...s
+                                  }))
+                                );
                                 setTimetableDialogDateId(date.id);
                               }}
                             >
@@ -986,15 +1089,22 @@ export function TourDatesPage() {
                               </button>
                             );
                           })()}
-                          <button
-                            type="button"
-                            className="focus-visible:outline-none"
-                            onClick={() =>
-                              setOptionsDialog({ dateId: date.id, type: "remuneration" })
-                            }
-                          >
-                            <Tag label="Rémunération" />
-                          </button>
+                          {(() => {
+                            const remunerationCount = isHydrated
+                              ? (date.invoiceIds ?? []).length + (date.missionIds ?? []).length
+                              : 0;
+                            return (
+                              <button
+                                type="button"
+                                className="focus-visible:outline-none"
+                                onClick={() =>
+                                  setOptionsDialog({ dateId: date.id, type: "remuneration" })
+                                }
+                              >
+                                <Tag label="Rémunération" active={remunerationCount > 0} count={remunerationCount > 0 ? remunerationCount : undefined} />
+                              </button>
+                            );
+                          })()}
                           {(() => {
                             const hasList = !!selectedListIdByDate[date.id];
                             return (
@@ -1362,7 +1472,7 @@ export function TourDatesPage() {
         }}
       >
         <DialogContent
-          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
+          className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5] max-w-md"
         >
           <DialogHeader>
             <DialogTitle>
@@ -1370,9 +1480,11 @@ export function TourDatesPage() {
                 ? `Transports – ${getRepresentationTitle(optionsDate)}`
                 : optionsDate && optionsDialog.type === "lodging"
                   ? `Logement – ${getRepresentationTitle(optionsDate)}`
-                  : optionsDate && optionsDialog.type === "equipment"
-                    ? `Matériel – ${getRepresentationTitle(optionsDate)}`
-                    : "Options"}
+                  : optionsDate && optionsDialog.type === "remuneration"
+                    ? `Rémunération – ${getRepresentationTitle(optionsDate)}`
+                    : optionsDate && optionsDialog.type === "equipment"
+                      ? `Matériel – ${getRepresentationTitle(optionsDate)}`
+                      : "Options"}
             </DialogTitle>
           </DialogHeader>
           {optionsDate && optionsDialog.type === "transport" && (
@@ -1755,6 +1867,211 @@ export function TourDatesPage() {
             </>
           )}
 
+          {optionsDate && optionsDialog.type === "remuneration" && (
+            <>
+              <div className="space-y-5 py-2 text-sm">
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Factures</p>
+                  {(optionsDate.invoiceIds ?? []).length > 0 && (
+                    <div className="mb-2 space-y-2">
+                      {(optionsDate.invoiceIds ?? []).map((invId) => {
+                        const inv = invoices.find((i) => i.id === invId);
+                        if (!inv) return null;
+                        return (
+                          <div
+                            key={invId}
+                            className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-xs"
+                          >
+                            <div>
+                              <p className="font-medium">{inv.number} — {inv.subject || inv.client}</p>
+                              <p className="text-[11px] text-muted-foreground">{inv.amount} € • {inv.status === "payee" ? "Payée" : "En attente"}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setInvoiceEditDialog({ open: true, invoice: inv })}
+                              >
+                                Modifier
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                onClick={() => handleUnlinkInvoice(invId, optionsDate.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                <span className="sr-only">Délier</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const usedInvoiceIds = new Set(
+                        dates.flatMap((d) => d.id !== optionsDate.id ? (d.invoiceIds ?? []) : [])
+                      );
+                      const availableInvoices = invoices.filter(
+                        (i) => !(optionsDate.invoiceIds ?? []).includes(i.id) && !usedInvoiceIds.has(i.id)
+                      );
+                      return availableInvoices.length > 0 ? (
+                        <select
+                          className="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-sm focus-visible:outline-none"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            if (!id) return;
+                            setDates((prev) =>
+                              prev.map((d) =>
+                                d.id === optionsDate.id
+                                  ? { ...d, invoiceIds: [...(d.invoiceIds ?? []), id] }
+                                  : d
+                              )
+                            );
+                            e.target.value = "";
+                          }}
+                        >
+                          <option value="">Lier une facture existante…</option>
+                          {availableInvoices.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.number} — {i.subject || i.client} ({i.amount} €)
+                            </option>
+                          ))}
+                        </select>
+                      ) : null;
+                    })()}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        const venuePart = optionsDate.venue || optionsDate.city || "";
+                        const subject = venuePart
+                          ? `Représentation "${venuePart}" – ${optionsDate.date}`
+                          : `Représentation – ${optionsDate.date}`;
+                        const client = optionsDate.organisateur ?? "";
+                        const number = getNextInvoiceNumber(invoices);
+                        setInvoiceEditDialog({ open: true, defaults: { subject, client, number } });
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Créer une facture
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Cachets</p>
+                  {(optionsDate.missionIds ?? []).length > 0 && (
+                    <div className="mb-2 space-y-2">
+                      {(optionsDate.missionIds ?? []).map((mId) => {
+                        const m = missions.find((x) => x.id === mId);
+                        if (!m) return null;
+                        return (
+                          <div
+                            key={mId}
+                            className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-xs"
+                          >
+                            <div>
+                              <p className="font-medium">{m.type} — {m.employer}</p>
+                              <p className="text-[11px] text-muted-foreground">{m.netAmount} € net • {m.hours}h</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setMissionEditDialog({ open: true, mission: m })}
+                              >
+                                Modifier
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                onClick={() => handleUnlinkMission(mId, optionsDate.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                <span className="sr-only">Délier</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const usedMissionIds = new Set(
+                        dates.flatMap((d) => d.id !== optionsDate.id ? (d.missionIds ?? []) : [])
+                      );
+                      const availableMissions = missions.filter(
+                        (m) => !(optionsDate.missionIds ?? []).includes(m.id) && !usedMissionIds.has(m.id)
+                      );
+                      return availableMissions.length > 0 ? (
+                        <select
+                          className="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-sm focus-visible:outline-none"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            if (!id) return;
+                            setDates((prev) =>
+                              prev.map((d) =>
+                                d.id === optionsDate.id
+                                  ? { ...d, missionIds: [...(d.missionIds ?? []), id] }
+                                  : d
+                              )
+                            );
+                            e.target.value = "";
+                          }}
+                        >
+                          <option value="">Lier un cachet existant…</option>
+                          {availableMissions.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.type} — {m.employer} ({m.netAmount} € net)
+                            </option>
+                          ))}
+                        </select>
+                      ) : null;
+                    })()}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        setMissionEditDialog({
+                          open: true,
+                          defaults: {
+                            date: toIsoFromFr(optionsDate.date),
+                            employer: optionsDate.organisateur ?? "",
+                          },
+                        });
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Créer un cachet
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOptionsDialog({ dateId: null, type: null })}
+                >
+                  Fermer
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
           {optionsDate && optionsDialog.type === "equipment" && (
             <>
               <div className="space-y-4 py-2 text-sm">
@@ -1837,78 +2154,108 @@ export function TourDatesPage() {
           className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]"
         >
           <DialogHeader>
-            <DialogTitle>Gérer les horaires de la journée</DialogTitle>
+            <DialogTitle>Horaires de la représentation</DialogTitle>
           </DialogHeader>
           {timetableDialogDateId !== null && (
             <>
               <div className="space-y-3 py-2 text-sm">
                 <p className="text-xs text-muted-foreground">
-                  Ajoute ou modifie les créneaux horaires pour cette date de
-                  tournée.
+                  Début et fin encadrent le show ; ajoute des étapes (balance,
+                  montage…) entre les deux. Ces heures servent aussi au
+                  calendrier global.
                 </p>
                 <div className="space-y-2">
-                  {timetableDraft.map((slot, index) => (
-                    <div
-                      key={`${timetableDialogDateId}-slot-${index}`}
-                      className="grid grid-cols-[80px,1fr,auto] items-center gap-2"
-                    >
-                      <Input
-                        type="text"
-                        placeholder="16:30"
-                        value={slot.time}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setTimetableDraft((prev) =>
-                            prev.map((s, i) =>
-                              i === index ? { ...s, time: value } : s
-                            )
-                          );
-                        }}
-                        className="text-xs"
-                      />
-                      <Input
-                        type="text"
-                        placeholder="Balance, ouverture des portes…"
-                        value={slot.activity}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setTimetableDraft((prev) =>
-                            prev.map((s, i) =>
-                              i === index ? { ...s, activity: value } : s
-                            )
-                          );
-                        }}
-                        className="text-xs"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() =>
-                          setTimetableDraft((prev) =>
-                            prev.filter((_, i) => i !== index)
-                          )
-                        }
+                  {timetableDraft.map((slot, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === timetableDraft.length - 1;
+                    const rowLabel = isFirst
+                      ? "Début"
+                      : isLast
+                        ? "Fin"
+                        : "Étape";
+                    return (
+                      <div
+                        key={`${timetableDialogDateId}-slot-${index}`}
+                        className="grid grid-cols-[52px,72px,1fr,auto] items-center gap-2"
                       >
-                        <Trash2 className="h-3 w-3" />
-                        <span className="sr-only">Supprimer</span>
-                      </Button>
-                    </div>
-                  ))}
+                        <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                          {rowLabel}
+                        </span>
+                        <Input
+                          type="text"
+                          placeholder="20:00"
+                          value={slot.time}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTimetableDraft((prev) =>
+                              prev.map((s, i) =>
+                                i === index ? { ...s, time: value } : s
+                              )
+                            );
+                          }}
+                          className="text-xs"
+                        />
+                        <Input
+                          type="text"
+                          placeholder={
+                            isFirst
+                              ? "Début du show…"
+                              : isLast
+                                ? "Fin du show…"
+                                : "Balance, montage…"
+                          }
+                          value={slot.activity}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTimetableDraft((prev) =>
+                              prev.map((s, i) =>
+                                i === index ? { ...s, activity: value } : s
+                              )
+                            );
+                          }}
+                          className="text-xs"
+                        />
+                        {!isFirst && !isLast ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() =>
+                              setTimetableDraft((prev) =>
+                                prev.filter((_, i) => i !== index)
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span className="sr-only">Supprimer</span>
+                          </Button>
+                        ) : (
+                          <span className="w-9 shrink-0" aria-hidden />
+                        )}
+                      </div>
+                    );
+                  })}
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="mt-1"
+                    disabled={timetableDraft.length < 2}
                     onClick={() =>
-                      setTimetableDraft((prev) => [
-                        ...prev,
-                        { time: "", activity: "" }
-                      ])
+                      setTimetableDraft((prev) => {
+                        if (prev.length < 2) return prev;
+                        const end = prev[prev.length - 1];
+                        const head = prev.slice(0, -1);
+                        return [
+                          ...head,
+                          { time: "", activity: "", kind: "step" },
+                          end
+                        ];
+                      })
                     }
                   >
-                    Ajouter un créneau
+                    Ajouter une étape
                   </Button>
                 </div>
               </div>
@@ -1924,13 +2271,17 @@ export function TourDatesPage() {
                   type="button"
                   onClick={() => {
                     if (timetableDialogDateId === null) return;
-                    const cleaned = timetableDraft.filter(
-                      (s) => s.time.trim() || s.activity.trim()
-                    );
+                    const finalized = finalizeTimetableForPersist(timetableDraft);
+                    const id = timetableDialogDateId;
                     setTimetablesByDate((prev) => ({
                       ...prev,
-                      [timetableDialogDateId]: cleaned
+                      [id]: finalized
                     }));
+                    setDates((prev) =>
+                      prev.map((d) =>
+                        d.id === id ? { ...d, timetable: finalized } : d
+                      )
+                    );
                     setTimetableDialogDateId(null);
                   }}
                 >
@@ -1941,6 +2292,25 @@ export function TourDatesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <InvoiceEditDialog
+        open={invoiceEditDialog.open}
+        onOpenChange={(open) => setInvoiceEditDialog((prev) => ({ ...prev, open }))}
+        invoice={invoiceEditDialog.invoice}
+        defaults={invoiceEditDialog.defaults}
+        onSave={(inv) => {
+          if (optionsDate) handleSaveInvoice(inv, optionsDate);
+        }}
+      />
+      <MissionEditDialog
+        open={missionEditDialog.open}
+        onOpenChange={(open) => setMissionEditDialog((prev) => ({ ...prev, open }))}
+        mission={missionEditDialog.mission}
+        defaults={missionEditDialog.defaults}
+        onSave={(m) => {
+          if (optionsDate) handleSaveMission(m, optionsDate);
+        }}
+      />
 
       {/* Dialog gestion Documents */}
       <Dialog

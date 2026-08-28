@@ -1,24 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Calendar,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  DollarSign,
-  Mic2,
-  Music2,
-  BookOpen,
-  Briefcase,
-  Megaphone,
-  Trash2,
-  Pencil,
-  Share2
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 
 import { ICalSyncPanel } from "./ICalSyncPanel";
+import { UpcomingBanner } from "./UpcomingBanner";
+import { WeekScheduleGrid } from "./WeekScheduleGrid";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -35,52 +24,57 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EventDialog, type EventDialogField } from "@/components/ui/event-dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { useLiveData } from "@/hooks/useLiveData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useIncomesData } from "@/hooks/useIncomesData";
+import { useMarketingData } from "@/hooks/useMarketingData";
+import { useAdminData } from "@/hooks/useAdminData";
+import { useTasksData } from "@/hooks/useTasksData";
 import { useCalendarData, type CustomCalendarItem } from "@/hooks/useCalendarData";
 import { PageError } from "@/components/ui/page-error";
-import { EmptyState } from "@/components/ui/empty-state";
 import { mutate } from "swr";
-import { cn } from "@/lib/utils";
+import {
+  expandCustomEventVisualSlots,
+  normalizeCustomTimes,
+  normalizeCustomTimesForDateRange,
+  snapTimeToFiveMinuteGrid,
+} from "@/lib/calendar-time";
+import {
+  getRepresentationScheduleTimes,
+  type TimetableItem,
+} from "@/modules/live/data/defaultRepresentations";
+import type { CalendarEvent } from "@/modules/calendar/calendar-event-model";
+import {
+  EVENT_TIER,
+  SECTOR_CONFIG,
+  resolveCalendarEventLeadingGlyph,
+  type CalendarEventType,
+  type CalendarSector,
+} from "@/modules/calendar/calendar-display-config";
+import {
+  daysBetweenDateKeys,
+  enumerateDateKeysInclusive,
+  startOfWeekMonday,
+} from "@/modules/calendar/week-schedule-utils";
+import { cn, formatTimeForDisplay } from "@/lib/utils";
+
+export type { CalendarSector, CalendarEventType } from "@/modules/calendar/calendar-display-config";
+export type { CalendarEvent } from "@/modules/calendar/calendar-event-model";
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-export type CalendarSector =
-  | "live"
-  | "phono"
-  | "admin"
-  | "marketing"
-  | "edition"
-  | "revenus"
-  | "other";
-
-export type CalendarEventType =
-  | "representation"
-  | "rehearsal"
-  | "invoice"
-  | "session"
-  | "album_release"
-  | "track_release"
-  | "task_deadline"
-  | "marketing_content"
-  | "admin_procedure"
-  | "admin_status_start"
-  | "admin_status_end"
-  | "edition_event"
-  | "custom";
-
-export interface CalendarEvent {
-  id: string;
-  dateKey: string;
-  label: string;
-  sector: CalendarSector;
-  type: CalendarEventType;
-  subLabel?: string;
-  isPast: boolean;
-  time?: string;
-  place?: string;
-}
+type CalendarViewMode = "month" | "week";
 
 function parseFrDate(frDate: string): Date | null {
   if (!frDate) return null;
@@ -101,6 +95,17 @@ function toDateKey(date: Date): string {
 function frToDateKey(frDate: string): string | null {
   const date = parseFrDate(frDate);
   return date ? toDateKey(date) : null;
+}
+
+function formatDateKeyFr(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return key;
+  return new Date(y, m - 1, d).toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 const todayKey = (() => {
@@ -153,7 +158,7 @@ type TourDateItem = {
   organisateur?: string;
   status?: string;
   note?: string;
-  timetable?: { time: string; activity: string }[];
+  timetable?: TimetableItem[];
 };
 type RehearsalItem = {
   id: number;
@@ -165,7 +170,7 @@ type RehearsalItem = {
   note?: string;
 };
 type InvoiceItem = {
-  id: number;
+  id: string | number;
   number: string;
   client: string;
   subject?: string;
@@ -174,7 +179,7 @@ type InvoiceItem = {
   status?: string;
 };
 type SessionItem = {
-  id: number;
+  id: string | number;
   date: string;
   time?: string;
   title: string;
@@ -216,6 +221,7 @@ type AdminProcedureItem = {
   status?: string;
   organisme?: string;
   notes?: string;
+  recurrence?: "none" | "monthly" | "quarterly" | "semi_annual" | "annual";
 };
 type AdminStatusItem = {
   id: string | number;
@@ -239,6 +245,7 @@ type TaskItem = {
   id: string;
   title: string;
   done?: boolean;
+  status?: "todo" | "in_progress" | "done";
   description?: string;
   deadline?: string;
   sector?:
@@ -248,6 +255,7 @@ type TaskItem = {
     | "Marketing"
     | "Edition"
     | "Revenus"
+    | "Projets"
     | "Autre";
 };
 
@@ -259,6 +267,7 @@ function mapTaskSectorToCalendarSector(
   if (sector === "Marketing") return "marketing";
   if (sector === "Edition") return "edition";
   if (sector === "Revenus") return "revenus";
+  if (sector === "Projets") return "other";
   if (sector === "Autre") return "other";
   return "admin";
 }
@@ -270,6 +279,17 @@ function normalizeToDateKey(value: string | undefined | null): string | null {
   const parsed = new Date(value);
   if (isNaN(parsed.getTime())) return null;
   return toDateKey(parsed);
+}
+
+function shiftDateKey(dateKey: string, recurrence: AdminProcedureItem["recurrence"]): string | null {
+  const base = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(base.getTime())) return null;
+  if (recurrence === "monthly") base.setMonth(base.getMonth() + 1);
+  else if (recurrence === "quarterly") base.setMonth(base.getMonth() + 3);
+  else if (recurrence === "semi_annual") base.setMonth(base.getMonth() + 6);
+  else if (recurrence === "annual") base.setFullYear(base.getFullYear() + 1);
+  else return null;
+  return toDateKey(base);
 }
 
 function buildCalendarEvents(
@@ -297,6 +317,11 @@ function buildCalendarEvents(
       [r.venue, r.organisateur].filter(Boolean).join(" – ") ||
       r.city ||
       "Représentation";
+    const schedule = getRepresentationScheduleTimes(r.timetable ?? []);
+    const nt = normalizeCustomTimes({
+      time: schedule.start,
+      endTime: schedule.end
+    });
     events.push({
       id: `live-rep-${r.id}`,
       dateKey,
@@ -305,7 +330,9 @@ function buildCalendarEvents(
       type: "representation",
       subLabel: "Représentation",
       isPast,
-      place: [r.venue, r.city].filter(Boolean).join(" – ") || r.city
+      place: [r.venue, r.city].filter(Boolean).join(" – ") || r.city,
+      time: nt.time,
+      endTime: nt.endTime
     });
   });
 
@@ -327,7 +354,7 @@ function buildCalendarEvents(
   });
 
   invoices.forEach((i) => {
-    const dateKey = frToDateKey(i.dueDate);
+    const dateKey = normalizeToDateKey(i.dueDate);
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     events.push({
@@ -342,7 +369,7 @@ function buildCalendarEvents(
   });
 
   sessions.forEach((s) => {
-    const dateKey = frToDateKey(s.date);
+    const dateKey = normalizeToDateKey(s.date);
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     events.push({
@@ -359,7 +386,7 @@ function buildCalendarEvents(
   });
 
   phonoAlbums.forEach((a) => {
-    const dateKey = frToDateKey(a.releaseDate || "");
+    const dateKey = normalizeToDateKey(a.releaseDate || "");
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     const albumTypeLabel =
@@ -376,12 +403,12 @@ function buildCalendarEvents(
   });
 
   phonoTracks.forEach((t) => {
-    const trackDateKey = frToDateKey(t.releaseDate || "");
+    const trackDateKey = normalizeToDateKey(t.releaseDate || "");
     if (!trackDateKey) return;
 
     // Évite le doublon: si le titre est dans un album avec la même date, on n'affiche que l'album.
     const duplicatedByAlbum = phonoAlbums.some((a) => {
-      const albumDateKey = frToDateKey(a.releaseDate || "");
+      const albumDateKey = normalizeToDateKey(a.releaseDate || "");
       if (!albumDateKey || albumDateKey !== trackDateKey) return false;
       return Array.isArray(a.trackIds) && a.trackIds.includes(t.id);
     });
@@ -401,7 +428,7 @@ function buildCalendarEvents(
 
   // Sorties de podcasts (Phono)
   phonoPodcasts.forEach((p) => {
-    const dateKey = frToDateKey(p.releaseDate || "");
+    const dateKey = normalizeToDateKey(p.releaseDate || "");
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     events.push({
@@ -425,7 +452,7 @@ function buildCalendarEvents(
       label: t.title || "Tâche",
       sector: mapTaskSectorToCalendarSector(t.sector),
       type: "task_deadline",
-      subLabel: t.done ? "Tâche terminée" : "Tâche",
+      subLabel: (t.done ?? t.status === "done") ? "Tâche terminée" : "Tâche",
       isPast
     });
   });
@@ -446,17 +473,38 @@ function buildCalendarEvents(
   });
 
   adminProcedures.forEach((p) => {
+    if ((p.status ?? "a_faire") === "termine") return;
     const dateKey = normalizeToDateKey(p.dateLimite);
     if (!dateKey) return;
-    const isPast = dateKey < todayKey;
-    events.push({
-      id: `admin-procedure-${String(p.id)}`,
-      dateKey,
-      label: p.label || "Démarche administrative",
-      sector: "admin",
-      type: "admin_procedure",
-      subLabel: "Date limite",
-      isPast
+    const label = p.label || "Démarche administrative";
+
+    const rec = p.recurrence ?? "none";
+    const futureKeys: string[] = [];
+    let cursor = dateKey;
+    let safety = 0;
+    while (futureKeys.length < 2 && safety < 12) {
+      if (cursor >= todayKey) futureKeys.push(cursor);
+      if (rec === "none") break;
+      const next = shiftDateKey(cursor, rec);
+      if (!next) break;
+      cursor = next;
+      safety += 1;
+    }
+    if (futureKeys.length === 0) {
+      // fallback: affiche au moins l'occurrence actuelle si tout est dans le passé
+      futureKeys.push(dateKey);
+    }
+
+    futureKeys.forEach((occurrenceDate, idx) => {
+      events.push({
+        id: `admin-procedure-${String(p.id)}-${occurrenceDate}`,
+        dateKey: occurrenceDate,
+        label,
+        sector: "admin",
+        type: "admin_procedure",
+        subLabel: idx === 0 ? "Date limite" : "Prochaine échéance",
+        isPast: occurrenceDate < todayKey,
+      });
     });
   });
 
@@ -503,42 +551,135 @@ function buildCalendarEvents(
   });
 
   customEvents.forEach((c) => {
-    const dateKey = normalizeToDateKey(c.date);
-    if (!dateKey) return;
-    const isPast = dateKey < todayKey;
-    events.push({
-      id: `custom-${c.id}`,
-      dateKey,
-      label: c.title,
-      sector: c.sector,
-      type: "custom",
-      subLabel: "Événement personnalisé",
-      isPast,
+    const startKey = normalizeToDateKey(c.date);
+    const endKey = normalizeToDateKey(c.endDate ?? c.date);
+    if (!startKey || !endKey) return;
+    const dayKeys = enumerateDateKeysInclusive(startKey, endKey);
+    const slots = expandCustomEventVisualSlots({
+      dayKeys,
       time: c.time,
-      place: c.place
+      endTime: c.endTime,
+    });
+    slots.forEach(({ dateKey, time, endTime }) => {
+      const isPast = dateKey < todayKey;
+      const displayId =
+        dayKeys.length === 1 ? `custom-${c.id}` : `custom-${c.id}__${dateKey}`;
+      events.push({
+        id: displayId,
+        dateKey,
+        label: c.title,
+        sector: c.sector,
+        type: "custom",
+        subLabel: "Événement personnalisé",
+        isPast,
+        time,
+        endTime,
+        place: c.place,
+      });
     });
   });
 
   return events;
 }
 
-function formatDateKeyToFr(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-");
-  return `${d}/${m}/${y}`;
+const CUSTOM_TIME_NONE = "__none__";
+
+const CUSTOM_TIME_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
+  String(i).padStart(2, "0"),
+);
+
+const CUSTOM_TIME_MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) =>
+  String(i * 5).padStart(2, "0"),
+);
+
+function customTimeToHourMinuteSelects(time: string): {
+  hour: string;
+  minute: string;
+} {
+  const raw = time.trim();
+  if (!raw) return { hour: CUSTOM_TIME_NONE, minute: "00" };
+  const snapped = snapTimeToFiveMinuteGrid(raw);
+  if (!snapped) return { hour: CUSTOM_TIME_NONE, minute: "00" };
+  const [h, m] = snapped.split(":");
+  return { hour: h, minute: m };
 }
 
-const SECTOR_CONFIG: Record<
-  CalendarSector,
-  { label: string; color: string; bgClass: string; iconColor: string; Icon: React.ElementType }
-> = {
-  live:      { label: "Live",      color: "text-blue-400",    bgClass: "bg-blue-400",    iconColor: "text-blue-400",    Icon: Mic2 },
-  phono:     { label: "Phono",     color: "text-red-400",     bgClass: "bg-red-400",     iconColor: "text-red-400",     Icon: Music2 },
-  admin:     { label: "Admin",     color: "text-violet-400",  bgClass: "bg-violet-400",  iconColor: "text-violet-400",  Icon: Briefcase },
-  marketing: { label: "Marketing", color: "text-emerald-400", bgClass: "bg-emerald-400", iconColor: "text-emerald-400", Icon: Megaphone },
-  edition:   { label: "Édition",   color: "text-cyan-400",    bgClass: "bg-cyan-400",    iconColor: "text-cyan-400",    Icon: BookOpen },
-  revenus:   { label: "Revenus",   color: "text-orange-400",  bgClass: "bg-orange-400",  iconColor: "text-orange-400",  Icon: DollarSign },
-  other:     { label: "Autre",     color: "text-[#F5F5F5]/40",bgClass: "bg-[#F5F5F5]/40",iconColor: "text-[#F5F5F5]/40",Icon: CalendarDays },
-};
+function hourMinuteSelectsToTime(hour: string, minute: string): string {
+  if (hour === CUSTOM_TIME_NONE) return "";
+  return `${hour}:${minute}`;
+}
+
+function CustomEventHourMinuteRow(props: {
+  legend: string;
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+  idPrefix: string;
+}) {
+  const { legend, value, onChange, disabled, idPrefix } = props;
+  const { hour, minute } = customTimeToHourMinuteSelects(value);
+  const timeActive = hour !== CUSTOM_TIME_NONE && !disabled;
+
+  const triggerClass =
+    "h-10 min-h-10 shrink-0 border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-0 text-sm leading-none focus:ring-[#F0FF00]/40";
+
+  return (
+    <div className="flex flex-col">
+      <div className="mb-1.5 flex min-h-[2.75rem] items-end">
+        <span className="text-[12px] font-medium uppercase leading-snug tracking-[0.08em] text-[#F5F5F5]/60">
+          {legend}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 items-stretch">
+        <Select
+          value={hour}
+          disabled={disabled}
+          onValueChange={(h) => {
+            if (disabled) return;
+            if (h === CUSTOM_TIME_NONE) {
+              onChange("");
+              return;
+            }
+            onChange(hourMinuteSelectsToTime(h, minute));
+          }}
+        >
+          <SelectTrigger id={`${idPrefix}-hour`} className={triggerClass}>
+            <SelectValue placeholder="Heure" />
+          </SelectTrigger>
+          <SelectContent position="popper" sideOffset={4}>
+            <SelectItem value={CUSTOM_TIME_NONE} className="py-1.5 text-xs">
+              —
+            </SelectItem>
+            {CUSTOM_TIME_HOUR_OPTIONS.map((h) => (
+              <SelectItem key={h} value={h} className="py-1.5 text-xs">
+                {h} h
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={minute}
+          disabled={!timeActive}
+          onValueChange={(min) => {
+            if (!timeActive) return;
+            onChange(hourMinuteSelectsToTime(hour, min));
+          }}
+        >
+          <SelectTrigger id={`${idPrefix}-minute`} className={triggerClass}>
+            <SelectValue placeholder="Min" />
+          </SelectTrigger>
+          <SelectContent position="popper" sideOffset={4}>
+            {CUSTOM_TIME_MINUTE_OPTIONS.map((m) => (
+              <SelectItem key={m} value={m} className="py-1.5 text-xs">
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
 
 const DEFAULT_SECTOR_FILTERS = {
   live: false,
@@ -550,7 +691,184 @@ const DEFAULT_SECTOR_FILTERS = {
   other: true
 } satisfies Record<CalendarSector, boolean>;
 
+// ── CTA par type d'événement ───────────────────────────────────────────────
+const EVENT_CTA: Partial<
+  Record<CalendarEventType, { label: string; href: string }>
+> = {
+  representation:     { label: "Voir dans Live →",      href: "/live/representations" },
+  rehearsal:          { label: "Voir dans Live →",      href: "/live/repetitions" },
+  session:            { label: "Voir dans Phono →",     href: "/phono/sessions-studio" },
+  album_release:      { label: "Voir dans Phono →",     href: "/phono" },
+  track_release:      { label: "Voir dans Phono →",     href: "/phono" },
+  invoice:            { label: "Voir dans Revenus →",   href: "/incomes/facturation" },
+  task_deadline:      { label: "Voir les tâches →",     href: "/tasks" },
+  marketing_content:  { label: "Voir dans Marketing →", href: "/marketing" },
+  admin_procedure:    { label: "Voir dans Admin →",     href: "/admin" },
+  admin_status_start: { label: "Voir dans Admin →",     href: "/admin" },
+  admin_status_end:   { label: "Voir dans Admin →",     href: "/admin" },
+  edition_event:      { label: "Voir dans Édition →",   href: "/edition" },
+};
+
+// ── Champs par type d'événement ────────────────────────────────────────────
+function buildCalendarEventFields(
+  type: CalendarEventType,
+  source: unknown
+): EventDialogField[] {
+  if (!source) return [];
+
+  if (type === "representation") {
+    const r = source as TourDateItem;
+    const fields: EventDialogField[] = [
+      { label: "Salle", value: r.venue || "—" },
+      { label: "Ville", value: r.city || "—" },
+    ];
+    if (r.address) fields.push({ label: "Adresse", value: r.address });
+    if (r.organisateur) fields.push({ label: "Organisateur", value: r.organisateur });
+    if (r.status) fields.push({ label: "Statut", value: r.status });
+    if (r.timetable && r.timetable.length > 0) {
+      fields.push({
+        label: "Horaires",
+        value: (
+          <div className="flex flex-col gap-0.5">
+            {r.timetable.map((t, i) => (
+              <span key={i} className="flex gap-2">
+                <span className="min-w-[38px] text-[#F5F5F5]/35 tabular-nums">{t.time}</span>
+                <span>{t.activity}</span>
+              </span>
+            ))}
+          </div>
+        ),
+      });
+    }
+    if (r.note) fields.push({ label: "Note", value: r.note });
+    return fields;
+  }
+
+  if (type === "rehearsal") {
+    const r = source as RehearsalItem;
+    const fields: EventDialogField[] = [{ label: "Lieu", value: r.location }];
+    if (r.time) fields.push({ label: "Heure", value: r.time });
+    if (r.address) fields.push({ label: "Adresse", value: r.address });
+    if (r.note) fields.push({ label: "Note", value: r.note });
+    return fields;
+  }
+
+  if (type === "invoice") {
+    const i = source as InvoiceItem;
+    const fields: EventDialogField[] = [
+      { label: "N° facture", value: i.number },
+      { label: "Client", value: i.client },
+    ];
+    if (i.subject) fields.push({ label: "Objet", value: i.subject });
+    if (i.amount) fields.push({ label: "Montant", value: i.amount.includes("€") ? i.amount : `${i.amount} €` });
+    fields.push({ label: "Statut", value: i.status === "payee" ? "Payée" : "En attente" });
+    return fields;
+  }
+
+  if (type === "session") {
+    const s = source as SessionItem;
+    const fields: EventDialogField[] = [{ label: "Lieu", value: s.location }];
+    if (s.time) fields.push({ label: "Heure", value: s.time });
+    if (s.sessionType) fields.push({ label: "Type", value: s.sessionType });
+    return fields;
+  }
+
+  if (type === "album_release" || type === "track_release") {
+    // source est PhonoAlbumItem | PhonoTrackItem | PhonoPodcastItem
+    const a = source as { title?: string; artist?: string; mainArtist?: string; type?: string; artists?: string };
+    const fields: EventDialogField[] = [];
+    const artist = a.artist ?? a.mainArtist ?? a.artists;
+    if (artist) fields.push({ label: "Artiste", value: artist });
+    if (a.type) {
+      const typeLabel = a.type === "ep" ? "EP" : a.type === "single" ? "Single" : a.type === "album" ? "Album" : a.type;
+      fields.push({ label: "Type", value: typeLabel });
+    }
+    return fields;
+  }
+
+  if (type === "task_deadline") {
+    const t = source as TaskItem;
+    const fields: EventDialogField[] = [
+      { label: "Tâche", value: t.title || "—" },
+      { label: "Statut", value: (t.done ?? t.status === "done") ? "Terminée" : "À faire" },
+    ];
+    if (t.description) fields.push({ label: "Description", value: t.description });
+    return fields;
+  }
+
+  if (type === "marketing_content") {
+    const m = source as MarketingItem;
+    const fields: EventDialogField[] = [];
+    if (m.title) fields.push({ label: "Titre", value: m.title });
+    if (m.status) fields.push({ label: "Statut", value: m.status });
+    if (Array.isArray(m.platforms) && m.platforms.length > 0)
+      fields.push({ label: "Plateformes", value: m.platforms.join(", ") });
+    if (Array.isArray(m.contentTypes) && m.contentTypes.length > 0)
+      fields.push({ label: "Types", value: m.contentTypes.join(", ") });
+    return fields;
+  }
+
+  if (type === "admin_procedure") {
+    const p = source as AdminProcedureItem;
+    const fields: EventDialogField[] = [{ label: "Démarche", value: p.label || "—" }];
+    if (p.organisme) fields.push({ label: "Organisme", value: p.organisme });
+    if (p.status) fields.push({ label: "Statut", value: p.status });
+    if (p.notes) fields.push({ label: "Notes", value: p.notes });
+    return fields;
+  }
+
+  if (type === "admin_status_start" || type === "admin_status_end") {
+    const s = source as AdminStatusItem;
+    const fields: EventDialogField[] = [{ label: "Statut", value: s.nom || "—" }];
+    if (s.type) fields.push({ label: "Type", value: s.type });
+    fields.push({ label: "Actif", value: s.actif ? "Oui" : "Non" });
+    if (s.notes) fields.push({ label: "Notes", value: s.notes });
+    return fields;
+  }
+
+  if (type === "edition_event") {
+    const e = source as EditionCalendarItem;
+    const fields: EventDialogField[] = [{ label: "Événement", value: e.title || "—" }];
+    if (typeof e.start === "string") fields.push({ label: "Début", value: e.start });
+    if (typeof e.end === "string") fields.push({ label: "Fin", value: e.end });
+    return fields;
+  }
+
+  if (type === "custom") {
+    const c = source as CustomCalendarItem;
+    const fields: EventDialogField[] = [];
+    const sk = normalizeToDateKey(c.date);
+    const ek = normalizeToDateKey(c.endDate ?? c.date);
+    if (sk && ek && ek !== sk) {
+      fields.push({
+        label: "Période",
+        value: `${formatDateKeyFr(sk)} → ${formatDateKeyFr(ek)}`,
+      });
+    } else if (sk) {
+      fields.push({ label: "Date", value: formatDateKeyFr(sk) });
+    }
+    if (c.time) {
+      const multi = sk && ek && ek !== sk;
+      fields.push({
+        label: multi ? "Début (1er jour)" : "Heure",
+        value: formatTimeForDisplay(c.time),
+      });
+      if (c.endTime) {
+        fields.push({
+          label: multi ? "Fin (dernier jour)" : "Fin",
+          value: formatTimeForDisplay(c.endTime),
+        });
+      }
+    }
+    if (c.place) fields.push({ label: "Lieu", value: c.place });
+    return fields;
+  }
+
+  return [];
+}
+
 export function GlobalCalendarPage() {
+  const posthog = usePostHog();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -573,14 +891,23 @@ export function GlobalCalendarPage() {
     [sectorFilters]
   );
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEventAnchor, setSelectedEventAnchor] = useState<DOMRect | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [newEventName, setNewEventName] = useState("");
   const [newEventDate, setNewEventDate] = useState(() => toDateKey(new Date()));
+  const [newEventEndDate, setNewEventEndDate] = useState(() =>
+    toDateKey(new Date()),
+  );
   const [newEventSector, setNewEventSector] = useState<CalendarSector>("other");
   const [newEventTime, setNewEventTime] = useState("");
+  const [newEventEndTime, setNewEventEndTime] = useState("");
   const [newEventPlace, setNewEventPlace] = useState("");
   const [syncPanelOpen, setSyncPanelOpen] = useState(false);
+  const [calendarView, setCalendarView] = useLocalStorage<CalendarViewMode>(
+    "calendar:view-mode",
+    "month"
+  );
 
   // Si un secteur vient d'être désactivé, on évite de garder une valeur "ancienne"
   // dans le formulaire de création (sinon on peut créer un événement dans un secteur caché).
@@ -607,21 +934,22 @@ export function GlobalCalendarPage() {
     enabledModules.revenus
   ]);
 
-  const [representations] = useLocalStorage<TourDateItem[]>(
-    "live:representations",
-    []
-  );
-  const [rehearsals] = useLocalStorage<RehearsalItem[]>("live:rehearsals", []);
-  const [invoices] = useLocalStorage<InvoiceItem[]>("incomes:invoices", []);
-  const [sessions] = useLocalStorage<SessionItem[]>("phono:sessions-studio", []);
-  const phonoTracks = (sidekickData.phono?.tracks ?? []) as PhonoTrackItem[];
-  const phonoAlbums = (sidekickData.phono?.albums ?? []) as PhonoAlbumItem[];
-  const phonoPodcasts = (sidekickData.phono?.podcasts ?? []) as PhonoPodcastItem[];
+  const { tourDates: representations, rehearsals: liveRehearsals } = useLiveData();
+  const rehearsals = liveRehearsals as unknown as RehearsalItem[];
+  const { invoices } = useIncomesData();
+  const {
+    tracks: phonoTracks,
+    albums: phonoAlbums,
+    podcasts: phonoPodcasts,
+    sessions: phonoSessions
+  } = usePhonoData();
+  const sessions = phonoSessions as unknown as SessionItem[];
   const { customEvents, setCustomEvents, loading: calendarLoading, error: calendarError } = useCalendarData();
-  const tasks = (sidekickData.tasks ?? []) as TaskItem[];
-  const marketingEvents = (sidekickData.marketing.events ?? []) as MarketingItem[];
-  const adminProcedures = (sidekickData.admin.procedures ?? []) as AdminProcedureItem[];
-  const adminStatuses = (sidekickData.admin.statuses ?? []) as AdminStatusItem[];
+  const { tasks } = useTasksData();
+  const { marketingEvents } = useMarketingData();
+  const { statuses, procedures } = useAdminData();
+  const adminProcedures = procedures as unknown as AdminProcedureItem[];
+  const adminStatuses = statuses as unknown as AdminStatusItem[];
   const editionEvents = ((sidekickData.calendar.events ?? []) as EditionCalendarItem[]).filter(
     (event) => event.sector === "edition" || event.module === "edition"
   );
@@ -691,12 +1019,29 @@ export function GlobalCalendarPage() {
     [currentDate]
   );
 
-  const upcomingEvents = useMemo(() => {
-    return filteredEvents
-      .filter((e) => !e.isPast)
-      .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
-      .slice(0, 20);
-  }, [filteredEvents]);
+  const weekRangeLabel = useMemo(() => {
+    const mon = startOfWeekMonday(currentDate);
+    const sun = new Date(mon);
+    sun.setDate(sun.getDate() + 6);
+    const sameMonthYear =
+      mon.getMonth() === sun.getMonth() && mon.getFullYear() === sun.getFullYear();
+    if (sameMonthYear) {
+      return `${mon.getDate()}–${sun.getDate()} ${mon.toLocaleDateString("fr-FR", {
+        month: "long",
+        year: "numeric",
+      })}`;
+    }
+    return `${mon.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
+    })} – ${sun.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })}`;
+  }, [currentDate]);
+
+  const weekMondayKey = useMemo(() => toDateKey(startOfWeekMonday(currentDate)), [currentDate]);
 
   useEffect(() => {
     // Synchronise les filtres avec les modules activés : un module désactivé est toujours masqué.
@@ -728,6 +1073,22 @@ export function GlobalCalendarPage() {
     });
   };
 
+  const goToPreviousWeek = () => {
+    setCurrentDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() - 7);
+      return d;
+    });
+  };
+
+  const goToNextWeek = () => {
+    setCurrentDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + 7);
+      return d;
+    });
+  };
+
   const goToToday = () => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -739,6 +1100,8 @@ export function GlobalCalendarPage() {
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
+
+  const todayDateKey = useMemo(() => toDateKey(today), [today]);
 
   const isToday = (day: number | null) => {
     if (!day) return false;
@@ -752,33 +1115,49 @@ export function GlobalCalendarPage() {
     return toDateKey(d);
   };
 
-  const openEventDialog = (ev: CalendarEvent) => () => setSelectedEvent(ev);
+  const openEventDialog = (ev: CalendarEvent, rect?: DOMRect) => {
+    setSelectedEvent(ev);
+    setSelectedEventAnchor(rect ?? null);
+  };
 
   const openCustomDialogForDate = (dateKey: string) => {
     setEditingEventId(null);
     setNewEventName("");
     setNewEventTime("");
+    setNewEventEndTime("");
     setNewEventPlace("");
     setNewEventSector("other");
     setNewEventDate(dateKey);
+    setNewEventEndDate(dateKey);
     setCustomDialogOpen(true);
   };
 
   const handleDeleteCustomEvent = (eventId: string) => {
-    const customId = eventId.replace(/^custom-/, "");
+    const customId = eventId.replace(/^custom-/, "").split("__")[0];
+    posthog?.capture("event_deleted", { module: "calendar" });
     setCustomEvents((prev) => prev.filter((e) => e.id !== customId));
     setSelectedEvent(null);
   };
 
   const handleEditCustomEvent = (eventId: string) => {
-    const customId = eventId.replace(/^custom-/, "");
+    const customId = eventId.replace(/^custom-/, "").split("__")[0];
     const existing = customEvents.find((e) => e.id === customId);
     if (!existing) return;
     setEditingEventId(customId);
     setNewEventName(existing.title);
     setNewEventDate(existing.date);
+    setNewEventEndDate(existing.endDate ?? existing.date);
     setNewEventSector(existing.sector);
-    setNewEventTime(existing.time ?? "");
+    setNewEventTime(
+      existing.time
+        ? snapTimeToFiveMinuteGrid(existing.time) ?? existing.time.trim()
+        : "",
+    );
+    setNewEventEndTime(
+      existing.endTime
+        ? snapTimeToFiveMinuteGrid(existing.endTime) ?? existing.endTime.trim()
+        : "",
+    );
     setNewEventPlace(existing.place ?? "");
     setSelectedEvent(null);
     setCustomDialogOpen(true);
@@ -786,7 +1165,31 @@ export function GlobalCalendarPage() {
 
   const selectedEventDetails = useMemo(() => {
     if (!selectedEvent) return null;
-    const match = selectedEvent.id.match(
+
+    const albumReleaseMatch = selectedEvent.id.match(/^phono-album-release-(.+)$/);
+    if (albumReleaseMatch) {
+      const id = albumReleaseMatch[1];
+      const source = phonoAlbums.find((a) => String(a.id) === id) ?? null;
+      return { event: selectedEvent, source };
+    }
+    const trackReleaseMatch = selectedEvent.id.match(/^phono-track-release-(.+)$/);
+    if (trackReleaseMatch) {
+      const id = trackReleaseMatch[1];
+      const source = phonoTracks.find((t) => String(t.id) === id) ?? null;
+      return { event: selectedEvent, source };
+    }
+    const podcastReleaseMatch = selectedEvent.id.match(/^phono-podcast-release-(.+)$/);
+    if (podcastReleaseMatch) {
+      const id = podcastReleaseMatch[1];
+      const source = phonoPodcasts.find((p) => String(p.id) === id) ?? null;
+      return { event: selectedEvent, source };
+    }
+
+    const normalizedId = selectedEvent.id.replace(
+      /^admin-procedure-(.+)-\d{4}-\d{2}-\d{2}$/,
+      "admin-procedure-$1"
+    );
+    const match = normalizedId.match(
       /^(live-rep|live-rehearsal|revenus-invoice|phono-session|task|marketing-event|admin-procedure|admin-status-start|admin-status-end|edition-event|custom)-(.+)$/
     );
     if (!match) return { event: selectedEvent, source: null };
@@ -828,7 +1231,9 @@ export function GlobalCalendarPage() {
       return { event: selectedEvent, source };
     }
     if (type === "custom") {
-      const source = customEvents.find((e) => String(e.id) === id) ?? null;
+      const storageId = id.split("__")[0];
+      const source =
+        customEvents.find((e) => String(e.id) === storageId) ?? null;
       return { event: selectedEvent, source };
     }
     return { event: selectedEvent, source: null };
@@ -838,6 +1243,9 @@ export function GlobalCalendarPage() {
     rehearsals,
     invoices,
     sessions,
+    phonoAlbums,
+    phonoTracks,
+    phonoPodcasts,
     tasks,
     marketingEvents,
     adminProcedures,
@@ -868,6 +1276,7 @@ export function GlobalCalendarPage() {
 
   const closeSelectedEventDialog = () => {
     setSelectedEvent(null);
+    setSelectedEventAnchor(null);
     if (!eventFromQuery) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("event");
@@ -917,6 +1326,7 @@ export function GlobalCalendarPage() {
               setEditingEventId(null);
               setNewEventName("");
               setNewEventTime("");
+              setNewEventEndTime("");
               setNewEventPlace("");
               setNewEventSector("other");
               setNewEventDate(toDateKey(currentDate));
@@ -943,7 +1353,7 @@ export function GlobalCalendarPage() {
 
       {/* ── Filtres secteurs ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] uppercase tracking-[0.1em] text-[#F5F5F5]/30 mr-1">
+        <span className="text-[11px] uppercase tracking-[0.1em] text-[#F5F5F5]/55 mr-1">
           Filtres :
         </span>
         {(Object.keys(SECTOR_CONFIG) as CalendarSector[]).map((sector) => {
@@ -980,181 +1390,227 @@ export function GlobalCalendarPage() {
         })}
       </div>
 
-      {/* ── Grille calendrier + liste ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* ── Bannière À venir ───────────────────────────────────────────────── */}
+      <div className="w-full max-w-[908px]">
+        <UpcomingBanner
+          filteredEvents={filteredEvents}
+          onEventClick={(ev, rect) => openEventDialog(ev, rect)}
+          onAddEvent={() => {
+            setEditingEventId(null);
+            setNewEventName("");
+            setNewEventTime("");
+            setNewEventEndTime("");
+            setNewEventPlace("");
+            setNewEventSector("other");
+            setNewEventDate(toDateKey(currentDate));
+            setCustomDialogOpen(true);
+          }}
+        />
+      </div>
 
-        {/* Calendrier mensuel */}
-        <Card className="lg:col-span-2">
+      {/* ── Grille calendrier ──────────────────────────────────────────────── */}
+      <div className="grid w-full max-w-[908px] grid-cols-1 gap-4">
+
+        <Card className="">
           <CardHeader className="border-b border-[rgba(245,245,245,0.08)] py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={goToPreviousMonth}
-                  aria-label="Mois précédent"
-                  className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                  onClick={() => setCalendarView("month")}
+                  className={cn(
+                    "rounded border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.06em] transition-colors",
+                    calendarView === "month"
+                      ? "border-[#F0FF00]/50 bg-[#F0FF00]/10 text-[#F0FF00]"
+                      : "border-[rgba(245,245,245,0.1)] text-[#F5F5F5]/45 hover:text-[#F5F5F5]/70"
+                  )}
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  Mois
                 </button>
-                <span className="min-w-[140px] text-center text-[13px] font-semibold capitalize text-[#F5F5F5]">
-                  {monthLabel}
-                </span>
                 <button
                   type="button"
-                  onClick={goToNextMonth}
-                  aria-label="Mois suivant"
-                  className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                  onClick={() => setCalendarView("week")}
+                  className={cn(
+                    "rounded border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.06em] transition-colors",
+                    calendarView === "week"
+                      ? "border-[#F0FF00]/50 bg-[#F0FF00]/10 text-[#F0FF00]"
+                      : "border-[rgba(245,245,245,0.1)] text-[#F5F5F5]/45 hover:text-[#F5F5F5]/70"
+                  )}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  Semaine
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={goToToday}
-                className="text-[11px] uppercase tracking-[0.08em] text-[#F5F5F5]/40 transition-colors hover:text-[#F0FF00]"
-              >
-                Aujourd'hui
-              </button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {/* Jours de semaine */}
-            <div className="mb-2 grid grid-cols-7 text-center">
-              {WEEKDAYS.map((day) => (
-                <div key={day} className="py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30">
-                  {day}
+              <div className="flex items-center justify-between gap-2 sm:justify-end">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={calendarView === "month" ? goToPreviousMonth : goToPreviousWeek}
+                    aria-label={calendarView === "month" ? "Mois précédent" : "Semaine précédente"}
+                    className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-[160px] text-center text-[13px] font-semibold capitalize text-[#F5F5F5]">
+                    {calendarView === "month" ? monthLabel : weekRangeLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={calendarView === "month" ? goToNextMonth : goToNextWeek}
+                    aria-label={calendarView === "month" ? "Mois suivant" : "Semaine suivante"}
+                    className="flex h-7 w-7 items-center justify-center text-[#F5F5F5]/40 transition-colors hover:text-[#F5F5F5]"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={goToToday}
+                  className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-[#F5F5F5]/40 transition-colors hover:text-[#F0FF00]"
+                >
+                  Aujourd'hui
+                </button>
+              </div>
             </div>
-
-            {/* Grille */}
-            <div className="grid grid-cols-7 gap-px bg-[rgba(245,245,245,0.06)]">
-              {monthMatrix.map((week, weekIndex) =>
-                week.map((day, dayIndex) => {
-                  const dateKey = getDateKeyForDay(day);
-                  const dayEvents = dateKey ? eventsByDateKey[dateKey] ?? [] : [];
-                  const eventCount = dayEvents.length;
-                  const isTodayDay = isToday(day);
-
-                  return (
-                    <div
-                      key={`${weekIndex}-${dayIndex}`}
-                      className={cn(
-                        "flex min-h-[96px] flex-col bg-[#101010] p-1.5 transition-colors",
-                        day ? "cursor-pointer hover:bg-[rgba(245,245,245,0.03)]" : "bg-[rgba(245,245,245,0.02)]",
-                        isTodayDay && "bg-[#F0FF00]/5"
-                      )}
-                      onClick={() => {
-                        if (eventCount === 0 && dateKey) openCustomDialogForDate(dateKey);
-                      }}
-                    >
-                      <span className={cn(
-                        "mb-1 inline-block w-fit text-[11px] font-medium leading-none",
-                        !day && "invisible",
-                        isTodayDay
-                          ? "bg-[#F0FF00] px-1 py-0.5 text-[#101010] font-bold"
-                          : "text-[#F5F5F5]/50"
-                      )}>
-                        {day ?? ""}
-                      </span>
-
-                      {/* Événements — occupent tout l'espace disponible */}
-                      {eventCount > 0 && (() => {
-                        const MAX_VISIBLE = 4;
-                        const visible = dayEvents.slice(0, MAX_VISIBLE);
-                        const overflow = dayEvents.length - MAX_VISIBLE;
-                        return (
-                          <div className="mt-1 flex flex-1 flex-col gap-px overflow-hidden">
-                            {visible.map((ev) => {
-                              const { Icon, iconColor } = SECTOR_CONFIG[ev.sector];
-                              return (
-                                <button
-                                  key={ev.id}
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); openEventDialog(ev)(); }}
-                                  className={cn(
-                                    "flex min-h-0 flex-1 w-full items-start gap-1 px-1.5 py-0.5 text-left transition-colors",
-                                    "bg-[rgba(245,245,245,0.06)] hover:bg-[rgba(245,245,245,0.11)]",
-                                    ev.isPast && "opacity-45"
-                                  )}
-                                >
-                                  <Icon className={cn("mt-[2px] h-2.5 w-2.5 shrink-0", iconColor)} />
-                                  <span className="line-clamp-3 text-[10px] leading-[1.3] text-[#F5F5F5]/75 break-words">{ev.label}</span>
-                                </button>
-                              );
-                            })}
-                            {overflow > 0 && (
-                              <div className="flex items-center px-1.5 text-[10px] text-[#F5F5F5]/30">
-                                +{overflow} autre{overflow > 1 ? "s" : ""}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Prochains événements */}
-        <Card className="h-full">
-          <CardHeader className="border-b border-[rgba(245,245,245,0.08)] py-3">
-            <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#F5F5F5]/60">
-              Prochains événements
-            </CardTitle>
           </CardHeader>
-          <CardContent className="py-3">
-            {upcomingEvents.length === 0 ? (
-              <EmptyState
-                icon={Calendar}
-                title="Aucun événement planifié"
-                description="Ton agenda regroupe automatiquement tes dates de tournée, répétitions, sorties, et événements que tu ajoutes à la main."
-                action={{
-                  label: "Ajouter un événement",
-                  onClick: () => {
-                    setEditingEventId(null);
-                    setNewEventName("");
-                    setNewEventTime("");
-                    setNewEventPlace("");
-                    setNewEventSector("other");
-                    setNewEventDate(toDateKey(currentDate));
-                    setCustomDialogOpen(true);
-                  }
-                }}
-              />
-            ) : (
-              <ul className="divide-y divide-[rgba(245,245,245,0.06)]">
-                {upcomingEvents.map((ev) => {
-                  const [y, m, d] = ev.dateKey.split("-");
-                  const frDate = `${d}/${m}/${y}`;
-                  const { Icon, iconColor } = SECTOR_CONFIG[ev.sector];
-                  return (
-                    <li key={ev.id}>
-                      <button
-                        type="button"
-                        onClick={openEventDialog(ev)}
-                        className={cn(
-                          "flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-[rgba(245,245,245,0.03)]",
-                          ev.isPast && "opacity-50"
-                        )}
-                      >
-                        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-[#F5F5F5]">{ev.label}</p>
-                          <p className="text-[11px] text-[#F5F5F5]/40">{ev.subLabel}</p>
+          <CardContent className={cn(calendarView === "week" ? "pt-3" : "pt-4")}>
+            {calendarView === "month" ? (
+              <>
+                <div className="mb-2 grid grid-cols-7 text-center">
+                  {WEEKDAYS.map((day) => (
+                    <div
+                      key={day}
+                      className="py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30"
+                    >
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-px bg-[rgba(245,245,245,0.06)]">
+                  {monthMatrix.map((week, weekIndex) =>
+                    week.map((day, dayIndex) => {
+                      const dateKey = getDateKeyForDay(day);
+                      const dayEvents = dateKey ? eventsByDateKey[dateKey] ?? [] : [];
+                      const eventCount = dayEvents.length;
+                      const isTodayDay = isToday(day);
+
+                      return (
+                        <div
+                          key={`${weekIndex}-${dayIndex}`}
+                          className={cn(
+                            "flex min-h-[96px] flex-col bg-[#101010] p-1.5 transition-colors",
+                            day
+                              ? "cursor-pointer hover:bg-[rgba(245,245,245,0.03)]"
+                              : "bg-[rgba(245,245,245,0.02)]",
+                            isTodayDay && "bg-[#F0FF00]/5"
+                          )}
+                          onClick={() => {
+                            if (eventCount === 0 && dateKey) openCustomDialogForDate(dateKey);
+                          }}
+                        >
+                          <span
+                            className={cn(
+                              "mb-1 inline-block w-fit text-[11px] font-medium leading-none",
+                              !day && "invisible",
+                              isTodayDay
+                                ? "bg-[#F0FF00] px-1 py-0.5 font-bold text-[#101010]"
+                                : "text-[#F5F5F5]/50"
+                            )}
+                          >
+                            {day ?? ""}
+                          </span>
+
+                          {eventCount > 0 && (() => {
+                            const MAX_VISIBLE = 3;
+                            const visible = dayEvents
+                              .slice()
+                              .sort((a, b) => EVENT_TIER[a.type] - EVENT_TIER[b.type])
+                              .slice(0, MAX_VISIBLE);
+                            const overflow = dayEvents.length - MAX_VISIBLE;
+                            return (
+                              <div className="mt-1 flex flex-1 flex-col gap-px overflow-hidden">
+                                {visible.map((ev) => {
+                                  const { borderClass } = SECTOR_CONFIG[ev.sector];
+                                  const tier = EVENT_TIER[ev.type];
+                                  const glyph = resolveCalendarEventLeadingGlyph(ev);
+                                  return (
+                                    <button
+                                      key={ev.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEventDialog(
+                                          ev,
+                                          e.currentTarget.getBoundingClientRect()
+                                        );
+                                      }}
+                                      className={cn(
+                                        "flex min-h-0 w-full flex-1 items-start gap-1 border-l-2 py-[3px] pl-1.5 pr-1 text-left transition-colors duration-150",
+                                        "bg-[rgba(245,245,245,0.04)] hover:bg-[rgba(245,245,245,0.09)]",
+                                        tier === 1 && "border-l-[3px]",
+                                        borderClass,
+                                        ev.isPast && "opacity-45"
+                                      )}
+                                    >
+                                      {glyph.kind === "icon" ? (
+                                        (() => {
+                                          const LeadingIcon = glyph.Icon;
+                                          return (
+                                            <LeadingIcon
+                                              className={cn(
+                                                "mt-[2px] h-2.5 w-2.5 shrink-0",
+                                                glyph.className,
+                                              )}
+                                            />
+                                          );
+                                        })()
+                                      ) : (
+                                        <span className="mt-[4px] h-1 w-1 shrink-0 rounded-full bg-[rgba(245,245,245,0.25)]" />
+                                      )}
+                                      <span
+                                        className={cn(
+                                          "line-clamp-3 break-words leading-[1.3] text-[#F5F5F5]/80",
+                                          tier === 1
+                                            ? "text-[10.5px] font-semibold"
+                                            : tier === 2
+                                              ? "text-[10px] font-medium"
+                                              : "text-[9.5px] font-normal"
+                                        )}
+                                      >
+                                        {ev.label}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                                {overflow > 0 && (
+                                  <div className="flex items-center pl-1.5 text-[10px] text-[#F5F5F5]/35">
+                                    +{overflow} autre{overflow > 1 ? "s" : ""}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
-                        <span className="shrink-0 text-[11px] text-[#F5F5F5]/40">{frDate}</span>
-                      </button>
-                    </li>
-                  );
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            ) : (
+              <WeekScheduleGrid
+                weekMondayKey={weekMondayKey}
+                todayKey={todayDateKey}
+                events={filteredEvents.filter((ev) => {
+                  const d = daysBetweenDateKeys(ev.dateKey, weekMondayKey);
+                  return d >= 0 && d <= 6;
                 })}
-              </ul>
+                onEventClick={openEventDialog}
+                onEmptyTimedAreaClick={openCustomDialogForDate}
+              />
             )}
           </CardContent>
         </Card>
+
       </div>
 
       {/* Création / Modification d'un événement personnalisé */}
@@ -1173,14 +1629,24 @@ export function GlobalCalendarPage() {
             <DialogDescription>
               {editingEventId
                 ? "Modifie les informations de cet événement."
-                : "Ajoute un événement rapide au calendrier : nom, secteur, heure et lieu."}
+                : "Ajoute un événement : nom, secteur, dates de début et de fin. Sur plusieurs jours avec heures : début le premier jour, fin le dernier jour ; la grille prolonge le créneau sur les jours entre les deux."}
             </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!newEventName.trim() || !newEventDate) return;
+              if (!newEventName.trim() || !newEventDate || !newEventEndDate) return;
+              const start = newEventDate.trim();
+              const end =
+                newEventEndDate.trim() >= start ? newEventEndDate.trim() : start;
+              const endDateField = end !== start ? end : undefined;
+              const nt = normalizeCustomTimesForDateRange({
+                date: start,
+                endDate: endDateField ?? start,
+                time: newEventTime || undefined,
+                endTime: newEventEndTime || undefined,
+              });
               if (editingEventId) {
                 setCustomEvents((prev) =>
                   prev.map((ev) =>
@@ -1188,10 +1654,12 @@ export function GlobalCalendarPage() {
                       ? {
                           ...ev,
                           title: newEventName.trim(),
-                          date: newEventDate,
-                          time: newEventTime || undefined,
+                          date: start,
+                          endDate: endDateField,
+                          time: nt.time,
+                          endTime: nt.endTime,
                           place: newEventPlace || undefined,
-                          sector: newEventSector
+                          sector: newEventSector,
                         }
                       : ev
                   )
@@ -1201,19 +1669,27 @@ export function GlobalCalendarPage() {
                 const item: CustomCalendarItem = {
                   id,
                   title: newEventName.trim(),
-                  date: newEventDate,
-                  time: newEventTime || undefined,
+                  date: start,
+                  endDate: endDateField,
+                  time: nt.time,
+                  endTime: nt.endTime,
                   place: newEventPlace || undefined,
-                  sector: newEventSector
+                  sector: newEventSector,
                 };
+                posthog?.capture("event_created", { module: "calendar" });
+                posthog?.capture("item_created", { module: "calendar" });
                 setCustomEvents((prev) => [...prev, item]);
               }
               setCustomDialogOpen(false);
               setEditingEventId(null);
               setNewEventName("");
               setNewEventTime("");
+              setNewEventEndTime("");
               setNewEventPlace("");
               setNewEventSector("other");
+              const todayIso = toDateKey(new Date());
+              setNewEventDate(todayIso);
+              setNewEventEndDate(todayIso);
             }}
           >
             <div className="space-y-1">
@@ -1228,25 +1704,51 @@ export function GlobalCalendarPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-date">Date</label>
+                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]">
+                  Date de début
+                </label>
                 <DatePicker
                   value={newEventDate}
-                  onChange={(v) => setNewEventDate(v)}
-                  placeholder="Sélectionner une date"
+                  onChange={(v) => {
+                    setNewEventDate(v);
+                    setNewEventEndDate((prev) =>
+                      prev < v ? v : prev,
+                    );
+                  }}
+                  placeholder="Début"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]" htmlFor="custom-time">Heure</label>
-                <input
-                  id="custom-time"
-                  type="time"
-                  className="w-full border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] focus:border-[#F0FF00]/40 focus:outline-none"
-                  value={newEventTime}
-                  onChange={(e) => setNewEventTime(e.target.value)}
+                <label className="text-[12px] font-medium text-[#F5F5F5]/60 uppercase tracking-[0.08em]">
+                  Date de fin
+                </label>
+                <DatePicker
+                  value={newEventEndDate}
+                  onChange={setNewEventEndDate}
+                  placeholder="Fin (inclus)"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
+              <CustomEventHourMinuteRow
+                idPrefix="custom-start"
+                legend="Heure de début (optionnel)"
+                value={newEventTime}
+                onChange={(next) => {
+                  setNewEventTime(next);
+                  if (!next) setNewEventEndTime("");
+                }}
+              />
+              <CustomEventHourMinuteRow
+                idPrefix="custom-end"
+                legend="Fin (optionnel)"
+                value={newEventEndTime}
+                disabled={!newEventTime}
+                onChange={setNewEventEndTime}
+              />
             </div>
 
             <div className="space-y-1">
@@ -1286,6 +1788,11 @@ export function GlobalCalendarPage() {
                 onClick={() => {
                   setCustomDialogOpen(false);
                   setEditingEventId(null);
+                  setNewEventTime("");
+                  setNewEventEndTime("");
+                  const todayIso = toDateKey(new Date());
+                  setNewEventDate(todayIso);
+                  setNewEventEndDate(todayIso);
                 }}
               >
                 Annuler
@@ -1298,381 +1805,28 @@ export function GlobalCalendarPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!selectedEvent}
-        onOpenChange={(open) => !open && closeSelectedEventDialog()}
-      >
-        <DialogContent className="sm:max-w-md">
-          {selectedEventDetails && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white",
-                      SECTOR_CONFIG[selectedEventDetails.event.sector].bgClass
-                    )}
-                  >
-                    {(() => { const Ic = SECTOR_CONFIG[selectedEventDetails.event.sector].Icon; return <Ic className="h-4 w-4" />; })()}
-                  </span>
-                  <div>
-                    <DialogTitle className="text-left">
-                      {selectedEventDetails.event.label}
-                    </DialogTitle>
-                    <DialogDescription className="text-left">
-                      {selectedEventDetails.event.subLabel} ·{" "}
-                      {formatDateKeyToFr(selectedEventDetails.event.dateKey)}
-                      {selectedEventDetails.event.isPast && " (passé)"}
-                    </DialogDescription>
-                  </div>
-                </div>
-              </DialogHeader>
-              <div className="space-y-3 text-sm">
-                <div className="flex flex-wrap gap-1.5">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white",
-                      SECTOR_CONFIG[selectedEventDetails.event.sector].bgClass
-                    )}
-                  >
-                    {(() => { const Ic = SECTOR_CONFIG[selectedEventDetails.event.sector].Icon; return <Ic className="h-3.5 w-3.5" />; })()}
-                    {SECTOR_CONFIG[selectedEventDetails.event.sector].label}
-                  </span>
-                </div>
-
-                {selectedEventDetails.source &&
-                  (() => {
-                    const src = selectedEventDetails.source as
-                      | TourDateItem
-                      | RehearsalItem
-                      | InvoiceItem
-                      | SessionItem
-                      | TaskItem
-                      | MarketingItem
-                      | AdminProcedureItem
-                      | AdminStatusItem
-                      | EditionCalendarItem;
-                    const type = selectedEventDetails.event.type;
-                    if (type === "representation") {
-                      const r = src as TourDateItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Salle :</span>{" "}
-                            {r.venue || "—"}
-                          </p>
-                          <p>
-                            <span className="font-medium">Organisateur :</span>{" "}
-                            {r.organisateur || "—"}
-                          </p>
-                          <p>
-                            <span className="font-medium">Ville :</span>{" "}
-                            {r.city || "—"}
-                          </p>
-                          {r.address && (
-                            <p>
-                              <span className="font-medium">Adresse :</span>{" "}
-                              {r.address}
-                            </p>
-                          )}
-                          {r.status && (
-                            <p>
-                              <span className="font-medium">Statut :</span>{" "}
-                              {r.status}
-                            </p>
-                          )}
-                          {r.timetable && r.timetable.length > 0 && (
-                            <div>
-                              <span className="font-medium">Horaires :</span>
-                              <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted-foreground">
-                                {r.timetable.map((t, i) => (
-                                  <li key={i}>
-                                    {t.time} — {t.activity}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {r.note && (
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Note :</span> {r.note}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "rehearsal") {
-                      const r = src as RehearsalItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Lieu :</span>{" "}
-                            {r.location}
-                          </p>
-                          {r.time && (
-                            <p>
-                              <span className="font-medium">Heure :</span>{" "}
-                              {r.time}
-                            </p>
-                          )}
-                          {r.address && (
-                            <p>
-                              <span className="font-medium">Adresse :</span>{" "}
-                              {r.address}
-                            </p>
-                          )}
-                          {r.note && (
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Note :</span> {r.note}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "invoice") {
-                      const i = src as InvoiceItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">N° facture :</span>{" "}
-                            {i.number}
-                          </p>
-                          <p>
-                            <span className="font-medium">Client :</span>{" "}
-                            {i.client}
-                          </p>
-                          {i.subject && (
-                            <p>
-                              <span className="font-medium">Objet :</span>{" "}
-                              {i.subject}
-                            </p>
-                          )}
-                          {i.amount && (
-                            <p>
-                              <span className="font-medium">Montant :</span>{" "}
-                              {i.amount.includes("€") ? i.amount : `${i.amount} €`}
-                            </p>
-                          )}
-                          <p>
-                            <span className="font-medium">Échéance :</span>{" "}
-                            {i.dueDate}
-                          </p>
-                          {i.status && (
-                            <p>
-                              <span className="font-medium">Statut :</span>{" "}
-                              {i.status === "payee" ? "Payée" : "En attente"}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "session") {
-                      const s = src as SessionItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Titre :</span>{" "}
-                            {s.title}
-                          </p>
-                          <p>
-                            <span className="font-medium">Lieu :</span>{" "}
-                            {s.location}
-                          </p>
-                          {s.time && (
-                            <p>
-                              <span className="font-medium">Heure :</span>{" "}
-                              {s.time}
-                            </p>
-                          )}
-                          {s.sessionType && (
-                            <p>
-                              <span className="font-medium">Type :</span>{" "}
-                              {s.sessionType}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "task_deadline") {
-                      const t = src as TaskItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Tâche :</span>{" "}
-                            {t.title || "—"}
-                          </p>
-                          <p>
-                            <span className="font-medium">Statut :</span>{" "}
-                            {t.done ? "Terminée" : "À faire"}
-                          </p>
-                          {t.description && (
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Description :</span>{" "}
-                              {t.description}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "marketing_content") {
-                      const m = src as MarketingItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Titre :</span>{" "}
-                            {m.title || "—"}
-                          </p>
-                          {m.status && (
-                            <p>
-                              <span className="font-medium">Statut :</span>{" "}
-                              {m.status}
-                            </p>
-                          )}
-                          {Array.isArray(m.platforms) && m.platforms.length > 0 && (
-                            <p>
-                              <span className="font-medium">Plateformes :</span>{" "}
-                              {m.platforms.join(", ")}
-                            </p>
-                          )}
-                          {Array.isArray(m.contentTypes) && m.contentTypes.length > 0 && (
-                            <p>
-                              <span className="font-medium">Types :</span>{" "}
-                              {m.contentTypes.join(", ")}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "admin_procedure") {
-                      const p = src as AdminProcedureItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Démarche :</span>{" "}
-                            {p.label || "—"}
-                          </p>
-                          {p.organisme && (
-                            <p>
-                              <span className="font-medium">Organisme :</span>{" "}
-                              {p.organisme}
-                            </p>
-                          )}
-                          {p.status && (
-                            <p>
-                              <span className="font-medium">Statut :</span>{" "}
-                              {p.status}
-                            </p>
-                          )}
-                          {p.notes && (
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Notes :</span> {p.notes}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "admin_status_start" || type === "admin_status_end") {
-                      const s = src as AdminStatusItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Statut :</span>{" "}
-                            {s.nom || "—"}
-                          </p>
-                          {s.type && (
-                            <p>
-                              <span className="font-medium">Type :</span>{" "}
-                              {s.type}
-                            </p>
-                          )}
-                          <p>
-                            <span className="font-medium">Actif :</span>{" "}
-                            {s.actif ? "Oui" : "Non"}
-                          </p>
-                          {s.notes && (
-                            <p className="text-muted-foreground">
-                              <span className="font-medium">Notes :</span> {s.notes}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    if (type === "edition_event") {
-                      const e = src as EditionCalendarItem;
-                      return (
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                          <p>
-                            <span className="font-medium">Événement :</span>{" "}
-                            {e.title || "—"}
-                          </p>
-                          {typeof e.start === "string" && (
-                            <p>
-                              <span className="font-medium">Début :</span>{" "}
-                              {e.start}
-                            </p>
-                          )}
-                          {typeof e.end === "string" && (
-                            <p>
-                              <span className="font-medium">Fin :</span>{" "}
-                              {e.end}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                {selectedEventDetails.event.type === "custom" &&
-                  selectedEventDetails.source &&
-                  (() => {
-                    const c = selectedEventDetails.source as CustomCalendarItem;
-                    return (
-                      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                        {c.time && (
-                          <p>
-                            <span className="font-medium">Heure :</span> {c.time}
-                          </p>
-                        )}
-                        {c.place && (
-                          <p>
-                            <span className="font-medium">Lieu :</span> {c.place}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                {selectedEventDetails.event.type === "custom" && (
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        handleEditCustomEvent(selectedEventDetails.event.id)
-                      }
-                    >
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                      Modifier
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() =>
-                        handleDeleteCustomEvent(selectedEventDetails.event.id)
-                      }
-                    >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      Supprimer
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedEventDetails && (() => {
+        const ev = selectedEventDetails.event;
+        const cta = ev.type !== "custom" ? (EVENT_CTA[ev.type] ?? null) : null;
+        const fields = buildCalendarEventFields(ev.type, selectedEventDetails.source);
+        return (
+          <EventDialog
+            open={!!selectedEvent}
+            onClose={closeSelectedEventDialog}
+            title={ev.label}
+            subLabel={ev.subLabel ?? ""}
+            dateKey={ev.dateKey}
+            sector={ev.sector}
+            isPast={ev.isPast}
+            fields={fields}
+            ctaLabel={cta?.label}
+            ctaHref={cta?.href}
+            onEdit={ev.type === "custom" ? () => handleEditCustomEvent(ev.id) : undefined}
+            onDelete={ev.type === "custom" ? () => handleDeleteCustomEvent(ev.id) : undefined}
+            anchorRect={selectedEventAnchor}
+          />
+        );
+      })()}
     </div>
   )
 }

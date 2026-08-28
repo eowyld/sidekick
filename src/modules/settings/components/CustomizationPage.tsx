@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePostHog } from "posthog-js/react";
 
 const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: string }[] = [
   {
@@ -50,6 +51,7 @@ type EnabledModules = {
 
 export function CustomizationPage() {
   const { data, setData } = useSidekickData();
+  const posthog = usePostHog();
   const enabled = useMemo(
     () => data.preferences?.enabledModules ?? ({} as EnabledModules),
     [data.preferences?.enabledModules]
@@ -66,6 +68,7 @@ export function CustomizationPage() {
         }
       }
     }));
+    posthog?.capture("module_visibility_updated", { module: "settings" });
   };
 
   return (

@@ -1,159 +1,158 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Download, CheckCircle, ChevronDown, ChevronRight, Receipt } from "lucide-react";
+  ArrowRight,
+  Plus,
+  Pencil,
+  Trash2,
+  Download,
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  Receipt,
+  Folder,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useIncomesData, type Invoice as InvoiceFromHook } from "@/hooks/useIncomesData";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useAdminData } from "@/hooks/useAdminData";
+import { useIncomesData, type Invoice } from "@/hooks/useIncomesData";
+import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
+import { DEFAULT_INVOICE_TEMPLATE } from "@/lib/sidekick-store";
+import { formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
+import { InvoiceDocument, type InvoiceDocumentData } from "./pdf/InvoiceDocument";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
-import { DatePicker } from "@/components/ui/date-picker";
-
-type InvoiceStatus = "en_attente" | "payee";
-
-const INCOME_TYPES = ["Live", "Phono", "Edition", "Merchandising", "Autre"] as const;
-type IncomeType = (typeof INCOME_TYPES)[number];
-
-const LINE_TYPES = ["service", "vente de marchandise"] as const;
-type LineType = (typeof LINE_TYPES)[number];
-
-type InvoiceLine = {
-  id: number;
-  description: string;
-  type: LineType;
-  quantity: string;
-  unitPrice: string;
-  vatPercent: string;
-};
-
-type Invoice = InvoiceFromHook;
-
-
-function frToIso(frDate: string): string {
-  if (!frDate) return "";
-  const parts = frDate.split("/");
-  if (parts.length !== 3) return frDate;
-  const [day, month, year] = parts;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-}
-
-function isoToFr(isoDate: string): string {
-  if (!isoDate) return "";
-  const parts = isoDate.split("-");
-  if (parts.length !== 3) return isoDate;
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
-
-function parseFrDate(frDate: string): Date | null {
-  if (!frDate) return null;
-  const parts = frDate.split("/");
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts;
-  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
-  return isNaN(date.getTime()) ? null : date;
-}
-
-function isOverdue(inv: Invoice): boolean {
-  if (inv.status !== "en_attente" || !inv.dueDate) return false;
-  const due = parseFrDate(inv.dueDate);
-  if (!due) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  due.setHours(0, 0, 0, 0);
-  return due < today;
-}
-
-function parseAmount(s: string): number {
-  const n = parseFloat(String(s || "0").replace(",", ".").replace(/\s/g, ""));
-  return Number.isNaN(n) ? 0 : n;
-}
-
-function computeTotals(lines: InvoiceLine[]): { totalHT: number; totalTTC: number } {
-  let totalHT = 0;
-  let totalTTC = 0;
-  for (const line of lines) {
-    const qty = parseAmount(line.quantity);
-    const pu = parseAmount(line.unitPrice);
-    const vat = parseAmount(line.vatPercent);
-    const ht = qty * pu;
-    totalHT += ht;
-    totalTTC += ht * (1 + vat / 100);
-  }
-  return { totalHT, totalTTC };
-}
-
-function formatMoney(n: number): string {
-  return n.toFixed(2).replace(".", ",");
-}
-
-function getNextInvoiceNumber(invoices: Invoice[]): string {
-  const year = new Date().getFullYear();
-  let maxNum = 0;
-  for (const inv of invoices) {
-    const match = inv.number.match(/-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1], 10);
-      if (!Number.isNaN(n)) maxNum = Math.max(maxNum, n);
-    }
-  }
-  const next = maxNum + 1;
-  return `FAC-${year}-${String(next).padStart(3, "0")}`;
-}
+import { cn } from "@/lib/utils";
+import { computeTotals, formatMoney, isOverdue, isoToFr, mergeEncaissementDate, parseAmount } from "./invoice-utils";
 
 export function InvoicesPage() {
+  const router = useRouter();
+  const posthog = usePostHog();
   const { invoices, setInvoices, loading, error } = useIncomesData();
+  const { statuses, loading: adminLoading } = useAdminData();
+  const { projects } = useProjectsData();
+  const projectsMap = Object.fromEntries(projects.map((p) => [p.id, p]));
+  const { data: sidekickData } = useSidekickData();
+  const [savedClients] = useLocalStorage<{ id: string; name: string; address: string; siret: string; vatNumber?: string; email?: string; phone?: string; extraInfo?: string }[]>("incomes:invoice-clients", []);
+  const [invoiceStatusScopeMap, setInvoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
+    "incomes:invoice-status-scope-map",
+    {}
+  );
+  const [selectedStatusId, setSelectedStatusId] = useLocalStorage<string | null>(
+    "incomes:selected-billing-status",
+    null
+  );
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [openSections, setOpenSections] = useState<{ en_attente: boolean; payees: boolean }>({
     en_attente: true,
-    payees: false
+    payees: false,
   });
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const [form, setForm] = useState<{
-    number: string;
-    client: string;
-    address: string;
-    siret: string;
-    subject: string;
-    dueDate: string;
-    status: InvoiceStatus;
-    incomeType: IncomeType;
-    lines: InvoiceLine[];
-    notes: string;
-  }>({
-    number: "",
-    client: "",
-    address: "",
-    siret: "",
-    subject: "",
-    dueDate: "",
-    status: "en_attente",
-    incomeType: "Live",
-    lines: [{ id: 1, description: "", type: "service", quantity: "1", unitPrice: "", vatPercent: "0" }],
-    notes: ""
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const availableStatuses = statuses;
+  const hasMultipleStatuses = availableStatuses.length > 1;
+  const singleStatus = availableStatuses.length === 1 ? availableStatuses[0] : null;
+  const effectiveStatusId = hasMultipleStatuses
+    ? (selectedStatusId && availableStatuses.some((s) => s.id === selectedStatusId)
+      ? selectedStatusId
+      : (availableStatuses[0]?.id ?? null))
+    : singleStatus?.id ?? null;
+  useEffect(() => {
+    if (hasMultipleStatuses && effectiveStatusId && selectedStatusId !== effectiveStatusId) {
+      setSelectedStatusId(effectiveStatusId);
+    }
+  }, [effectiveStatusId, hasMultipleStatuses, selectedStatusId, setSelectedStatusId]);
+
+  // Toujours lier chaque facture à un statut Admin : avec un seul statut, on force la liaison
+  // pour que l’ajout ultérieur d’un 2e statut ne fasse pas « disparaître » l’historique.
+  useEffect(() => {
+    if (adminLoading || availableStatuses.length !== 1 || !singleStatus) return;
+    const onlyId = singleStatus.id;
+    setInvoiceStatusScopeMap((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const inv of invoices) {
+        if (next[inv.id] !== onlyId) {
+          next[inv.id] = onlyId;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [adminLoading, invoices, setInvoiceStatusScopeMap, singleStatus?.id]);
+
+  // Plusieurs statuts : factures sans liaison (anciennes données) → rattacher au 1er statut (tri nom Admin).
+  useEffect(() => {
+    if (adminLoading || availableStatuses.length < 2) return;
+    const fallbackId = availableStatuses[0]?.id;
+    if (!fallbackId) return;
+    setInvoiceStatusScopeMap((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const inv of invoices) {
+        const cur = next[inv.id];
+        if (cur == null || cur === "") {
+          next[inv.id] = fallbackId;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [adminLoading, availableStatuses, invoices, setInvoiceStatusScopeMap]);
+
+  const resolveInvoiceBillingStatusId = (invoiceId: string): string | null => {
+    const mapped = invoiceStatusScopeMap[invoiceId];
+    if (mapped) return mapped;
+    if (availableStatuses.length === 1) return availableStatuses[0]?.id ?? null;
+    return null;
+  };
+
+  const scopedInvoices = invoices.filter((invoice) => {
+    if (!effectiveStatusId) return true;
+    const scopedStatusId = resolveInvoiceBillingStatusId(invoice.id);
+    if (!scopedStatusId) return false;
+    return scopedStatusId === effectiveStatusId;
   });
 
-  const pendingInvoices = invoices.filter((i) => i.status === "en_attente");
-  const paidInvoices = invoices.filter((i) => i.status === "payee");
+  const pendingInvoices = scopedInvoices
+    .filter((i) => i.status === "en_attente")
+    .filter((i) => {
+      if (!normalizedSearch) return true;
+      return (
+        i.number.toLowerCase().includes(normalizedSearch) ||
+        i.client.toLowerCase().includes(normalizedSearch) ||
+        (i.subject ?? "").toLowerCase().includes(normalizedSearch)
+      );
+    });
+  const paidInvoices = scopedInvoices
+    .filter((i) => i.status === "payee")
+    .filter((i) => {
+      if (!normalizedSearch) return true;
+      return (
+        i.number.toLowerCase().includes(normalizedSearch) ||
+        i.client.toLowerCase().includes(normalizedSearch) ||
+        (i.subject ?? "").toLowerCase().includes(normalizedSearch)
+      );
+    });
 
   const getInvoiceAmount = (inv: Invoice): number => {
     if (inv.lines && inv.lines.length > 0) return computeTotals(inv.lines).totalTTC;
@@ -166,203 +165,76 @@ export function InvoicesPage() {
     setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const openAdd = () => {
-    const nextNumber = getNextInvoiceNumber(invoices);
-    setForm({
-      number: nextNumber,
-      client: "",
-      address: "",
-      siret: "",
-      subject: "",
-      dueDate: "",
-      status: "en_attente",
-      incomeType: "Live",
-      lines: [{ id: Date.now(), description: "", type: "service", quantity: "1", unitPrice: "", vatPercent: "0" }],
-      notes: ""
-    });
-    setEditingId(null);
-    setDialogOpen(true);
-  };
-
-  const openEdit = (inv: Invoice) => {
-    const lines = (inv.lines && inv.lines.length > 0) ? inv.lines : [{ id: Date.now(), description: "", type: "service" as const, quantity: "1", unitPrice: "", vatPercent: "0" }];
-    setForm({
-      number: inv.number,
-      client: inv.client,
-      address: inv.address ?? "",
-      siret: inv.siret ?? "",
-      subject: inv.subject ?? "",
-      dueDate: inv.dueDate ? frToIso(inv.dueDate) : "",
-      status: inv.status,
-      incomeType: (inv.incomeType ?? "Live") as IncomeType,
-      lines,
-      notes: inv.notes ?? ""
-    });
-    setEditingId(inv.id);
-    setDialogOpen(true);
-  };
-
-  const addLine = () => {
-    setForm((prev) => ({
-      ...prev,
-      lines: [
-        ...prev.lines,
-        { id: Date.now(), description: "", type: "service", quantity: "1", unitPrice: "", vatPercent: "0" }
-      ]
-    }));
-  };
-
-  const removeLine = (lineId: number) => {
-    setForm((prev) => ({
-      ...prev,
-      lines: prev.lines.filter((l) => l.id !== lineId).length > 0 ? prev.lines.filter((l) => l.id !== lineId) : [{ id: Date.now(), description: "", type: "service", quantity: "1", unitPrice: "", vatPercent: "0" }]
-    }));
-  };
-
-  const updateLine = (lineId: number, field: keyof InvoiceLine, value: string | LineType) => {
-    setForm((prev) => ({
-      ...prev,
-      lines: prev.lines.map((l) => (l.id === lineId ? { ...l, [field]: value } : l))
-    }));
-  };
-
-  const saveInvoice = () => {
-    const number = form.number.trim();
-    const client = form.client.trim();
-    const subject = form.subject.trim();
-    const dueDate = form.dueDate.trim() ? isoToFr(form.dueDate.trim()) : "";
-    const lines = form.lines.filter((l) => l.description.trim() || parseAmount(l.unitPrice) > 0);
-    const { totalTTC } = computeTotals(lines);
-    const existingAmount = editingId !== null ? invoices.find((i) => i.id === editingId)?.amount : null;
-    const amount = lines.length > 0 ? formatMoney(totalTTC) : (existingAmount ?? "0,00");
-
-    if (!number || !client) return;
-
-    const payload = {
-      number,
-      client,
-      subject,
-      dueDate,
-      status: form.status,
-      amount,
-      address: form.address.trim() || undefined,
-      siret: form.siret.trim() || undefined,
-      incomeType: form.incomeType,
-      lines: lines.length > 0 ? lines : undefined,
-      notes: form.notes.trim() || undefined
-    };
-
-    if (editingId !== null) {
-      setInvoices((prev) =>
-        prev.map((inv) => (inv.id === editingId ? { ...inv, ...payload } : inv))
-      );
-    } else {
-      setInvoices((prev) => [...prev, { id: crypto.randomUUID(), ...payload }]);
-    }
-    setDialogOpen(false);
-  };
-
   const deleteInvoice = (id: string) => {
     setInvoices((prev) => prev.filter((i) => i.id !== id));
+    setInvoiceStatusScopeMap((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     setDeleteConfirmId(null);
   };
 
   const markAsPaid = (id: string) => {
     setInvoices((prev) =>
       prev.map((inv) =>
-        inv.id === id ? { ...inv, status: "payee" as const } : inv
+        inv.id === id ? mergeEncaissementDate(inv, { ...inv, status: "payee" }) : inv
       )
     );
   };
 
-  const downloadInvoice = (inv: Invoice) => {
+  const downloadInvoice = async (inv: Invoice) => {
     if (typeof window === "undefined") return;
-    const { jsPDF } = require("jspdf") as typeof import("jspdf");
-    const doc = new jsPDF();
-    const lines = inv.lines && inv.lines.length > 0 ? inv.lines : [];
-    const { totalHT, totalTTC } = lines.length > 0 ? computeTotals(lines) : { totalHT: parseAmount(inv.amount), totalTTC: parseAmount(inv.amount) };
-    const statusLabel = inv.status === "payee" ? "Payée" : isOverdue(inv) ? "En retard" : "En attente";
+    const { pdf } = await import("@react-pdf/renderer");
 
-    let y = 15;
-    doc.setFontSize(18);
-    doc.text(`Facture ${inv.number}`, 10, y);
-    y += 10;
-    doc.setFontSize(11);
-    doc.text(`Client : ${inv.client}`, 10, y);
-    y += 6;
-    if (inv.address) {
-      doc.text(`Adresse : ${inv.address}`, 10, y);
-      y += 6;
-    }
-    if (inv.siret) {
-      doc.text(`SIRET : ${inv.siret}`, 10, y);
-      y += 6;
-    }
-    y += 4;
-    doc.text(`Objet : ${inv.subject || "—"}`, 10, y);
-    y += 6;
-    doc.text(`Date d'échéance : ${inv.dueDate || "—"}`, 10, y);
-    y += 6;
-    doc.text(`Statut : ${statusLabel}`, 10, y);
-    y += 6;
-    doc.text(`Type de revenu : ${inv.incomeType || "—"}`, 10, y);
-    y += 10;
+    const statusId = resolveInvoiceBillingStatusId(inv.id);
+    const status = statuses.find((s) => s.id === statusId) ?? statuses[0];
+    const profile = (status?.data?.profile ?? {}) as Record<string, string>;
+    const template = sidekickData.preferences.invoiceTemplate ?? DEFAULT_INVOICE_TEMPLATE;
 
-    if (lines.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.text("Détail des lignes", 10, y);
-      y += 6;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const colW = [60, 25, 15, 22, 15, 25];
-      doc.text("Description", 10, y);
-      doc.text("Type", 72, y);
-      doc.text("Qté", 100, y);
-      doc.text("Prix unit.", 117, y);
-      doc.text("TVA %", 142, y);
-      doc.text("Total HT", 160, y);
-      y += 5;
-      for (const line of lines) {
-        const qty = parseAmount(line.quantity);
-        const pu = parseAmount(line.unitPrice);
-        const vat = parseAmount(line.vatPercent);
-        const lineHT = qty * pu;
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.text(line.description.slice(0, 35) || "—", 10, y);
-        doc.text(line.type === "service" ? "Service" : "Vente", 72, y);
-        doc.text(line.quantity, 100, y);
-        doc.text(line.unitPrice, 117, y);
-        doc.text(line.vatPercent + " %", 142, y);
-        doc.text(formatMoney(lineHT) + " €", 160, y);
-        y += 5;
-      }
-      y += 5;
-      doc.setFont("helvetica", "bold");
-      doc.text("Montant total HT : " + formatMoney(totalHT) + " €", 10, y);
-      y += 6;
-      doc.text("Montant total TTC : " + formatMoney(totalTTC) + " €", 10, y);
-      y += 10;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-    } else {
-      doc.text("Montant : " + inv.amount + " €", 10, y);
-      y += 10;
-    }
+    const savedClient = savedClients.find(
+      (c) => c.name === inv.client && c.address === (inv.address ?? "") && c.siret === (inv.siret ?? "")
+    );
 
-    if (inv.notes) {
-      doc.text("Notes :", 10, y);
-      y += 5;
-      const noteLines = doc.splitTextToSize(inv.notes, 180);
-      doc.text(noteLines, 10, y);
-    }
+    const docData: InvoiceDocumentData = {
+      number: inv.number,
+      client: inv.client,
+      clientAddress: inv.address || undefined,
+      clientSiret: inv.siret || undefined,
+      clientVatNumber: savedClient?.vatNumber || undefined,
+      clientEmail: savedClient?.email || undefined,
+      clientPhone: savedClient?.phone || undefined,
+      clientExtraInfo: savedClient?.extraInfo || undefined,
+      subject: inv.subject || undefined,
+      dueDate: inv.dueDate || undefined,
+      status: inv.status,
+      incomeType: inv.incomeType,
+      lines: inv.lines ?? [],
+      notes: inv.notes || undefined,
+      issuer: {
+        name: status?.nom ?? "Mon activité",
+        addressLines: formatStatusAddressLines(profile),
+        siret: profile.siret || undefined,
+        vatNumber: profile.vatNumber || undefined,
+        iban: profile.iban || undefined,
+        bic: profile.bic || undefined,
+      },
+      template,
+    };
 
-    doc.save(`facture-${inv.number.replace(/\s/g, "-")}.pdf`);
+    const blob = await pdf(<InvoiceDocument data={docData} />).toBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${inv.number.replace(/[^\w.-]+/g, "_")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    posthog?.capture("invoice_downloaded", { module: "incomes" });
   };
 
-  if (loading) return <PageLoader />;
+  if (loading || adminLoading) return <PageLoader />;
   if (error) return (
     <PageError
       title="Impossible de charger tes factures"
@@ -372,56 +244,146 @@ export function InvoicesPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="mb-1 text-2xl font-semibold tracking-tight">
-            Facturation
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gestion des factures : en attente et payées.
+          <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40">
+            Revenus
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-[#F5F5F5]">Facturation</h1>
+          <p className="mt-1 text-sm text-[#F5F5F5]/60">
+            Suis tes factures en attente, en retard et payées.
           </p>
         </div>
-        <Button onClick={openAdd}>
+        <Button
+          onClick={() => {
+            const query = effectiveStatusId ? `?billingStatus=${effectiveStatusId}` : "";
+            router.push(`/incomes/facturation/nouvelle${query}`);
+          }}
+          size="sm"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Nouvelle facture
         </Button>
       </div>
 
-      {/* Récap */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-md border bg-muted/30 px-4 py-3">
-          <p className="text-xs font-medium uppercase text-muted-foreground">
-            Revenu total (payé)
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/50">
+            Statut utilisé
           </p>
-          <p className="text-xl font-semibold">{formatMoney(totalPaid)} €</p>
-        </div>
-        <div className="rounded-md border bg-muted/30 px-4 py-3">
-          <p className="text-xs font-medium uppercase text-muted-foreground">
-            En attente
-          </p>
-          <p className="text-xl font-semibold">{formatMoney(totalPending)} €</p>
-        </div>
+          <div className="flex min-w-0 items-center justify-end gap-1.5">
+            {singleStatus ? (
+              <p className="min-w-0 truncate text-xs font-medium text-[#F5F5F5]">{singleStatus.nom}</p>
+            ) : hasMultipleStatuses ? (
+              <Select
+                value={effectiveStatusId ?? undefined}
+                onValueChange={(value) => setSelectedStatusId(value)}
+              >
+                <SelectTrigger className="h-7 w-[min(280px,100%)] max-w-full text-xs">
+                  <SelectValue placeholder="Sélectionner un statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableStatuses.map((status) => (
+                    <SelectItem key={status.id} value={status.id}>
+                      {status.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="min-w-0 text-xs text-[#F5F5F5]/60">Aucun statut disponible dans Admin.</p>
+            )}
+            <Link
+              href="/admin"
+              aria-label="Gérer les statuts (Admin)"
+              className={cn(
+                "inline-flex size-5 shrink-0 items-center justify-center rounded-sm",
+                "bg-[#F0FF00] text-[#0d0d0d]",
+                "transition-[color,background-color,box-shadow] duration-200 hover:bg-[#F0FF00]/90",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0FF00]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]",
+              )}
+            >
+              <ArrowRight className="size-2.5 shrink-0" strokeWidth={2.5} aria-hidden />
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/45">
+              Total encaissé
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold text-[#F0FF00]">{formatMoney(totalPaid)} €</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/45">
+              En attente
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold text-[#F0FF00]/70">{formatMoney(totalPending)} €</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/45">
+              En retard
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold text-red-400">
+              {scopedInvoices.filter((invoice) => isOverdue(invoice)).length}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
+      {scopedInvoices.length > 0 && (
+        <div className="flex items-center justify-between gap-3 border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)] px-4 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40">
+            {scopedInvoices.length} facture{scopedInvoices.length > 1 ? "s" : ""}
+          </span>
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher client, numéro, objet..."
+            className="h-8 w-full max-w-[280px] text-xs"
+            aria-label="Rechercher dans les factures"
+          />
+        </div>
+      )}
+
       {/* État vide global */}
-      {invoices.length === 0 && (
+      {scopedInvoices.length === 0 && (
         <EmptyState
           icon={Receipt}
           title="Aucune facture émise"
           description="Émets, suis et archive tes factures : cachets, prestations, royalties. Relances et paiements en un coup d'œil."
-          action={{ label: "Créer une facture", onClick: openAdd }}
+          action={{
+            label: "Créer une facture",
+            onClick: () => {
+              const query = effectiveStatusId ? `?billingStatus=${effectiveStatusId}` : "";
+              router.push(`/incomes/facturation/nouvelle${query}`);
+            },
+          }}
         />
       )}
 
       {/* Sections déroulantes */}
-      {invoices.length > 0 && <div className="space-y-2">
+      {scopedInvoices.length > 0 && <div className="space-y-3">
         {/* En attente */}
-        <div className="rounded-md border">
+        <Card className="overflow-hidden">
           <button
             type="button"
             onClick={() => toggleSection("en_attente")}
-            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50"
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-[rgba(245,245,245,0.04)]"
           >
             <span className="flex items-center gap-2">
               {openSections.en_attente ? (
@@ -438,16 +400,16 @@ export function InvoicesPage() {
             </span>
           </button>
           {openSections.en_attente && (
-            <div className="border-t">
+            <div className="border-t border-[rgba(245,245,245,0.08)]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left font-medium">N° facture</th>
-                    <th className="px-4 py-3 text-left font-medium">Client</th>
-                    <th className="px-4 py-3 text-left font-medium">Objet</th>
-                    <th className="px-4 py-3 text-left font-medium">Montant</th>
-                    <th className="px-4 py-3 text-left font-medium">Date d&apos;échéance</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <tr className="border-b border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)]">
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">N° facture</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Client</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Objet</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Montant</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Échéance</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -462,17 +424,34 @@ export function InvoicesPage() {
                         const overdue = isOverdue(inv);
                         const displayAmount = inv.lines && inv.lines.length > 0 ? formatMoney(computeTotals(inv.lines).totalTTC) : inv.amount;
                         return (
-                      <tr key={inv.id} className={`border-b last:border-0 hover:bg-muted/30 ${overdue ? "bg-red-50" : ""}`}>
+                      <tr
+                        key={inv.id}
+                        className={cn(
+                          "border-b border-[rgba(245,245,245,0.06)] last:border-0 hover:bg-[rgba(245,245,245,0.03)]",
+                          overdue && "bg-[rgba(220,38,38,0.08)]"
+                        )}
+                      >
                         <td className="px-4 py-3 font-medium">{inv.number}</td>
                         <td className="px-4 py-3">{inv.client}</td>
-                        <td className="px-4 py-3">{inv.subject || "—"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span>{inv.subject || "—"}</span>
+                            {inv.projectId && projectsMap[inv.projectId] && (
+                              <Link
+                                href={`/projects/${inv.projectId}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[rgba(240,255,0,0.12)] text-[#F0FF00] border border-[rgba(240,255,0,0.25)] hover:bg-[rgba(240,255,0,0.2)] transition-colors shrink-0"
+                                title={`Projet : ${projectsMap[inv.projectId].title}`}
+                              >
+                                <Folder size={9} /> {projectsMap[inv.projectId].title}
+                              </Link>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">{displayAmount} €</td>
                         <td className="px-4 py-3">
                           {inv.dueDate || "—"}
                           {overdue && (
-                            <span className="ml-2 inline-block rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                              En retard
-                            </span>
+                            <Badge variant="destructive" className="ml-2">En retard</Badge>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -480,14 +459,23 @@ export function InvoicesPage() {
                             <Button variant="ghost" size="sm" title="Télécharger" onClick={() => downloadInvoice(inv)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEdit(inv)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Modifier"
+                              onClick={() => {
+                                const scoped = invoiceStatusScopeMap[inv.id] ?? effectiveStatusId;
+                                const query = scoped ? `?billingStatus=${scoped}` : "";
+                                router.push(`/incomes/facturation/${inv.id}${query}`);
+                              }}
+                            >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               title="Marquer payée"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              className="text-emerald-300 hover:bg-emerald-900/30 hover:text-emerald-200"
                               onClick={() => markAsPaid(inv.id)}
                             >
                               <CheckCircle className="h-3.5 w-3.5" />
@@ -511,14 +499,14 @@ export function InvoicesPage() {
               </table>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Payées */}
-        <div className="rounded-md border">
+        <Card className="overflow-hidden">
           <button
             type="button"
             onClick={() => toggleSection("payees")}
-            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50"
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-[rgba(245,245,245,0.04)]"
           >
             <span className="flex items-center gap-2">
               {openSections.payees ? (
@@ -535,16 +523,16 @@ export function InvoicesPage() {
             </span>
           </button>
           {openSections.payees && (
-            <div className="border-t">
+            <div className="border-t border-[rgba(245,245,245,0.08)]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left font-medium">N° facture</th>
-                    <th className="px-4 py-3 text-left font-medium">Client</th>
-                    <th className="px-4 py-3 text-left font-medium">Objet</th>
-                    <th className="px-4 py-3 text-left font-medium">Montant</th>
-                    <th className="px-4 py-3 text-left font-medium">Date d&apos;échéance</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <tr className="border-b border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)]">
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">N° facture</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Client</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Objet</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Montant</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Date d&apos;encaissement</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/45">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -558,18 +546,42 @@ export function InvoicesPage() {
                     paidInvoices.map((inv) => {
                         const displayAmount = inv.lines && inv.lines.length > 0 ? formatMoney(computeTotals(inv.lines).totalTTC) : inv.amount;
                         return (
-                      <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <tr key={inv.id} className="border-b border-[rgba(245,245,245,0.06)] last:border-0 hover:bg-[rgba(245,245,245,0.03)]">
                         <td className="px-4 py-3 font-medium">{inv.number}</td>
                         <td className="px-4 py-3">{inv.client}</td>
-                        <td className="px-4 py-3">{inv.subject || "—"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span>{inv.subject || "—"}</span>
+                            {inv.projectId && projectsMap[inv.projectId] && (
+                              <Link
+                                href={`/projects/${inv.projectId}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[rgba(240,255,0,0.12)] text-[#F0FF00] border border-[rgba(240,255,0,0.25)] hover:bg-[rgba(240,255,0,0.2)] transition-colors shrink-0"
+                                title={`Projet : ${projectsMap[inv.projectId].title}`}
+                              >
+                                <Folder size={9} /> {projectsMap[inv.projectId].title}
+                              </Link>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">{displayAmount} €</td>
-                        <td className="px-4 py-3">{inv.dueDate || "—"}</td>
+                        <td className="px-4 py-3">
+                          {inv.encaissementDate ? isoToFr(inv.encaissementDate) || "—" : "—"}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="sm" title="Télécharger" onClick={() => downloadInvoice(inv)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEdit(inv)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Modifier"
+                              onClick={() => {
+                                const scoped = invoiceStatusScopeMap[inv.id] ?? effectiveStatusId;
+                                const query = scoped ? `?billingStatus=${scoped}` : "";
+                                router.push(`/incomes/facturation/${inv.id}${query}`);
+                              }}
+                            >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
@@ -591,154 +603,8 @@ export function InvoicesPage() {
               </table>
             </div>
           )}
-        </div>
+        </Card>
       </div>}
-
-      {/* Dialog Ajouter / Modifier */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-hidden p-6 sm:max-w-2xl [&>button]:shrink-0">
-          <div className="flex max-h-[calc(90vh-3rem)] min-h-0 flex-col overflow-hidden">
-            <DialogTitle className="shrink-0 pr-8">
-              {editingId !== null ? "Modifier la facture" : "Nouvelle facture"}
-            </DialogTitle>
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-4 pr-2">
-              <div className="grid gap-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">N° facture</label>
-              <Input
-                value={form.number}
-                onChange={(e) => setForm((prev) => ({ ...prev, number: e.target.value }))}
-                placeholder="ex. FAC-2025-001"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Client</label>
-              <Input
-                value={form.client}
-                onChange={(e) => setForm((prev) => ({ ...prev, client: e.target.value }))}
-                placeholder="Nom du client"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Adresse</label>
-              <Input
-                value={form.address}
-                onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
-                placeholder="Adresse du client"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">SIRET</label>
-              <Input
-                value={form.siret}
-                onChange={(e) => setForm((prev) => ({ ...prev, siret: e.target.value }))}
-                placeholder="SIRET"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Objet</label>
-              <Input
-                value={form.subject}
-                onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))}
-                placeholder="Objet de la facture"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Date d&apos;échéance</label>
-                <DatePicker value={form.dueDate} onChange={(value) => setForm((prev) => ({ ...prev, dueDate: value }))} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Statut</label>
-                <Select value={form.status} onValueChange={(v: InvoiceStatus) => setForm((prev) => ({ ...prev, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en_attente">En attente</SelectItem>
-                    <SelectItem value="payee">Payée</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Type de revenu</label>
-              <Select value={form.incomeType} onValueChange={(v: IncomeType) => setForm((prev) => ({ ...prev, incomeType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {INCOME_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Lignes de facturation</label>
-                <Button type="button" variant="outline" size="sm" onClick={addLine}>
-                  <Plus className="mr-1 h-3 w-3" /> Ajouter une ligne
-                </Button>
-              </div>
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="px-2 py-2 text-left font-medium text-xs">Description</th>
-                      <th className="px-2 py-2 text-left font-medium text-xs">Type</th>
-                      <th className="px-2 py-2 text-left font-medium text-xs w-16">Qté</th>
-                      <th className="px-2 py-2 text-left font-medium text-xs w-20">Prix unit.</th>
-                      <th className="px-2 py-2 text-left font-medium text-xs w-14">TVA %</th>
-                      <th className="px-2 py-2 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.lines.map((line) => (
-                      <tr key={line.id} className="border-b last:border-0">
-                        <td className="px-2 py-1"><Input className="h-8 text-xs" value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Description" /></td>
-                        <td className="px-2 py-1">
-                          <Select value={line.type} onValueChange={(v: LineType) => updateLine(line.id, "type", v)}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="service">Service</SelectItem>
-                              <SelectItem value="vente de marchandise">Vente marchandise</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-2 py-1"><Input className="h-8 text-xs" type="number" min={0} value={line.quantity} onChange={(e) => updateLine(line.id, "quantity", e.target.value)} /></td>
-                        <td className="px-2 py-1"><Input className="h-8 text-xs" value={line.unitPrice} onChange={(e) => updateLine(line.id, "unitPrice", e.target.value)} placeholder="0,00" /></td>
-                        <td className="px-2 py-1"><Input className="h-8 text-xs" value={line.vatPercent} onChange={(e) => updateLine(line.id, "vatPercent", e.target.value)} placeholder="0" /></td>
-                        <td className="px-2 py-1">
-                          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => removeLine(line.id)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {form.lines.length > 0 && (() => {
-                const { totalHT, totalTTC } = computeTotals(form.lines);
-                return (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Total HT : {formatMoney(totalHT)} € — Total TTC : {formatMoney(totalTTC)} €
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Notes</label>
-              <Textarea value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes en bas de facture..." rows={3} />
-              </div>
-            </div>
-          </div>
-            <DialogFooter className="shrink-0 border-t pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-              <Button onClick={saveInvoice} disabled={!form.number.trim() || !form.client.trim()}>
-                {editingId !== null ? "Enregistrer" : "Ajouter"}
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Confirmation suppression */}
       <Dialog

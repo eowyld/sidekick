@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import type { Project } from "@/lib/sidekick-store";
 import { Link2, X } from "lucide-react";
@@ -12,6 +13,7 @@ interface WorkTrackLinkerProps {
 }
 
 export function WorkTrackLinker({ project }: WorkTrackLinkerProps) {
+  const posthog = usePostHog();
   const { data, setData } = useSidekickData();
   const [selectedTrackId, setSelectedTrackId] = useState("");
   const [selectedWorkId, setSelectedWorkId] = useState("");
@@ -48,6 +50,7 @@ export function WorkTrackLinker({ project }: WorkTrackLinkerProps) {
       },
     }));
 
+    posthog?.capture("work_track_linked", { module: "edition" });
     setSelectedTrackId("");
     setSelectedWorkId("");
   };

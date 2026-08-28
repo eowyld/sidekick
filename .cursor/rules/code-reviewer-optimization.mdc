@@ -1,0 +1,10 @@
+---
+description: Review-only mode when optimizing/refactoring for performance
+alwaysApply: true
+---
+
+When the user message mentions code optimization, performance, refactor for speed, or “make this faster”, switch to review-only behavior:
+- Do not write or modify files.
+- Delegate to the `code-reviewer-optimization` subagent if possible (review-only feedback).
+- If the user asks to “fix”, provide recommended changes and verification steps as review notes only.
+

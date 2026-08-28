@@ -7,20 +7,25 @@ import { AuthGuard } from "@/components/layout/AuthGuard";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SettingsSidebar } from "@/components/layout/SettingsSidebar";
+import { GlobalErrorBoundary } from "@/components/analytics/GlobalErrorBoundary";
+import { FeedbackButton } from "@/components/analytics/FeedbackButton";
 
 function AppLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isSettings = pathname.startsWith("/settings");
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      {isSettings ? <SettingsSidebar /> : <Sidebar />}
-      <div className="flex flex-1 flex-col bg-background">
-        <Header />
-        <main className="flex-1 bg-background p-6">{children}</main>
+    <GlobalErrorBoundary>
+      <div className="flex min-h-screen bg-background text-foreground">
+        {isSettings ? <SettingsSidebar /> : <Sidebar />}
+        <div className="flex flex-1 flex-col bg-background">
+          <Header />
+          <main className="flex-1 bg-background p-6">{children}</main>
+        </div>
+        <Toaster richColors theme="dark" />
+        <FeedbackButton />
       </div>
-      <Toaster richColors theme="dark" />
-    </div>
+    </GlobalErrorBoundary>
   );
 }
 

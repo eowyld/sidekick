@@ -1,6 +1,5 @@
-import { PhonoOverviewPage } from "@/modules/phono/components/PhonoOverviewPage";
+import { redirect } from "next/navigation";
 
 export default function PhonoPage() {
-  return <PhonoOverviewPage />;
+  redirect("/phono/catalogue");
 }
-

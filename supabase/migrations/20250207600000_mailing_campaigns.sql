@@ -22,6 +22,7 @@ create index if not exists idx_mailing_campaigns_user_id on public.mailing_campa
 -- RLS : l'utilisateur ne voit que ses campagnes
 alter table public.mailing_campaigns enable row level security;
 
+drop policy if exists "Users can manage own mailing campaigns" on public.mailing_campaigns;
 create policy "Users can manage own mailing campaigns"
   on public.mailing_campaigns
   for all

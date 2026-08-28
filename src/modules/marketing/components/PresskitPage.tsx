@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import {
   ExternalLink,
   Facebook,
@@ -131,6 +132,7 @@ async function compressImageFile(
 }
 
 export function PresskitPage() {
+  const posthog = usePostHog();
   const mainPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const artistLogoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -199,6 +201,7 @@ export function PresskitPage() {
       // Le navigateur peut refuser l'accès clipboard (permissions / contexte HTTPS).
       // On await pour bien capturer les erreurs.
       await navigator.clipboard.writeText(url);
+      posthog?.capture("presskit_link_copied", { module: "marketing" });
       setShareMessage("Lien copié.");
       setTimeout(() => setShareMessage(null), 3000);
     };
@@ -230,6 +233,7 @@ export function PresskitPage() {
         textArea.select();
         document.execCommand("copy");
         document.body.removeChild(textArea);
+        posthog?.capture("presskit_link_copied", { module: "marketing" });
         setShareMessage("Lien copié.");
         setTimeout(() => setShareMessage(null), 3000);
       }
@@ -274,6 +278,7 @@ export function PresskitPage() {
         await doc.html(el, {
           callback: () => {
             doc.save("presskit.pdf");
+            posthog?.capture("presskit_pdf_downloaded", { module: "marketing" });
             setShareMessage("PDF téléchargé.");
             setTimeout(() => setShareMessage(null), 3000);
           },
@@ -317,6 +322,7 @@ export function PresskitPage() {
             doc2.save("presskit.pdf");
           }
         });
+        posthog?.capture("presskit_pdf_downloaded", { module: "marketing" });
         setShareMessage("PDF téléchargé (secours).");
         setTimeout(() => setShareMessage(null), 3000);
       } catch {
@@ -378,6 +384,7 @@ export function PresskitPage() {
     setArtistLogoFileName("");
     setMainPhotoFileName("");
     setCoverFileNames({});
+    posthog?.capture("presskit_reset", { module: "marketing" });
   };
 
   const handleMainPhotoUpload = async (file: File | null) => {

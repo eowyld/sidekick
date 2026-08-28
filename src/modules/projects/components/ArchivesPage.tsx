@@ -1,27 +1,24 @@
 "use client";
 
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { ProjectArchiveRow } from "./ProjectArchiveRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Archive } from "lucide-react";
 
 export function ArchivesPage() {
-  const { data, setData } = useSidekickData();
+  const { projects, setProjects } = useProjectsData();
 
-  const archivedProjects = (data.projects?.projects ?? [])
+  const archivedProjects = projects
     .filter((p) => p.status === "archived")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const handleUnarchive = (id: string) => {
     const now = new Date().toISOString();
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.map((p) =>
-          p.id === id ? { ...p, status: "done" as const, updatedAt: now } : p
-        ),
-      },
-    }));
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, status: "done" as const, updatedAt: now } : p
+      )
+    );
   };
 
   return (

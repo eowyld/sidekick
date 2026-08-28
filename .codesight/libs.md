@@ -1,0 +1,74 @@
+# Libraries
+
+- `src/hooks/useContractsData.ts` — function useContractsData: () => void
+- `src/hooks/useDriveData.ts` — function useDriveData: () => UseDriveDataResult, interface UseDriveDataResult
+- `src/hooks/useLocalStorage.ts` — function useLocalStorage: (key, initialValue) => [T, (value: T | ((val: T) => T)) => void]
+- `src/hooks/useSidekickData.ts` — function useSidekickData: () => void
+- `src/hooks/useTasksData.ts` — function useTasksData: () => void
+- `src/lib/blog.ts`
+  - function getArticles: () => BlogArticleMeta[]
+  - function getArticleBySlug: (slug) => BlogArticle | null
+  - function getArticlesByCategorie: (categorie) => BlogArticleMeta[]
+  - function getArticlesLies: (article, limit) => BlogArticleMeta[]
+  - function getAllCategories: () => BlogCategorie[]
+- `src/lib/calendar-sync.ts` — function syncEventToSupabase: (event, action, userId) => Promise<void>
+- `src/lib/contracts-db.ts`
+  - function fetchUserContractTemplates: (supabase, userId) => Promise<ContractTemplate[]>
+  - function insertContractTemplate: (supabase, userId, payload) => Promise<ContractTemplate>
+  - function updateContractTemplate: (supabase, userId, templateId, payload) => Promise<ContractTemplate>
+  - function deleteContractTemplate: (supabase, userId, templateId) => Promise<void>
+  - function fetchUserContracts: (supabase, userId) => Promise<ContractInstance[]>
+  - function insertContract: (supabase, userId, payload, unknown>;
+    htmlContent) => Promise<ContractInstance>
+  - _...13 more_
+- `src/lib/date-format.ts`
+  - function isValidDateFr: (value) => boolean
+  - function isoToFr: (isoDate) => string
+  - function frToIso: (frDate) => string
+  - function toDisplayDate: (dateStr) => string
+  - const DATE_FORMAT_PLACEHOLDER
+- `src/lib/drive-db.ts`
+  - function fetchUserFolders: (supabase, userId) => Promise<DriveFolder[]>
+  - function fetchUserDocuments: (supabase, userId) => Promise<DriveDocument[]>
+  - function getUserStorageUsed: (supabase, userId) => Promise<number>
+  - function addStorageUsed: (supabase, userId, bytes) => Promise<void>
+  - function subtractStorageUsed: (supabase, userId, bytes) => Promise<void>
+  - function insertDocument: (supabase, userId, doc) => Promise<DriveDocument>
+  - _...29 more_
+- `src/lib/ical-generator.ts` — function generateICalContent: (events) => string, type ICalEvent
+- `src/lib/sidekick-store.ts`
+  - function getStorageKey: (userId) => string
+  - function mergeWithDefaults: (partial) => SidekickData
+  - interface Todo
+  - interface AdminStatus
+  - interface AdminStructure
+  - interface AdminProcedure
+  - _...38 more_
+- `src/lib/supabase-server.ts` — function createServerSupabase: () => void
+- `src/lib/supabase.ts` — function createClient: () => void
+- `src/lib/utils.ts` — function cn: (...classes) => void
+- `src/modules/incomes/parsers/cdbaby.ts` — function parseCdBaby: (headers, rows) => RoyaltyEntry[]
+- `src/modules/incomes/parsers/copyright-types.ts`
+  - function getPaysLabel: (code) => string
+  - function formatEUR: (n) => string
+  - interface CopyrightEntry
+  - interface CopyrightReleve
+  - type TypeUtilisation
+  - type TypeDroit
+  - _...6 more_
+- `src/modules/incomes/parsers/distrokid.ts` — function parseDistroKid: (headers, rows) => RoyaltyEntry[]
+- `src/modules/incomes/parsers/parse-period.ts` — function parsePeriod: (raw) => string
+- `src/modules/incomes/parsers/soundcloud.ts` — function parseSoundCloud: (headers, rows) => RoyaltyEntry[]
+- `src/modules/incomes/parsers/tunecore.ts` — function parseTuneCore: (headers, rows) => RoyaltyEntry[]
+- `src/modules/marketing/data/calendrier-editorial.ts`
+  - function normalizeEditorialEvent: (event) => EditorialEvent
+  - interface EditorialEvent
+  - interface EditorialEventForm
+  - type EditorialPlatform
+  - type EditorialStatus
+  - type EditorialContentType
+  - _...4 more_
+- `src/modules/marketing/lib/presskit-share.ts`
+  - function encodePresskitForShare: (profile) => string
+  - function decodePresskitFromShare: (encoded) => PresskitProfile | null
+  - function getPresskitShareUrl: (encoded) => string

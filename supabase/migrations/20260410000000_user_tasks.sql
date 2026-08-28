@@ -1,4 +1,4 @@
-create table user_tasks (
+create table if not exists user_tasks (
   id           text primary key,
   user_id      uuid references auth.users not null,
   title        text not null,
@@ -13,6 +13,7 @@ create table user_tasks (
 
 alter table user_tasks enable row level security;
 
+drop policy if exists "Users manage own tasks" on user_tasks;
 create policy "Users manage own tasks"
   on user_tasks for all
   using (auth.uid() = user_id)

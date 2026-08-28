@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { mutate } from "swr";
 import { useSidekickData } from "@/hooks/useSidekickData";
 import { useTasksData } from "@/hooks/useTasksData";
@@ -10,6 +10,9 @@ import { usePhonoData } from "@/hooks/usePhonoData";
 import { useCalendarData } from "@/hooks/useCalendarData";
 import { useDashboardHero } from "@/hooks/useDashboardHero";
 import { PageError } from "@/components/ui/page-error";
+import { EventDialog } from "@/components/ui/event-dialog";
+import { formatTimeForDisplay } from "@/lib/utils";
+import { enumerateDateKeysInclusive } from "@/modules/calendar/week-schedule-utils";
 import { DashboardHero } from "./DashboardHero";
 import { DashboardWeekRibbon, type RibbonEvent } from "./DashboardWeekRibbon";
 import { DashboardTodayList, type TodayTask } from "./DashboardTodayList";
@@ -37,15 +40,30 @@ function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function getRibbonCta(
+  id: string
+): { label: string; href: string } | null {
+  if (id.startsWith("live-rep-") || id.startsWith("live-reh-"))
+    return { label: "Voir dans Live →", href: "/live" };
+  if (id.startsWith("rev-inv-"))
+    return { label: "Voir dans Revenus →", href: "/revenus" };
+  if (id.startsWith("phono-ses-"))
+    return { label: "Voir dans Phono →", href: "/phono" };
+  // Les événements custom n'ont pas de CTA
+  return null;
+}
+
 // ─── Composant ────────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
+  const [selectedRibbonEvent, setSelectedRibbonEvent] = useState<RibbonEvent | null>(null);
+  const [selectedRibbonEventAnchor, setSelectedRibbonEventAnchor] = useState<DOMRect | null>(null);
   const { data, preferencesReady } = useSidekickData();
   const enabled = data.preferences?.enabledModules ?? {
     live: true, phono: true, admin: true, marketing: true, edition: true, revenus: true,
   };
 
-  const { tasks, error: tasksError } = useTasksData();
+  const { tasks, setTasks, error: tasksError } = useTasksData();
   const { tourDates, rehearsals, error: liveError } = useLiveData();
   const { invoices, error: incomesError } = useIncomesData();
   const { sessions, error: phonoError } = usePhonoData();
@@ -82,23 +100,54 @@ export function DashboardPage() {
     if (enabled.live) {
       tourDates.forEach((t) => {
         const d = parseDate(t.date);
-        if (inRange(d)) push(d, { id: `live-rep-${t.id}`, title: `${t.venue} – ${t.city}`, sector: "live" });
+        if (!inRange(d)) return;
+        const fields = [
+          { label: "Salle", value: t.venue || "—" },
+          { label: "Ville", value: t.city || "—" },
+          ...(t.organisateur ? [{ label: "Organisateur", value: t.organisateur }] : []),
+          ...(t.address ? [{ label: "Adresse", value: t.address }] : []),
+          ...(t.status ? [{ label: "Statut", value: t.status }] : []),
+          ...(t.note ? [{ label: "Note", value: t.note }] : []),
+        ];
+        push(d, { id: `live-rep-${t.id}`, title: `${t.venue} – ${t.city}`, sector: "live", detail: { subLabel: "Représentation", dateKey: toDateKey(d), fields } });
       });
       rehearsals.forEach((r) => {
         const d = parseDate(r.date);
-        if (inRange(d)) push(d, { id: `live-reh-${r.id}`, title: r.label || r.location || "Répétition", sector: "live" });
+        if (!inRange(d)) return;
+        const fields = [
+          { label: "Lieu", value: r.location || "—" },
+          ...(r.time ? [{ label: "Heure", value: r.time }] : []),
+          ...(r.address ? [{ label: "Adresse", value: r.address }] : []),
+          ...(r.note ? [{ label: "Note", value: r.note }] : []),
+        ];
+        push(d, { id: `live-reh-${r.id}`, title: r.label || r.location || "Répétition", sector: "live", detail: { subLabel: "Répétition", dateKey: toDateKey(d), fields } });
       });
     }
     if (enabled.revenus) {
       invoices.forEach((i) => {
         const d = parseDate(i.dueDate);
-        if (inRange(d)) push(d, { id: `rev-inv-${i.id}`, title: `Facture ${i.number}`, sector: "revenus" });
+        if (!inRange(d)) return;
+        const fields = [
+          { label: "N° facture", value: i.number || "—" },
+          { label: "Client", value: i.client || "—" },
+          ...(i.subject ? [{ label: "Objet", value: i.subject }] : []),
+          ...(i.amount ? [{ label: "Montant", value: i.amount.includes("€") ? i.amount : `${i.amount} €` }] : []),
+          { label: "Statut", value: i.status === "payee" ? "Payée" : "En attente" },
+        ];
+        push(d, { id: `rev-inv-${i.id}`, title: `Facture ${i.number}`, sector: "revenus", detail: { subLabel: "Échéance facture", dateKey: toDateKey(d), fields } });
       });
     }
     if (enabled.phono) {
       sessions.forEach((s) => {
         const d = parseDate(s.date);
-        if (inRange(d)) push(d, { id: `phono-ses-${s.id}`, title: s.title || s.location || "Session", sector: "phono" });
+        if (!inRange(d)) return;
+        const fields = [
+          { label: "Lieu", value: s.location || "—" },
+          ...(s.time ? [{ label: "Heure", value: s.time }] : []),
+          ...(s.sessionType ? [{ label: "Type", value: s.sessionType }] : []),
+          ...(s.note ? [{ label: "Note", value: s.note }] : []),
+        ];
+        push(d, { id: `phono-ses-${s.id}`, title: s.title || s.location || "Session", sector: "phono", detail: { subLabel: "Session studio", dateKey: toDateKey(d), fields } });
       });
     }
     customEvents.forEach((e) => {
@@ -112,8 +161,31 @@ export function DashboardPage() {
         sector === "revenus" ? enabled.revenus :
         true;
       if (!moduleEnabled) return;
-      const d = parseDate(e.date);
-      if (inRange(d)) push(d, { id: `custom-${e.id}`, title: e.title || "Événement", sector });
+      const sd = parseDate(e.date);
+      if (!sd) return;
+      const ed = parseDate(e.endDate ?? e.date) ?? sd;
+      const keys = enumerateDateKeysInclusive(toDateKey(sd), toDateKey(ed));
+      keys.forEach((dateKey) => {
+        const d = parseDate(dateKey);
+        if (!d || !inRange(d)) return;
+        const fields = [
+          ...(e.time
+            ? [{ label: "Heure", value: formatTimeForDisplay(e.time) }]
+            : []),
+          ...(e.place ? [{ label: "Lieu", value: e.place }] : []),
+        ];
+        const multi = keys.length > 1;
+        push(d, {
+          id: multi ? `custom-${e.id}__${dateKey}` : `custom-${e.id}`,
+          title: e.title || "Événement",
+          sector,
+          detail: {
+            subLabel: "Événement personnalisé",
+            dateKey,
+            fields,
+          },
+        });
+      });
     });
 
     return map;
@@ -131,9 +203,23 @@ export function DashboardPage() {
   ).length;
   const weekEventsCount = Object.values(weekEventsByDate).reduce((acc, arr) => acc + arr.length, 0);
 
-  const todayTasks: TodayTask[] = tasks
-    .filter((t) => t.todayFocus && t.status !== "done")
-    .map((t) => ({ id: t.id, title: t.title, deadline: t.deadline ?? null }));
+  const todayTasks: TodayTask[] = useMemo(() => {
+    const deadlineKey = (deadline: string | null | undefined) => {
+      if (!deadline) return Number.POSITIVE_INFINITY;
+      const ts = new Date(`${deadline}T12:00:00`).getTime();
+      return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts;
+    };
+
+    return tasks
+      .filter((t) => t.todayFocus && t.status !== "done")
+      .sort((a, b) => {
+        const da = deadlineKey(a.deadline);
+        const db = deadlineKey(b.deadline);
+        if (da !== db) return da - db;
+        return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
+      })
+      .slice(0, 2);
+  }, [tasks]);
 
   const heroPayload = useMemo(() => {
     if (!preferencesReady) return null;
@@ -162,8 +248,21 @@ export function DashboardPage() {
       if (d) events.push({ id: `phono-ses-${s.id}`, title: s.title || s.location || "Session", date: toDateKey(d), type: "session", sector: "phono" });
     });
     customEvents.forEach((e) => {
-      const d = parseDate(e.date);
-      if (d) events.push({ id: `custom-${e.id}`, title: e.title || "Événement", date: toDateKey(d), type: "custom", sector: e.sector });
+      const sd = parseDate(e.date);
+      if (!sd) return;
+      const ed = parseDate(e.endDate ?? e.date) ?? sd;
+      const keys = enumerateDateKeysInclusive(toDateKey(sd), toDateKey(ed));
+      keys.forEach((dateKey) => {
+        const d = parseDate(dateKey);
+        if (!d) return;
+        events.push({
+          id: keys.length > 1 ? `custom-${e.id}__${dateKey}` : `custom-${e.id}`,
+          title: e.title || "Événement",
+          date: dateKey,
+          type: "custom",
+          sector: e.sector,
+        });
+      });
     });
 
     const projects = (data.projects?.projects ?? []).map((p) => ({ id: p.id, title: p.title }));
@@ -206,9 +305,8 @@ export function DashboardPage() {
         accent={accent}
         loading={heroLoading}
         stats={[
-          { value: tasksToDoCount, label: "tâches à faire" },
-          { value: urgentTasksCount, label: "tâches urgentes", accent: urgentTasksCount > 0 },
-          { value: weekEventsCount, label: "événements cette semaine" },
+          { value: urgentTasksCount, label: "tâches urgentes", accent: urgentTasksCount > 0, href: "/tasks" },
+          { value: weekEventsCount, label: "événements cette semaine", href: "/calendar" },
         ]}
       />
 
@@ -216,9 +314,53 @@ export function DashboardPage() {
         weekDays={weekDays}
         todayKey={todayKey}
         eventsByDate={weekEventsByDate}
+        onEventClick={(event, rect) => {
+            setSelectedRibbonEvent(event);
+            setSelectedRibbonEventAnchor(rect);
+          }}
       />
 
-      <DashboardTodayList tasks={todayTasks} today={todayKey} />
+      <DashboardTodayList
+        tasks={todayTasks}
+        today={todayKey}
+        onTaskComplete={(id) => setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: "done" } : t))}
+        onSubtaskToggle={(taskId, subtaskId, done) =>
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks: (t.subtasks ?? []).map((subtask) =>
+                      subtask.id === subtaskId ? { ...subtask, done } : subtask
+                    ),
+                  }
+                : t
+            )
+          )
+        }
+      />
+
+      {selectedRibbonEvent && (() => {
+        const cta = getRibbonCta(selectedRibbonEvent.id);
+        const isCustom = selectedRibbonEvent.id.startsWith("custom-");
+        return (
+          <EventDialog
+            open={!!selectedRibbonEvent}
+            onClose={() => { setSelectedRibbonEvent(null); setSelectedRibbonEventAnchor(null); }}
+            title={selectedRibbonEvent.title}
+            subLabel={selectedRibbonEvent.detail?.subLabel ?? ""}
+            dateKey={selectedRibbonEvent.detail?.dateKey ?? ""}
+            sector={selectedRibbonEvent.sector}
+            fields={(selectedRibbonEvent.detail?.fields ?? []).map((f) => ({
+              label: f.label,
+              value: f.value,
+            }))}
+            ctaLabel={!isCustom ? cta?.label : undefined}
+            ctaHref={!isCustom ? cta?.href : undefined}
+            anchorRect={selectedRibbonEventAnchor}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -55,6 +56,7 @@ function extractVariableKeys(html: string): string[] {
 }
 
 export function ContractsPage() {
+  const posthog = usePostHog();
   const {
     templates,
     contracts,
@@ -351,7 +353,7 @@ export function ContractsPage() {
 
       <div className="text-sm text-muted-foreground">
         <Link href="/admin" className="underline hover:text-foreground">
-          Retour à la vue d&apos;ensemble Admin
+          Retour à Mes statuts
         </Link>
       </div>
 
@@ -368,6 +370,8 @@ export function ContractsPage() {
         onSave={async ({ title, htmlContent, variableKeys }) => {
           if (templateEditorMode === "create") {
             await addTemplate({ title, htmlContent, variableKeys });
+            posthog?.capture("contract_template_created", { module: "admin" });
+            posthog?.capture("item_created", { module: "admin" });
           } else if (editingTemplate) {
             await saveTemplate(editingTemplate.id, { title, htmlContent, variableKeys });
           }
@@ -388,6 +392,8 @@ export function ContractsPage() {
             variables: payload.variables,
             htmlContent: payload.htmlContent
           });
+          posthog?.capture("contract_created", { module: "admin" });
+          posthog?.capture("item_created", { module: "admin" });
           if (payload.status !== "draft") {
             await setContractStatusDb(created.id, {
               status: payload.status,
@@ -423,6 +429,7 @@ export function ContractsPage() {
                   file: signatureFile,
                   makeActive: true
                 });
+                posthog?.capture("contract_signature_created", { module: "admin" });
                 setSignatureDialogOpen(false);
                 setSignatureLabel("");
                 setSignatureFile(null);

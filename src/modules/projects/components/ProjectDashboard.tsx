@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import posthog from "posthog-js";
 import { useRouter } from "next/navigation";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { ProjectModal } from "./ProjectModal";
+import { ProjectTabs } from "./ProjectTabs";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,27 +15,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
-  ImagePlus,
   MoreHorizontal,
   Pencil,
-  X,
-  ChevronDown,
   Music2,
   BookOpen,
   Mic2,
+  ChevronDown,
 } from "lucide-react";
 import type { Project, ProjectStatus } from "@/lib/sidekick-store";
-import { PhonoSection } from "./sections/PhonoSection";
-import { EditionSection } from "./sections/EditionSection";
-import { LiveSection } from "./sections/LiveSection";
-import { WorkTrackLinker } from "./sections/WorkTrackLinker";
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "idea", label: "Idée" },
   { value: "in_progress", label: "En cours" },
   { value: "paused", label: "En pause" },
   { value: "done", label: "Terminé" },
-  { value: "archived", label: "Archivé" },
 ];
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
@@ -51,13 +45,18 @@ interface ProjectDashboardProps {
 
 export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   const router = useRouter();
-  const { data, setData } = useSidekickData();
+  const { projects, setProjects, loading } = useProjectsData();
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState("");
 
-  const project = (data.projects?.projects ?? []).find((p) => p.id === projectId);
+  const project = projects.find((p) => p.id === projectId);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-[#F5F5F5]/20">
+        <p className="text-sm">Chargement...</p>
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -72,46 +71,21 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   }
 
   const updateProject = (updates: Partial<Project>) => {
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.map((p) =>
-          p.id === projectId ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        ),
-      },
-    }));
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+      )
+    );
   };
 
   const handleStatusChange = (status: ProjectStatus) => {
+    posthog.capture("project_status_changed", { new_status: status, previous_status: project.status });
     updateProject({ status });
   };
 
-  const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      updateProject({ images: [...project.images, ev.target?.result as string] });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveImage = (index: number) => {
-    updateProject({ images: project.images.filter((_, i) => i !== index) });
-  };
-
-  const handleSaveNotes = () => {
-    updateProject({ notes: notesValue });
-    setEditingNotes(false);
-  };
-
   const handleDelete = () => {
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.filter((p) => p.id !== projectId),
-      },
-    }));
+    posthog.capture("project_deleted", { sectors: project.sectors });
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
     router.push("/projects");
   };
 
@@ -172,7 +146,7 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={`flex items-center gap-1.5 text-[12px] font-medium ${STATUS_COLORS[project.status]}`}>
-                  {currentStatus?.label}
+                  {currentStatus?.label ?? project.status}
                   <ChevronDown size={12} />
                 </button>
               </DropdownMenuTrigger>
@@ -222,87 +196,10 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
         </div>
       </div>
 
-      {/* Galerie */}
-      <div className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={() => setGalleryOpen((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-[13px] font-medium text-[#F5F5F5]/70 hover:text-[#F5F5F5]"
-        >
-          <span>Images & mood board</span>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-[#F5F5F5]/30">{project.images.length} image{project.images.length !== 1 ? "s" : ""}</span>
-            <ChevronDown size={14} className={`transition-transform ${galleryOpen ? "rotate-180" : ""}`} />
-          </div>
-        </button>
-        {galleryOpen && (
-          <div className="px-5 pb-5">
-            <div className="flex flex-wrap gap-2">
-              {project.images.map((img, i) => (
-                <div key={i} className="relative group w-24 h-24 rounded-lg overflow-hidden border border-[rgba(245,245,245,0.08)]">
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveImage(i)}
-                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-black/60 rounded-full p-0.5"
-                  >
-                    <X size={10} className="text-white" />
-                  </button>
-                </div>
-              ))}
-              <label className="flex w-24 h-24 flex-col items-center justify-center rounded-lg border border-dashed border-[rgba(245,245,245,0.15)] text-[#F5F5F5]/30 text-[11px] gap-1 cursor-pointer hover:border-[rgba(245,245,245,0.3)] transition-colors">
-                <ImagePlus size={16} />
-                Ajouter
-                <input type="file" accept="image/*" onChange={handleAddImage} className="hidden" />
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Sections secteurs */}
-      {project.sectors.includes("phono") && <PhonoSection project={project} />}
-      {project.sectors.includes("edition") && <EditionSection project={project} />}
-      {project.sectors.includes("live") && <LiveSection project={project} />}
-
-      {/* Lien oeuvre ↔ titre (si phono + edition activés) */}
-      {project.sectors.includes("phono") && project.sectors.includes("edition") && (
-        <WorkTrackLinker project={project} />
-      )}
-
-      {/* Notes */}
-      <div className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-medium text-[#F5F5F5]/70">Notes</h2>
-          {!editingNotes && (
-            <button
-              onClick={() => { setNotesValue(project.notes); setEditingNotes(true); }}
-              className="text-[11px] text-[#F5F5F5]/30 hover:text-[#F5F5F5] flex items-center gap-1"
-            >
-              <Pencil size={11} /> Modifier
-            </button>
-          )}
-        </div>
-        {editingNotes ? (
-          <div className="space-y-2">
-            <Textarea
-              value={notesValue}
-              onChange={(e) => setNotesValue(e.target.value)}
-              className="bg-[#101010] border-[rgba(245,245,245,0.12)] text-[#F5F5F5] resize-none text-[13px]"
-              rows={4}
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>Annuler</Button>
-              <Button size="sm" onClick={handleSaveNotes}>Enregistrer</Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[13px] text-[#F5F5F5]/50 whitespace-pre-wrap min-h-[2rem]">
-            {project.notes || <span className="italic text-[#F5F5F5]/20">Pas de notes</span>}
-          </p>
-        )}
-      </div>
+      {/* Onglets */}
+      <Suspense fallback={null}>
+        <ProjectTabs project={project} />
+      </Suspense>
 
       <ProjectModal
         open={editModalOpen}

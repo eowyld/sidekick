@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { usePostHog } from "posthog-js/react";
 
 export function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -23,6 +24,8 @@ export function SettingsPage() {
 
   const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const posthog = usePostHog();
 
   useEffect(() => {
     const supabase = createClient();
@@ -52,6 +55,7 @@ export function SettingsPage() {
         }
       });
       if (error) throw error;
+      posthog?.capture("profile_name_updated", { module: "settings" });
       setProfileMessage({ type: "success", text: "Profil enregistré." });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erreur lors de l’enregistrement.";
@@ -77,6 +81,7 @@ export function SettingsPage() {
       const supabase = createClient();
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+      posthog?.capture("password_changed", { module: "settings" });
       setPasswordMessage({ type: "success", text: "Mot de passe modifié." });
       setNewPassword("");
       setConfirmPassword("");

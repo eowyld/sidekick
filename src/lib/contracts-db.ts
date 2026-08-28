@@ -36,6 +36,7 @@ export interface ContractInstance {
   signatureId?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  projectId?: string | null;   // → user_projects.id (phase 4+)
 }
 
 export interface ContractSignature {
@@ -77,6 +78,7 @@ interface ContractRow {
   signature_id: string | null;
   created_at: string;
   updated_at: string;
+  project_id?: string | null;
 }
 
 interface SignatureRow {
@@ -115,7 +117,8 @@ function rowToContract(row: ContractRow): ContractInstance {
     signedAt: row.signed_at,
     signatureId: row.signature_id,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    projectId: row.project_id ?? null,
   };
 }
 

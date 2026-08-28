@@ -8,16 +8,19 @@ create table if not exists public.presskit_user_slugs (
 
 alter table public.presskit_user_slugs enable row level security;
 
+drop policy if exists "Anyone can read presskit user slugs" on public.presskit_user_slugs;
 create policy "Anyone can read presskit user slugs"
   on public.presskit_user_slugs
   for select
   using (true);
 
+drop policy if exists "Users can insert own presskit slug" on public.presskit_user_slugs;
 create policy "Users can insert own presskit slug"
   on public.presskit_user_slugs
   for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update own presskit slug" on public.presskit_user_slugs;
 create policy "Users can update own presskit slug"
   on public.presskit_user_slugs
   for update

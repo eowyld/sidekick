@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,7 @@ type Condition = (typeof CONDITION_OPTIONS)[number];
 type TabId = "inventaire" | "liste";
 
 export function EquipmentPage() {
+  const posthog = usePostHog();
   const { equipmentInventory: inventory, setEquipmentInventory: setInventory, equipmentLists: lists, setEquipmentLists: setLists, loading, error } = useLiveData();
   const [activeTab, setActiveTab] = useState<TabId>("inventaire");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,6 +103,8 @@ export function EquipmentPage() {
         )
       );
     } else {
+      posthog?.capture("equipment_item_added", { module: "live" });
+      posthog?.capture("item_created", { module: "live" });
       setInventory((prev) => [
         ...prev,
         { id: crypto.randomUUID(), name: name || "Sans nom", quantity, condition, comment }
@@ -155,6 +159,8 @@ export function EquipmentPage() {
         )
       );
     } else {
+      posthog?.capture("equipment_list_created", { module: "live" });
+      posthog?.capture("item_created", { module: "live" });
       setLists((prev) => [
         ...prev,
         { id: crypto.randomUUID(), name, description: listForm.description.trim(), itemIds: listForm.selectedIds }

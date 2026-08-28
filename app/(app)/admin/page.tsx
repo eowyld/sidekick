@@ -1,5 +1,5 @@
-import { AdminOverviewPage } from "@/modules/admin/components/AdminOverviewPage";
+import { StatutsPage } from "@/modules/admin/components/StatutsPage";
 
 export default function AdminPage() {
-  return <AdminOverviewPage />;
+  return <StatutsPage />;
 }

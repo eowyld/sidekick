@@ -1,4 +1,4 @@
-create table task_suggestions (
+create table if not exists task_suggestions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users not null,
   date date not null,
@@ -9,6 +9,7 @@ create table task_suggestions (
 
 alter table task_suggestions enable row level security;
 
+drop policy if exists "Users manage own suggestions" on task_suggestions;
 create policy "Users manage own suggestions"
   on task_suggestions
   for all

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { useSearchParams } from "next/navigation";
 import { usePhonoData } from "@/hooks/usePhonoData";
 import { useSidekickData } from "@/hooks/useSidekickData";
@@ -54,10 +55,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import JSZip from "jszip";
-import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Trash2, X, Music, Disc3, Mic } from "lucide-react";
+import { Copy, Download, ImagePlus, Loader2, Pencil, Plus, Share2, Trash2, X, Music, Disc3, Mic } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { mutate } from "swr";
 
 const ROLES: { value: PhonoRole; label: string }[] = [
@@ -354,6 +356,7 @@ function formatTracklistForCopy(items: PodcastTracklistItem[]): string {
 
 export function CatalogPage() {
   const { tracks: tracksRaw, setTracks, albums: albumsRaw, setAlbums, podcasts: podcastsRaw, setPodcasts, loading, error } = usePhonoData();
+  const posthog = usePostHog();
 
   const { data, setData } = useSidekickData();
   const searchParams = useSearchParams();
@@ -656,6 +659,8 @@ export function CatalogPage() {
 
   const addPodcastFromDraft = () => {
     if (!isPodcastDraftComplete) return;
+    posthog?.capture("podcast_created", { module: "phono" });
+    posthog?.capture("item_created", { module: "phono" });
     setPodcasts((prev) => [
       ...prev,
       { id: newPodcastId(), ...podcastDraft } as Podcast,
@@ -2070,6 +2075,25 @@ export function CatalogPage() {
                             <Pencil className="mr-1.5 h-3.5 w-3.5" />
                             Modifier
                           </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    type="button"
+                                    variant="default"
+                                    size="sm"
+                                    disabled
+                                    className="opacity-40 cursor-not-allowed"
+                                  >
+                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                    Distribuer
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>À venir</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             type="button"
                             variant="ghost"
@@ -3099,6 +3123,25 @@ export function CatalogPage() {
                               <Pencil className="mr-1.5 h-3.5 w-3.5" />
                               Modifier
                             </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      size="sm"
+                                      disabled
+                                      className="opacity-40 cursor-not-allowed"
+                                    >
+                                      <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                      Distribuer
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>À venir</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <Button
                               type="button"
                               variant="ghost"
@@ -3893,6 +3936,25 @@ size="sm"
                             <Pencil className="mr-1.5 h-3.5 w-3.5" />
                             Modifier
                           </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    type="button"
+                                    variant="default"
+                                    size="sm"
+                                    disabled
+                                    className="opacity-40 cursor-not-allowed"
+                                  >
+                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                    Distribuer
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>À venir</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             type="button"
                             variant="ghost"

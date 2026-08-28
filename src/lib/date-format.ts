@@ -43,6 +43,18 @@ export function frToIso(frDate: string): string {
   ).padStart(2, "0")}`;
 }
 
+/** Alimente le DatePicker : accepte stockage JJ/MM/AAAA ou YYYY-MM-DD. */
+export function toIsoDatePickerValue(stored: string): string {
+  const s = stored.trim();
+  if (!s) return "";
+  if (s.includes("-")) {
+    const part = s.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(part) ? part : "";
+  }
+  const iso = frToIso(s);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : "";
+}
+
 /** Affiche une date en DD/MM/YYYY (accepte stockage ISO ou DD/MM/YYYY). */
 export function toDisplayDate(dateStr: string | undefined): string {
   if (!dateStr) return "";

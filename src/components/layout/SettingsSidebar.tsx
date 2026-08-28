@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 const settingsItems = [
   { href: "/settings", label: "Informations personnelles" },
   { href: "/settings/mail", label: "Configuration mail" },
+  { href: "/settings/facturation", label: "Modèle de facture" },
   { href: "/settings/personnalisation", label: "Personnalisation" }
 ];
 

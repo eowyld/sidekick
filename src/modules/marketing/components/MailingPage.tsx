@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -48,6 +49,7 @@ import {
   DEFAULT_SEGMENT_NAME
 } from "@/modules/marketing/data/mailing";
 import { isoToFr } from "@/lib/date-format";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type TabId = "campaigns" | "newCampaign" | "contacts";
 type LoadCampaignTab = "saved" | "sent";
@@ -61,6 +63,7 @@ function generateId(): string {
 }
 
 export function MailingPage() {
+  const posthog = usePostHog();
   const [activeTab, setActiveTab] = useState<TabId>("campaigns");
 
   const {
@@ -277,6 +280,7 @@ export function MailingPage() {
     setActiveTab("newCampaign");
     setLoadCampaignOpen(false);
     setDraftMessage(null);
+    posthog?.capture("campaign_loaded", { module: "marketing" });
   };
 
   /** Enveloppe la sélection (ou insère du HTML) au curseur — vue HTML ou aperçu */
@@ -543,6 +547,7 @@ export function MailingPage() {
     setDraftCampaigns((prev) => [draft, ...prev.filter((c) => c.id !== draft.id)]);
     setCurrentDraftId(draft.id);
     setDraftMessage("Campagne sauvegardée.");
+    posthog?.capture("campaign_saved_draft", { module: "marketing" });
   };
 
   const handleSendCampaign = async (e?: React.FormEvent | React.MouseEvent) => {
@@ -605,6 +610,7 @@ export function MailingPage() {
       }
       clearCampaignForm();
       setActiveTab("campaigns");
+      posthog?.capture("mail_sent", { module: "marketing" });
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Erreur lors de l'envoi.");
     } finally {
@@ -1556,11 +1562,10 @@ export function MailingPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="contact-date">Date d&apos;ajout</Label>
-              <Input
+              <DatePicker
                 id="contact-date"
-                type="date"
                 value={formContactDate}
-                onChange={(e) => setFormContactDate(e.target.value)}
+                onChange={setFormContactDate}
               />
             </div>
             <div className="space-y-2">

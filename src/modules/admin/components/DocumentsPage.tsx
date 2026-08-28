@@ -31,7 +31,8 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { Plus, FolderOpen, FileText, ChevronRight, Home, RefreshCw, Lock, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Plus, FolderOpen, FileText, ChevronRight, Home, RefreshCw, Lock, Loader2, CheckCircle2, AlertCircle, X, ArrowLeft } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 
 const HIDDEN_STORAGE_FILES = ["_dossier_vide", ".emptyfolderplaceholder"];
 
@@ -113,6 +114,8 @@ export function DocumentsPage() {
     renameStorageFolderAtPath,
     deleteStorageFileAtPath,
     renameStorageFileAtPath,
+    moveStorageFolderAtPath,
+    moveStorageFileAtPath,
     refetch
   } = useDriveData();
 
@@ -131,6 +134,16 @@ export function DocumentsPage() {
     x: number;
     y: number;
   } | null>(null);
+  const [movePopover, setMovePopover] = useState<{
+    type: "folder" | "document";
+    item: DriveFolder | DriveDocument;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [moveBrowserPath, setMoveBrowserPath] = useState("");
+  const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const movePopoverRef = useRef<HTMLDivElement | null>(null);
+
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<
     { type: "folder" | "document"; item: DriveFolder | DriveDocument } | null
@@ -525,6 +538,26 @@ export function DocumentsPage() {
     return sortDirection === "asc" ? sorted : sorted.reverse();
   }, [docsInFolder, sortColumn, sortDirection, subfolders]);
 
+  const moveFolders = useMemo(() => {
+    // Compute the relative path of the item being moved (if folder) to exclude self and descendants
+    let excludedPrefix: string | null = null;
+    if (movePopover?.type === "folder" && movePopover.item.id.startsWith(STORAGE_FOLDER_PREFIX)) {
+      const fullPath = movePopover.item.id.slice(STORAGE_FOLDER_PREFIX.length);
+      const prefix = userId && fullPath.startsWith(`${userId}/`) ? fullPath.slice(userId.length + 1) : fullPath;
+      excludedPrefix = prefix;
+    }
+
+    return allAvailableFolders
+      .filter((folder) => {
+        const segments = folder.path.split("/").filter(Boolean);
+        const parentPath = segments.slice(0, -1).join("/");
+        if (parentPath !== moveBrowserPath) return false;
+        if (excludedPrefix && (folder.path === excludedPrefix || folder.path.startsWith(excludedPrefix + "/"))) return false;
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [allAvailableFolders, moveBrowserPath, movePopover, userId]);
+
   const toggleSort = (column: "name" | "date" | "type" | "size") => {
     if (sortColumn === column) {
       setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -540,6 +573,19 @@ export function DocumentsPage() {
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!movePopover) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (movePopoverRef.current && !movePopoverRef.current.contains(e.target as Node)) {
+        setMovePopover(null);
+        setMoveBrowserPath("");
+        setMoveHistory([]);
+      }
+    };
+    window.addEventListener("mousedown", handleMouseDown);
+    return () => window.removeEventListener("mousedown", handleMouseDown);
+  }, [movePopover]);
 
   useEffect(() => {
     if (!uploading) return;
@@ -591,6 +637,7 @@ export function DocumentsPage() {
           if (storagePath) await loadStorageContents(storagePath);
           await refetch();
           invalidateGlobalSearch();
+          posthog?.capture("file_renamed", { module: "documents" });
           setSubmitSuccess("Fichier renommé.");
         } else {
           await updateDocumentById(renameTarget.item.id, {
@@ -598,6 +645,7 @@ export function DocumentsPage() {
           });
           await refetch();
           invalidateGlobalSearch();
+          posthog?.capture("file_renamed", { module: "documents" });
           setSubmitSuccess("Document renommé.");
         }
       }
@@ -655,11 +703,13 @@ export function DocumentsPage() {
         if (storagePath) await loadStorageContents(storagePath);
         await refetch();
         invalidateGlobalSearch();
+        posthog?.capture("file_deleted", { module: "documents" });
         setSubmitSuccess("Fichier supprimé.");
       } else {
         await deleteDocumentById(id);
         await refetch();
         invalidateGlobalSearch();
+        posthog?.capture("file_deleted", { module: "documents" });
         setSubmitSuccess("Document supprimé.");
       }
       setTimeout(() => setSubmitSuccess(null), 3000);
@@ -783,6 +833,8 @@ export function DocumentsPage() {
       await refetch();
       invalidateGlobalSearch();
 
+      posthog?.capture("file_added", { module: "documents" });
+      posthog?.capture("item_created", { module: "documents" });
       setSubmitSuccess("Fichier ajouté avec succès.");
       setUploadToast({
         open: true,
@@ -814,6 +866,8 @@ export function DocumentsPage() {
   };
 
 
+  const posthog = usePostHog();
+
   const [isReloading, setIsReloading] = useState(false);
   const handleReload = async () => {
     if (isReloading || isLoadingContents) return;
@@ -834,6 +888,68 @@ export function DocumentsPage() {
       setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsReloading(false);
+    }
+  };
+
+  const handleMoveConfirm = async () => {
+    if (!movePopover || !userId) return;
+    setSubmitError(null);
+    try {
+      const newParentPath = moveBrowserPath
+        ? `${userId}/${moveBrowserPath}`
+        : userId;
+
+      if (movePopover.type === "folder") {
+        const folderPath = movePopover.item.id.startsWith(STORAGE_FOLDER_PREFIX)
+          ? movePopover.item.id.slice(STORAGE_FOLDER_PREFIX.length)
+          : null;
+        if (!folderPath) return;
+        // Prevent no-op: already in this destination
+        const currentParent = folderPath.includes("/")
+          ? folderPath.slice(0, folderPath.lastIndexOf("/"))
+          : userId;
+        if (currentParent === newParentPath) {
+          setMovePopover(null);
+          setMoveBrowserPath("");
+          setMoveHistory([]);
+          return;
+        }
+        await moveStorageFolderAtPath(folderPath, newParentPath);
+        if (currentFolderId === movePopover.item.id || currentFolderId?.startsWith(movePopover.item.id + "/")) {
+          setCurrentFolderId(null);
+        }
+      } else {
+        const filePath = movePopover.item.id.startsWith("storage-file:")
+          ? movePopover.item.id.slice("storage-file:".length)
+          : null;
+        if (!filePath) { setMovePopover(null); setMoveBrowserPath(""); setMoveHistory([]); return; }
+        // Prevent no-op: already in this destination
+        const currentParent = filePath.includes("/")
+          ? filePath.slice(0, filePath.lastIndexOf("/"))
+          : userId;
+        if (currentParent === newParentPath) {
+          setMovePopover(null);
+          setMoveBrowserPath("");
+          setMoveHistory([]);
+          return;
+        }
+        await moveStorageFileAtPath(filePath, newParentPath);
+        posthog?.capture("file_moved", { module: "documents" });
+      }
+
+      if (isStorageView && storagePath) await loadStorageContents(storagePath);
+      await refetch();
+      invalidateGlobalSearch();
+      setMovePopover(null);
+      setMoveBrowserPath("");
+      setMoveHistory([]);
+      setSubmitSuccess("Élément déplacé.");
+      setTimeout(() => setSubmitSuccess(null), 3000);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err));
+      setMovePopover(null);
+      setMoveBrowserPath("");
+      setMoveHistory([]);
     }
   };
 
@@ -1143,6 +1259,19 @@ export function DocumentsPage() {
                   </button>
                   <button
                     type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+                    onClick={() => {
+                      setContextMenu(null);
+                      setMoveBrowserPath("");
+                      setMoveHistory([]);
+                      void loadAllAvailableFolders();
+                      setMovePopover({ type: "folder", item: contextMenu!.item, x: contextMenu!.x, y: contextMenu!.y });
+                    }}
+                  >
+                    Déplacer
+                  </button>
+                  <button
+                    type="button"
                     className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent"
                     onClick={() => handleDeleteFolder(contextMenu.item.id)}
                   >
@@ -1166,6 +1295,19 @@ export function DocumentsPage() {
               </button>
               <button
                 type="button"
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+                onClick={() => {
+                  setContextMenu(null);
+                  setMoveBrowserPath("");
+                  setMoveHistory([]);
+                  void loadAllAvailableFolders();
+                  setMovePopover({ type: "document", item: contextMenu!.item, x: contextMenu!.x, y: contextMenu!.y });
+                }}
+              >
+                Déplacer
+              </button>
+              <button
+                type="button"
                 className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent"
                 onClick={() => void handleDeleteDocument(contextMenu.item.id)}
               >
@@ -1173,6 +1315,66 @@ export function DocumentsPage() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {movePopover && (
+        <div
+          ref={movePopoverRef}
+          className="fixed z-50 w-64 rounded-md border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] text-[#F5F5F5] shadow-lg overflow-hidden"
+          style={{ left: movePopover.x, top: movePopover.y }}
+        >
+          <div className="flex items-center gap-1 border-b border-[rgba(245,245,245,0.12)] px-2 py-1.5">
+            {moveHistory.length > 0 ? (
+              <button
+                type="button"
+                className="rounded p-0.5 hover:bg-accent"
+                onClick={() => {
+                  const prev = moveHistory[moveHistory.length - 1];
+                  setMoveHistory((h) => h.slice(0, -1));
+                  setMoveBrowserPath(prev);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            ) : (
+              <span className="w-5" />
+            )}
+            <span className="text-xs font-medium truncate flex-1">
+              {moveBrowserPath ? moveBrowserPath.split("/").pop() : "Racine"}
+            </span>
+            <button
+              type="button"
+              className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent shrink-0"
+              onClick={() => void handleMoveConfirm()}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              OK
+            </button>
+          </div>
+
+          <div className="max-h-48 overflow-auto py-1">
+            {isLoadingAllFolders ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Chargement…</p>
+            ) : moveFolders.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Aucun sous-dossier.</p>
+            ) : (
+              moveFolders.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => {
+                    setMoveHistory((h) => [...h, moveBrowserPath]);
+                    setMoveBrowserPath(folder.path);
+                  }}
+                >
+                  <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate">{folder.name}</span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
 

@@ -30,6 +30,8 @@ export const MAILING_STORAGE_KEYS = {
     targetSegmentIds?: string[];
     /** Adresse email d'envoi (Gmail ou Outlook connectée) */
     fromEmail?: string;
+    /** Projet rattaché → user_projects.id */
+    projectId?: string;
   }
   
   export interface MailingContact {

@@ -8,5 +8,7 @@ export interface IntermittenceMission {
   charges: number;
   netAmount: number;
   notes: string;
+  /** Lien vers un statut intermittent (user_admin_statuses.id). Nullable : missions legacy sans lien. */
+  statutJuridiqueId?: string;
 }
 

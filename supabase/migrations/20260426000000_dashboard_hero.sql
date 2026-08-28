@@ -1,6 +1,6 @@
 -- supabase/migrations/20260426000000_dashboard_hero.sql
 
-create table public.user_dashboard_hero (
+create table if not exists public.user_dashboard_hero (
   user_id uuid primary key references auth.users(id) on delete cascade,
   phrase text not null,
   accent text,
@@ -10,14 +10,17 @@ create table public.user_dashboard_hero (
 
 alter table public.user_dashboard_hero enable row level security;
 
+drop policy if exists "Users select their own hero phrase" on public.user_dashboard_hero;
 create policy "Users select their own hero phrase"
   on public.user_dashboard_hero for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Users insert their own hero phrase" on public.user_dashboard_hero;
 create policy "Users insert their own hero phrase"
   on public.user_dashboard_hero for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users update their own hero phrase" on public.user_dashboard_hero;
 create policy "Users update their own hero phrase"
   on public.user_dashboard_hero for update
   using (auth.uid() = user_id)

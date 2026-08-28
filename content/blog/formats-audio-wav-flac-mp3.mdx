@@ -1,0 +1,178 @@
+---
+title: "WAV, FLAC ou MP3 : quel format audio choisir et pour quoi ?"
+slug: "formats-audio-wav-flac-mp3"
+description: "WAV, FLAC, MP3, AAC, AIFF : comprends les différences entre les formats audio et sache lequel utiliser pour le mastering, la distribution, le streaming et les envois."
+categorie: "phono"
+tags: ["format audio WAV FLAC MP3", "qualité audio distribution", "format mastering", "AAC AIFF"]
+module: "phono"
+date: "2026-04-05"
+readingTime: 7
+niveau: "debutant"
+published: true
+---
+
+Tu viens de finir ton mastering. Ton ingénieur son te demande le fichier en WAV 24bit/96kHz. Ton distributeur accepte le WAV 16bit/44.1kHz. Ton pote voudrait écouter en FLAC. Et le label qui te contacte pour une promo veut un MP3 320kbps. Quel format pour quoi — et pourquoi ça compte ?
+
+Le choix du format audio n'est pas qu'une question de qualité sonore. C'est aussi une question de taille de fichier, de compatibilité, d'exigences des plateformes, et de préservation de ton catalogue sur le long terme.
+
+Ce guide t'explique chaque format, quand l'utiliser, et ce que les plateformes de distribution exigent concrètement.
+
+## Les formats non compressés : WAV et AIFF
+
+Ces formats stockent le signal audio tel quel, sans compression. Ce que tu enregistres, c'est exactement ce qui est sauvegardé — aucune donnée n'est perdue.
+
+**WAV (Waveform Audio File Format)**
+
+C'est le format de référence de l'industrie musicale professionnelle. Développé par Microsoft et IBM, il est universel : compatible avec tous les DAW, tous les lecteurs audio, toutes les plateformes de distribution.
+
+Caractéristiques :
+- Résolution standard : 16-bit ou 24-bit
+- Fréquence d'échantillonnage : 44.1kHz (CD), 48kHz (vidéo), 88.2kHz, 96kHz, 192kHz
+- Taille : environ 10 MB par minute en 16-bit/44.1kHz, environ 17 MB/min en 24-bit/44.1kHz
+- Supporte les métadonnées (tags BWF), mais avec des limitations selon les logiciels
+
+**Usage recommandé :** masters final, archives, soumissions au distributeur, envois à ton mastering engineer, synchronisations professionnelles.
+
+**AIFF (Audio Interchange File Format)**
+
+L'équivalent Apple du WAV. Techniquement quasi-identique en termes de qualité, mais dans un conteneur différent. Très utilisé dans l'écosystème Apple (Logic Pro notamment).
+
+- Compatibilité excellente avec Logic Pro, GarageBand, QuickTime
+- Supporte les tags ID3 nativement, ce que WAV ne fait pas aussi bien
+- Moins universel que WAV en dehors de l'écosystème Apple
+
+**Usage recommandé :** si tu travailles exclusivement sous Mac avec Logic Pro et que tes partenaires sont dans le même écosystème. Sinon, préfère le WAV pour sa compatibilité universelle.
+
+## Les formats compressés sans perte : FLAC
+
+**FLAC (Free Lossless Audio Codec)**
+
+FLAC est un format de compression sans perte : le fichier est plus petit qu'un WAV, mais quand tu le décompresses, tu retrouves exactement le même signal audio. Aucune information n'est perdue.
+
+Caractéristiques :
+- Réduction de taille : environ 50-60% par rapport au WAV équivalent
+- Qualité : identique au WAV (aucune perte d'information)
+- Open source et gratuit
+- Excellent support des métadonnées (Vorbis comments)
+- Supporte toutes les résolutions (16-bit, 24-bit, 32-bit, jusqu'à 192kHz)
+
+Ce que FLAC ne fait pas : il n'est pas supporté nativement par iTunes/Apple Music (Apple préfère ALAC, son propre format lossless). Sur Spotify, les fichiers sont transcodés à l'arrivée — donc tu peux soumettre en FLAC à certains distributeurs qui le supportent.
+
+**Usage recommandé :** archivage (alternative au WAV pour économiser de l'espace), distribution via des plateformes qui acceptent le FLAC, partage avec des audiophiles qui ont les lecteurs compatibles.
+
+**À noter :** certains distributeurs comme DistroKid acceptent le FLAC en soumission. D'autres exigent du WAV. Vérifie toujours les specs de ton distributeur.
+
+## Les formats compressés avec perte : MP3 et AAC
+
+Ces formats réduisent la taille du fichier en supprimant des informations jugées inaudibles par l'oreille humaine. Le résultat : un fichier beaucoup plus léger, mais avec une perte de qualité irréversible.
+
+**MP3 (MPEG Audio Layer III)**
+
+Le format le plus répandu dans le monde. Presque universellement compatible.
+
+- Débits courants : 128kbps (médiocre), 192kbps (acceptable), 256kbps (bon), 320kbps (maximum)
+- À 320kbps, la différence avec un WAV est inaudible pour la majorité des auditeurs en conditions normales
+- Taille : environ 1 MB par minute à 128kbps, 2.4 MB/min à 192kbps, 4.8 MB/min à 320kbps
+
+**Attention :** ne jamais re-encoder un MP3 depuis un autre MP3. Chaque encodage compressé détériore la qualité. Toujours partir d'un WAV ou FLAC pour encoder en MP3.
+
+**AAC (Advanced Audio Coding)**
+
+Le format utilisé par Apple Music, YouTube, et de nombreuses plateformes de streaming. Techniquement plus efficace que le MP3 à débit équivalent — un AAC à 256kbps offre souvent une meilleure qualité perçue qu'un MP3 à 256kbps.
+
+- Format propriétaire (développé par Apple, Sony, Dolby entre autres)
+- Utilisé nativement sur iTunes, Apple Music, YouTube
+- Extension : .m4a, .aac
+- Très bonne compatibilité mobile
+
+**Usage recommandé pour MP3 et AAC :** envois de demos, partages informels, promo presse (si le destinataire ne demande pas de haute qualité), prévisualisation. Jamais pour le master ou les archives.
+
+<BlogCTA module="phono" moduleLabel="la phonographie" variant="mid" />
+
+## Quel format pour quelle situation
+
+| Situation | Format recommandé | Résolution |
+|---|---|---|
+| Master final (archive) | WAV ou AIFF | 24-bit / 44.1kHz ou 96kHz |
+| Envoi au mastering engineer | WAV ou AIFF | 24-bit / session rate |
+| Soumission au distributeur | WAV (ou FLAC si accepté) | 24-bit / 44.1kHz |
+| Livraison pour synchro | WAV | 24-bit / 44.1kHz ou 48kHz |
+| Envoi de promo presse | MP3 | 320kbps |
+| Backup long terme | FLAC | 24-bit / 44.1kHz |
+| Partage rapide / demo | MP3 | 192-320kbps |
+| Upload sur SoundCloud | MP3 ou WAV | 320kbps ou WAV |
+| Livraison musicienne (playback) | WAV | 24-bit / 48kHz |
+
+La règle fondamentale : **archive toujours en non compressé** (WAV ou FLAC). Tout ce que tu feras à partir de ce master dépendra de sa qualité — si tu perds le WAV original et que tu n'as qu'un MP3, tu ne peux pas récupérer la qualité perdue.
+
+## Les exigences des plateformes de distribution
+
+Chaque distributeur a ses specs techniques. Voici les grandes lignes des exigences des principales plateformes :
+
+**Spotify** reçoit les fichiers via les distributeurs. La plateforme transcode ensuite vers ses propres formats de diffusion (AAC à 320kbps pour les abonnés premium, AAC 128kbps ou Vorbis pour les autres). Spotify n'expose pas directement aux auditeurs le fichier que tu soumets — il le réencode toujours.
+
+**Apple Music** diffuse en AAC 256kbps, et propose aussi un format lossless (ALAC) pour les abonnés Hi-Res Lossless. Ta soumission en WAV 24-bit est utilisée pour générer ces formats.
+
+**Deezer** propose jusqu'au FLAC en qualité HiFi pour ses abonnés. Plus la qualité de ton fichier source est élevée, mieux ta musique sera présentée sur ce tier.
+
+**Tidal** est axé qualité : il supporte le Master Quality Authenticated (MQA) et le FLAC. Soumettre en 24-bit permet à Tidal de proposer la meilleure qualité à ses abonnés Masters.
+
+**YouTube** transcode tout en AAC/Opus selon le débit. La qualité du fichier source impacte la qualité finale.
+
+**Chez les distributeurs :**
+- **DistroKid :** WAV ou FLAC, 16 ou 24-bit, 44.1kHz minimum
+- **TuneCore :** WAV ou FLAC, 16 ou 24-bit, 44.1kHz
+- **CD Baby :** WAV, 16 ou 24-bit, 44.1kHz
+- **Amuse :** WAV ou FLAC, 16 ou 24-bit
+
+En pratique : soumet toujours en WAV 24-bit/44.1kHz. C'est le plus petit dénominateur commun qui maximise la qualité sur tous les distributeurs et toutes les plateformes.
+
+Pour en savoir plus sur le processus de distribution et comment choisir ton distributeur, l'article [comment distribuer sa musique en indépendant](/blog/distribution-musicale-independant) te guide étape par étape.
+
+## Format et taille de fichier : l'équilibre à trouver
+
+La taille des fichiers a un impact réel sur ton workflow. Un catalogue de 100 titres en WAV 24-bit/44.1kHz représente environ 1,5 à 2 Go. En 96kHz, c'est le double. En FLAC, tu divises par deux.
+
+Pour le stockage :
+- **Master WAV 24-bit/44.1kHz :** ~150-200 MB par titre (selon la durée)
+- **Master FLAC 24-bit/44.1kHz :** ~70-100 MB par titre
+- **MP3 320kbps :** ~7-10 MB par titre
+
+Stratégie recommandée pour ton workflow :
+
+1. **Garde ton projet DAW** — c'est l'ultime source.
+2. **Archive en WAV 24-bit** — c'est ton master de référence.
+3. **Crée une copie FLAC** si tu veux économiser de l'espace tout en gardant la qualité.
+4. **Génère des MP3 320kbps** pour les envois, promos et partages.
+
+Pour les métadonnées associées à tes fichiers audio, l'article [les métadonnées musicales : le guide complet](/blog/metadonnees-musicales-guide) t'explique comment les intégrer correctement dans chaque format.
+
+## Conclusion
+
+La règle simple : enregistre et archive en non compressé (WAV ou FLAC), distribue en WAV, partage en MP3 ou AAC. Ne réencode jamais un fichier compressé vers un autre format compressé.
+
+Tes masters en WAV 24-bit sont ton trésor. Stocke-les en plusieurs endroits (disque externe + cloud), et assure-toi que tes métadonnées y sont correctement intégrées. Dans 20 ans, ce sera encore le meilleur point de départ pour générer n'importe quel format dont tu auras besoin.
+
+<BlogCTA module="phono" moduleLabel="la phonographie" variant="end" />
+
+---
+
+**Quelle est la différence entre WAV et FLAC ?**
+
+WAV et FLAC sont tous les deux des formats sans perte — ils préservent la totalité de l'information audio. La différence : FLAC compresse les données (fichier plus petit, environ moitié moins lourd), tandis que WAV stocke le signal brut. La qualité sonore est identique une fois décompressé. WAV est plus universel, FLAC est plus efficace pour le stockage.
+
+**Faut-il soumettre en 24-bit ou 16-bit à son distributeur ?**
+
+Préfère le 24-bit. La plupart des distributeurs l'acceptent et le convertissent en 16-bit pour les plateformes qui ne supportent pas le 24-bit. Si tu soumets directement en 16-bit, tu n'as plus de marge pour les plateformes haute résolution (Tidal Masters, Apple Music Lossless).
+
+**Est-ce que la qualité du fichier que je soumets impacte ce que l'auditeur entend sur Spotify ?**
+
+Indirectement, oui. Spotify ré-encode toujours ta soumission dans ses propres formats (AAC 320kbps ou moins). Mais un fichier source de meilleure qualité donne généralement de meilleurs résultats après ré-encodage — même si la différence est minime à l'oreille sur des enceintes grand public.
+
+**Puis-je soumettre un MP3 à mon distributeur ?**
+
+La plupart des distributeurs sérieux n'acceptent pas les MP3 en soumission — ils exigent du WAV ou du FLAC. Et c'est une bonne chose : le MP3 étant déjà compressé avec perte, ré-encoder un MP3 vers AAC ou Vorbis pour le streaming ajoute une deuxième couche de dégradation.
+
+**Quels formats dois-je fournir pour une synchro professionnelle ?**
+
+Pour une synchro (placement en film, pub, série), fournis systématiquement un WAV 24-bit/48kHz. Le 48kHz est le standard de l'industrie audiovisuelle (vs 44.1kHz qui est le standard CD/musical). Si le superviseur musical demande un autre format, il te le précisera.

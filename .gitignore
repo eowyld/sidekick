@@ -1,3 +1,7 @@
 node_modules
+.superpowers/
 .next
 .env*.local
+.env.example  
+.env.local
+CLAUDE.md

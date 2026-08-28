@@ -37,11 +37,14 @@ export interface Invoice {
   amount: string;
   dueDate: string;
   status: InvoiceStatus;
+  /** ISO YYYY-MM-DD (jour local) — renseigné à la première mise en « payée ». */
+  encaissementDate?: string;
   address?: string;
   siret?: string;
   incomeType?: IncomeType;
   lines?: InvoiceLine[];
   notes?: string;
+  projectId?: string;   // → user_projects.id (phase 2+)
 }
 
 // ─── Row mappers ─────────────────────────────────────────────────────────────
@@ -80,6 +83,7 @@ function manualEntryToRow(e: ManualEntry, userId: string): Record<string, unknow
     streams: e.streams,
     revenue: e.revenue,
     currency: e.currency,
+    project_id: e.projectId ?? null,
   };
 }
 
@@ -96,6 +100,7 @@ function rowToManualEntry(row: Record<string, unknown>): ManualEntry {
     streams: row.streams as number,
     revenue: row.revenue as number,
     currency: row.currency as string,
+    projectId: (row.project_id as string) ?? undefined,
   };
 }
 
@@ -109,15 +114,20 @@ function invoiceToRow(inv: Invoice, userId: string): Record<string, unknown> {
     amount: inv.amount,
     due_date: inv.dueDate,
     status: inv.status,
+    encaissement_date: inv.encaissementDate ?? null,
     address: inv.address ?? null,
     siret: inv.siret ?? null,
     income_type: inv.incomeType ?? null,
     lines: inv.lines ?? [],
     notes: inv.notes ?? null,
+    project_id: inv.projectId ?? null,
   };
 }
 
 function rowToInvoice(row: Record<string, unknown>): Invoice {
+  const rawEnc = row.encaissement_date;
+  const encaissementDate =
+    typeof rawEnc === "string" && rawEnc.trim() ? rawEnc.trim() : undefined;
   return {
     id: row.id as string,
     number: row.number as string,
@@ -126,11 +136,13 @@ function rowToInvoice(row: Record<string, unknown>): Invoice {
     amount: row.amount as string,
     dueDate: row.due_date as string,
     status: row.status as InvoiceStatus,
+    encaissementDate,
     address: (row.address as string) ?? undefined,
     siret: (row.siret as string) ?? undefined,
     incomeType: (row.income_type as IncomeType) ?? undefined,
     lines: (row.lines as InvoiceLine[]) ?? [],
     notes: (row.notes as string) ?? undefined,
+    projectId: (row.project_id as string) ?? undefined,
   };
 }
 
@@ -146,6 +158,7 @@ function missionToRow(m: IntermittenceMission, userId: string): Record<string, u
     charges: m.charges,
     net_amount: m.netAmount,
     notes: m.notes,
+    statut_juridique_id: m.statutJuridiqueId ?? null,
   };
 }
 
@@ -160,6 +173,7 @@ function rowToMission(row: Record<string, unknown>): IntermittenceMission {
     charges: row.charges as number,
     netAmount: row.net_amount as number,
     notes: (row.notes as string) ?? "",
+    statutJuridiqueId: (row.statut_juridique_id as string) ?? undefined,
   };
 }
 

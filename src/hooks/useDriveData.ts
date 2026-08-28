@@ -23,7 +23,9 @@ import {
   renameStorageFolder,
   deleteStorageFile,
   renameStorageFile,
-  createStorageFolder
+  createStorageFolder,
+  moveStorageFolder,
+  moveStorageFile
 } from "@/lib/drive-db";
 
 export interface UseDriveDataResult {
@@ -39,6 +41,8 @@ export interface UseDriveDataResult {
   renameStorageFolderAtPath: (folderPath: string, newName: string) => Promise<void>;
   deleteStorageFileAtPath: (filePath: string) => Promise<void>;
   renameStorageFileAtPath: (filePath: string, newFileName: string) => Promise<void>;
+  moveStorageFolderAtPath: (folderPath: string, newParentPath: string) => Promise<void>;
+  moveStorageFileAtPath: (filePath: string, newParentPath: string) => Promise<void>;
   storageUsedBytes: number;
   isLoading: boolean;
   error: string | null;
@@ -145,6 +149,22 @@ export function useDriveData(): UseDriveDataResult {
     async (filePath: string, newFileName: string) => {
       const supabase = createClient();
       await renameStorageFile(supabase, filePath, newFileName);
+    },
+    []
+  );
+
+  const moveStorageFolderAtPath = useCallback(
+    async (folderPath: string, newParentPath: string) => {
+      const supabase = createClient();
+      await moveStorageFolder(supabase, folderPath, newParentPath);
+    },
+    []
+  );
+
+  const moveStorageFileAtPath = useCallback(
+    async (filePath: string, newParentPath: string) => {
+      const supabase = createClient();
+      await moveStorageFile(supabase, filePath, newParentPath);
     },
     []
   );
@@ -271,6 +291,8 @@ export function useDriveData(): UseDriveDataResult {
     renameStorageFolderAtPath,
     deleteStorageFileAtPath,
     renameStorageFileAtPath,
+    moveStorageFolderAtPath,
+    moveStorageFileAtPath,
     storageUsedBytes,
     isLoading,
     error,

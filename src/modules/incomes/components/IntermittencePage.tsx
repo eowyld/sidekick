@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 import { useIncomesData } from "@/hooks/useIncomesData";
+import { useAdminData } from "@/hooks/useAdminData";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { IntermittenceDashboard } from "./IntermittenceDashboard";
 import { IntermittenceMissions } from "./IntermittenceMissions";
 import type { IntermittenceMission } from "./intermittence-types";
@@ -12,9 +23,48 @@ import { IntermittenceModal } from "./IntermittenceModal";
 
 type IntermittenceView = "dashboard" | "missions";
 
+const ALL_STATUTS = "__all__";
+
 export function IntermittencePage() {
-  const { missions: intermittenceMissions, setMissions: setIntermittenceMissions, loading, error } = useIncomesData();
-  if (loading) return <PageLoader />;
+  const posthog = usePostHog();
+  const { missions: allMissions, setMissions: setIntermittenceMissions, loading, error } = useIncomesData();
+  const { statuses, loading: statusesLoading } = useAdminData();
+
+  const [currentView, setCurrentView] = useState<IntermittenceView>("dashboard");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingMission, setEditingMission] = useState<IntermittenceMission | null>(null);
+  const [selectedStatutId, setSelectedStatutId] = useLocalStorage<string>(
+    "incomes:selected-intermittent-statut",
+    ALL_STATUTS
+  );
+
+  const intermittentStatuts = useMemo(
+    () => statuses.filter((s) => s.type === "intermittent"),
+    [statuses]
+  );
+
+  // Auto-sélection si un seul statut intermittent et aucune sélection explicite
+  const effectiveStatutId = useMemo(() => {
+    if (selectedStatutId !== ALL_STATUTS) return selectedStatutId;
+    if (intermittentStatuts.length === 1) return intermittentStatuts[0].id;
+    return ALL_STATUTS;
+  }, [selectedStatutId, intermittentStatuts]);
+
+  const selectedStatut = useMemo(
+    () => (effectiveStatutId !== ALL_STATUTS ? statuses.find((s) => s.id === effectiveStatutId) : null),
+    [effectiveStatutId, statuses]
+  );
+
+  // Missions filtrées : si statut sélectionné, on garde celles liées à ce statut
+  // + les missions legacy (sans lien) pour ne pas les perdre de vue
+  const filteredMissions = useMemo(() => {
+    if (effectiveStatutId === ALL_STATUTS) return allMissions;
+    return allMissions.filter(
+      (m) => !m.statutJuridiqueId || m.statutJuridiqueId === effectiveStatutId
+    );
+  }, [allMissions, effectiveStatutId]);
+
+  if (loading || statusesLoading) return <PageLoader />;
   if (error) return (
     <PageError
       title="Impossible de charger tes données d'intermittence"
@@ -23,18 +73,8 @@ export function IntermittencePage() {
     />
   );
 
-  const [currentView, setCurrentView] = useState<IntermittenceView>("dashboard");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingMission, setEditingMission] = useState<IntermittenceMission | null>(
-    null
-  );
-
   const handleNavigate = (view: string) => {
-    if (view === "intermittence-missions") {
-      setCurrentView("missions");
-    } else {
-      setCurrentView("dashboard");
-    }
+    setCurrentView(view === "intermittence-missions" ? "missions" : "dashboard");
   };
 
   const handleAddMissionClick = () => {
@@ -55,9 +95,12 @@ export function IntermittencePage() {
     } else {
       const newMission: IntermittenceMission = {
         ...mission,
-        id: crypto.randomUUID()
+        id: crypto.randomUUID(),
+        statutJuridiqueId: effectiveStatutId !== ALL_STATUTS ? effectiveStatutId : undefined,
       };
       setIntermittenceMissions((prev) => [newMission, ...prev]);
+      posthog?.capture("mission_created", { module: "incomes" });
+      posthog?.capture("item_created", { module: "incomes" });
     }
     setModalOpen(false);
     setEditingMission(null);
@@ -66,9 +109,7 @@ export function IntermittencePage() {
   const handleDeleteMission = (id: string) => {
     if (
       typeof window !== "undefined" &&
-      !window.confirm(
-        "Voulez-vous vraiment supprimer cette mission ? Cette action est irréversible."
-      )
+      !window.confirm("Voulez-vous vraiment supprimer cette mission ? Cette action est irréversible.")
     ) {
       return;
     }
@@ -86,41 +127,82 @@ export function IntermittencePage() {
             Suivi de tes missions, cachets et heures pour l&apos;ARE.
           </p>
         </div>
-        <div className="inline-flex rounded-full border border-[rgba(245,245,245,0.15)] bg-[rgba(44,44,46,0.7)] px-1 py-1 backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={() => setCurrentView("dashboard")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              currentView === "dashboard"
-                ? "bg-[#F0FF00] text-[#101010]"
-                : "text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.08)]"
-            }`}
-          >
-            Vue d&apos;ensemble
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentView("missions")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              currentView === "missions"
-                ? "bg-[#F0FF00] text-[#101010]"
-                : "text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.08)]"
-            }`}
-          >
-            Missions &amp; cachets
-          </button>
+        <div className="flex items-center gap-3">
+          {/* Sélecteur de statut — visible si au moins un statut intermittent */}
+          {intermittentStatuts.length > 0 ? (
+            <div className="flex items-center gap-2">
+              {intermittentStatuts.length > 1 ? (
+                <Select
+                  value={effectiveStatutId}
+                  onValueChange={(v) => setSelectedStatutId(v)}
+                >
+                  <SelectTrigger className="h-8 min-w-[160px] border-[rgba(245,245,245,0.15)] bg-[rgba(44,44,46,0.7)] text-xs text-[#F5F5F5]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_STATUTS}>Toutes les missions</SelectItem>
+                    {intermittentStatuts.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Link
+                  href={`/admin/statuts/${intermittentStatuts[0].id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(240,255,0,0.25)] bg-[rgba(240,255,0,0.06)] px-2.5 py-1 text-[11px] font-medium text-[#F0FF00]/80 transition hover:bg-[rgba(240,255,0,0.12)]"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#F0FF00]/60" aria-hidden />
+                  {intermittentStatuts[0].nom}
+                </Link>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/admin/statuts/new?type=intermittent"
+              className="text-[11px] text-[#F5F5F5]/40 underline underline-offset-2 hover:text-[#F5F5F5]/70"
+            >
+              Créer un statut intermittent →
+            </Link>
+          )}
+
+          <div className="inline-flex rounded-full border border-[rgba(245,245,245,0.15)] bg-[rgba(44,44,46,0.7)] px-1 py-1 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => setCurrentView("dashboard")}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                currentView === "dashboard"
+                  ? "bg-[#F0FF00] text-[#101010]"
+                  : "text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.08)]"
+              }`}
+            >
+              Vue d&apos;ensemble
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentView("missions")}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                currentView === "missions"
+                  ? "bg-[#F0FF00] text-[#101010]"
+                  : "text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.08)]"
+              }`}
+            >
+              Missions &amp; cachets
+            </button>
+          </div>
         </div>
       </header>
 
       {currentView === "dashboard" ? (
         <IntermittenceDashboard
-          missions={intermittenceMissions}
+          missions={filteredMissions}
           onNavigate={handleNavigate}
           onAddMission={handleAddMissionClick}
         />
       ) : (
         <IntermittenceMissions
-          intermittenceMissions={intermittenceMissions}
+          intermittenceMissions={filteredMissions}
           setIntermittenceMissions={setIntermittenceMissions}
           onAddMission={handleAddMissionClick}
           onEditMission={handleEditMission}
@@ -136,6 +218,8 @@ export function IntermittencePage() {
         }}
         onSave={handleSaveMission}
         mission={editingMission}
+        defaultStatutId={effectiveStatutId !== ALL_STATUTS ? effectiveStatutId : undefined}
+        selectedStatutName={selectedStatut?.nom}
       />
     </div>
   );

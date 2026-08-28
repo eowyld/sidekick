@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const redirectedFrom = searchParams.get("redirectedFrom");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,16 +21,23 @@ function LoginPageContent() {
     searchParams.get("error") === "oauth" ? "Erreur lors de la connexion Google. Réessaie." : null
   );
   const [loading, setLoading] = useState(false);
+  const nextPath =
+    redirectedFrom && redirectedFrom.startsWith("/") && !redirectedFrom.startsWith("//")
+      ? redirectedFrom
+      : "/dashboard";
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
     setError(null);
     try {
       const supabase = createClient();
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      callbackUrl.searchParams.set("next", nextPath);
+
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl.toString(),
           scopes: "email profile",
         },
       });
@@ -51,7 +59,7 @@ function LoginPageContent() {
         password
       });
       if (err) throw err;
-      router.push("/dashboard");
+      router.push(nextPath);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de connexion");

@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
+import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { PostHogPageView } from "@/components/analytics/PostHogPageView";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const siteDescription =
@@ -65,7 +69,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground">
-        {children}
+        <PostHogProvider>
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
+          {children}
+          <Toaster theme="dark" richColors position="bottom-right" />
+        </PostHogProvider>
       </body>
     </html>
   );

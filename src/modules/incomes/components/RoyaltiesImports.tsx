@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Plus, Pencil, Trash2 } from "lucide-react";
@@ -69,6 +70,7 @@ export function RoyaltiesImports({
   onEditManual,
   onDeleteManual,
 }: RoyaltiesImportsProps) {
+  const posthog = usePostHog();
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [errors, setErrors] = useState<Partial<Record<Distributor, string>>>({});
   const [modalOpen, setModalOpen] = useState(false);
@@ -96,6 +98,8 @@ export function RoyaltiesImports({
           importedAt: new Date().toISOString(),
           entries,
         });
+        posthog?.capture("royalties_import_uploaded", { module: "incomes" });
+        posthog?.capture("item_created", { module: "incomes" });
       } catch (err) {
         setErrors((prev) => ({ ...prev, [distributor]: (err as Error).message }));
       }

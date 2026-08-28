@@ -29,6 +29,7 @@ function campaignToRow(c: MailingCampaign, userId: string, isDraft: boolean): Re
     target_segment_ids: c.targetSegmentIds ?? [],
     from_email: c.fromEmail ?? null,
     is_draft: isDraft,
+    project_id: c.projectId ?? null,
   };
 }
 
@@ -48,6 +49,7 @@ function rowToCampaign(row: Record<string, unknown>): MailingCampaign {
     details: (row.details as string) ?? undefined,
     targetSegmentIds: (row.target_segment_ids as string[]) ?? [],
     fromEmail: (row.from_email as string) ?? undefined,
+    projectId: (row.project_id as string) ?? undefined,
   };
 }
 
@@ -88,6 +90,7 @@ function eventToRow(e: EditorialEvent, userId: string): Record<string, unknown> 
     user_id: userId,
     title: e.title,
     date: e.date,
+    project_id: e.projectId ?? null,
     data: {
       time: e.time,
       platforms: e.platforms,
@@ -113,6 +116,7 @@ function rowToEvent(row: Record<string, unknown>): EditorialEvent {
     text: (data.text as string) ?? "",
     attachments: (data.attachments as string[]) ?? [],
     notes: (data.notes as string) ?? "",
+    projectId: (row.project_id as string) ?? undefined,
   };
 }
 
