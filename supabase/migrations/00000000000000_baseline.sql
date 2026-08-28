@@ -211,6 +211,10 @@ CREATE TABLE IF NOT EXISTS "public"."alpha_testers_waitlist" (
 ALTER TABLE "public"."alpha_testers_waitlist" OWNER TO "postgres";
 
 
+COMMENT ON TABLE "public"."alpha_testers_waitlist" IS 'RLS active sans policy = deny-all volontaire. Accès uniquement via service_role (/api/waitlist).';
+
+
+
 ALTER TABLE "public"."alpha_testers_waitlist" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME "public"."alpha_testers_waitlist_id_seq"
     START WITH 1
@@ -1680,10 +1684,6 @@ ALTER TABLE ONLY "public"."user_tour_dates"
 
 
 
-CREATE POLICY "Anyone can insert presskit links" ON "public"."presskit_links" FOR INSERT WITH CHECK (true);
-
-
-
 CREATE POLICY "Anyone can read presskit links" ON "public"."presskit_links" FOR SELECT USING (true);
 
 
@@ -2577,6 +2577,36 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- ============================================================================

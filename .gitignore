@@ -2,6 +2,11 @@ node_modules
 .superpowers/
 .next
 .env*.local
-.env.example  
 .env.local
 CLAUDE.md
+
+# Logs de session (outil local, non pertinent pour le dépôt)
+.remember/
+
+# Cache de compilation TypeScript, régénéré à chaque build
+tsconfig.tsbuildinfo

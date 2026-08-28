@@ -12,6 +12,7 @@ const PROTECTED_PREFIXES = [
   "/live",
   "/marketing",
   "/phono",
+  "/projects",
   "/settings",
   "/tasks"
 ];
@@ -78,6 +79,7 @@ export const config = {
     "/live/:path*",
     "/marketing/:path*",
     "/phono/:path*",
+    "/projects/:path*",
     "/settings/:path*",
     "/tasks/:path*"
   ]
