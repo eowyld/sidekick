@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { migratePreferencesToSupabase } from "@/lib/migrate-preferences-to-supabase";
 import type { ReactNode } from "react";
 
 /**
@@ -28,6 +29,12 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
         if (!user) {
           router.replace("/login");
+        } else {
+          // Reprise des préférences localStorage au premier écran authentifié,
+          // quel qu'il soit : elles pilotent la sidebar de toute l'application.
+          void migratePreferencesToSupabase().catch((e) =>
+            console.error("[AuthGuard] Migration des préférences échouée:", e)
+          );
         }
 
         const { data } = supabase.auth.onAuthStateChange((_event, session) => {

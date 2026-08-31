@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData, type EnabledModules } from "@/hooks/usePreferencesData";
 import { usePostHog } from "posthog-js/react";
 
 const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: string }[] = [
@@ -40,34 +40,12 @@ const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: st
   }
 ];
 
-type EnabledModules = {
-  live: boolean;
-  phono: boolean;
-  admin: boolean;
-  marketing: boolean;
-  edition: boolean;
-  revenus: boolean;
-};
-
 export function CustomizationPage() {
-  const { data, setData } = useSidekickData();
+  const { enabledModules: enabled, setEnabledModules } = usePreferencesData();
   const posthog = usePostHog();
-  const enabled = useMemo(
-    () => data.preferences?.enabledModules ?? ({} as EnabledModules),
-    [data.preferences?.enabledModules]
-  );
 
   const handleToggle = (key: keyof EnabledModules, value: boolean) => {
-    setData((prev) => ({
-      ...prev,
-      preferences: {
-        ...prev.preferences,
-        enabledModules: {
-          ...prev.preferences.enabledModules,
-          [key]: value
-        }
-      }
-    }));
+    setEnabledModules({ [key]: value });
     posthog?.capture("module_visibility_updated", { module: "settings" });
   };
 

@@ -21,7 +21,7 @@ import {
   Settings,
   FolderKanban,
 } from "lucide-react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { SidekickLogo } from "@/components/branding/SidekickLogo";
 
 const SIDEBAR_COLLAPSED_KEY = "sidekick-sidebar-collapsed";
@@ -170,21 +170,10 @@ function NavGroup({
 }) {
   const groupActive = pathname === href || pathname.startsWith(href + "/");
 
-  if (!enabled) {
-    return (
-      <Link
-        href={href}
-        className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
-          groupActive
-            ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
-            : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
-        }`}
-      >
-        <Icon size={16} className="shrink-0" />
-        {label}
-      </Link>
-    );
-  }
+  // Module désactivé : retiré de la navigation, conformément à la promesse de
+  // la page Personnalisation ("les éléments désactivés disparaissent des menus").
+  // L'accès direct à l'URL reste possible — c'est la garde de route qui s'en charge.
+  if (!enabled) return null;
 
   return (
     <div>
@@ -239,11 +228,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const { data, preferencesReady } = useSidekickData();
+  const { enabledModules, preferencesReady } = usePreferencesData();
   const pathname = usePathname();
 
   const enabled = preferencesReady
-    ? data.preferences?.enabledModules
+    ? enabledModules
     : { live: false, phono: false, admin: false, marketing: false, edition: false, revenus: false };
 
   const [collapsed, setCollapsed] = useState(false);

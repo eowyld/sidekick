@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import { AuthGuard } from "@/components/layout/AuthGuard";
+import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SettingsSidebar } from "@/components/layout/SettingsSidebar";
@@ -20,7 +21,9 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
         {isSettings ? <SettingsSidebar /> : <Sidebar />}
         <div className="flex flex-1 flex-col bg-background">
           <Header />
-          <main className="flex-1 bg-background p-6">{children}</main>
+          <main className="flex-1 bg-background p-6">
+            <ModuleGuard>{children}</ModuleGuard>
+          </main>
         </div>
         <Toaster richColors theme="dark" />
         <FeedbackButton />

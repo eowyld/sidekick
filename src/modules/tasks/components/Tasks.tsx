@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import type { Todo } from "@/lib/sidekick-store";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useTasksData } from "@/hooks/useTasksData";
 import { useLiveData } from "@/hooks/useLiveData";
 import { useAdminData } from "@/hooks/useAdminData";
@@ -60,7 +61,7 @@ export function Tasks() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const enabledModules = data.preferences?.enabledModules ?? {};
+  const { enabledModules } = usePreferencesData();
 
   const todos = useMemo(
     () =>
