@@ -20,7 +20,10 @@ import {
   PanelLeftClose,
   Settings,
   FolderKanban,
+  Lock,
 } from "lucide-react";
+import { isComingSoon } from "@/lib/coming-soon";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { SidekickLogo } from "@/components/branding/SidekickLogo";
 
@@ -147,6 +150,18 @@ function NavLink({
   );
 }
 
+/** Infobulle des entrées fermées pour l'alpha. */
+function ComingSoonTooltip({ children }: { children: React.ReactNode }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipContent side="right">Disponible prochainement</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function NavGroup({
   label,
   icon: Icon,
@@ -175,6 +190,21 @@ function NavGroup({
   // L'accès direct à l'URL reste possible — c'est la garde de route qui s'en charge.
   if (!enabled) return null;
 
+  // Fermé pour l'alpha : l'entrée reste visible — elle annonce ce qui arrive —
+  // mais devient inerte. Le cadenas porte le message, un clic vers une impasse
+  // serait moins clair.
+  if (isComingSoon(href)) {
+    return (
+      <ComingSoonTooltip>
+        <div className="flex cursor-default items-center gap-2.5 border-l-2 border-transparent px-2 py-1.5 text-[13px] text-[#F5F5F5]/35">
+          <Icon size={16} className="shrink-0" />
+          <span className="flex-1">{label}</span>
+          <Lock size={12} className="shrink-0" />
+        </div>
+      </ComingSoonTooltip>
+    );
+  }
+
   return (
     <div>
       <button
@@ -196,6 +226,16 @@ function NavGroup({
       {open && (
         <div className="ml-[18px] mt-0.5 mb-1 space-y-0.5 border-l border-[rgba(245,245,245,0.08)] pl-3">
           {sub.map((item) => {
+            if (isComingSoon(item.href)) {
+              return (
+                <ComingSoonTooltip key={item.href}>
+                  <div className="flex w-fit cursor-default items-center gap-1.5 py-1 text-[12px] text-[#F5F5F5]/30">
+                    {item.label}
+                    <Lock size={10} className="shrink-0" />
+                  </div>
+                </ComingSoonTooltip>
+              );
+            }
             const subActive = pathname === item.href;
             return (
               <Link

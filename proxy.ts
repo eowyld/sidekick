@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { COMING_SOON_PUBLIC_PREFIXES } from "@/lib/coming-soon";
 
 const PROTECTED_PREFIXES = [
   "/admin",
@@ -18,6 +19,19 @@ const PROTECTED_PREFIXES = [
 ];
 
 export async function proxy(request: NextRequest) {
+  // Pages publiques fermées pour l'alpha (presskit). Le code reste en place ;
+  // rouvrir consiste à retirer l'entrée de COMING_SOON_PUBLIC_PREFIXES.
+  const isClosedPublicRoute = COMING_SOON_PUBLIC_PREFIXES.some(
+    (prefix) =>
+      request.nextUrl.pathname === prefix || request.nextUrl.pathname.startsWith(`${prefix}/`)
+  );
+  if (isClosedPublicRoute) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+    homeUrl.search = "";
+    return NextResponse.redirect(homeUrl);
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers
@@ -79,6 +93,7 @@ export const config = {
     "/live/:path*",
     "/marketing/:path*",
     "/phono/:path*",
+    "/presskit/:path*",
     "/projects/:path*",
     "/settings/:path*",
     "/tasks/:path*"

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { ModuleGuard } from "@/components/layout/ModuleGuard";
+import { DesktopOnlyGuard } from "@/components/layout/DesktopOnlyGuard";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SettingsSidebar } from "@/components/layout/SettingsSidebar";
@@ -35,7 +36,9 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
-      <AppLayoutInner>{children}</AppLayoutInner>
+      <DesktopOnlyGuard>
+        <AppLayoutInner>{children}</AppLayoutInner>
+      </DesktopOnlyGuard>
     </AuthGuard>
   );
 }

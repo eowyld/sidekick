@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { usePreferencesData, type EnabledModules } from "@/hooks/usePreferencesData";
+import { isComingSoon } from "@/lib/coming-soon";
+import { ComingSoon } from "@/components/layout/ComingSoon";
 
 /**
  * Préfixe de route → clé de module. L'ordre importe peu, les préfixes ne se
@@ -45,6 +47,11 @@ export function ModuleGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (blocked) router.replace("/dashboard");
   }, [blocked, router]);
+
+  // Fermé pour l'alpha : on affiche l'écran « Bientôt » plutôt que de rediriger.
+  // L'utilisateur a cliqué en connaissance de cause, une redirection silencieuse
+  // lui laisserait croire à un bug.
+  if (isComingSoon(pathname)) return <ComingSoon />;
 
   // Ne rien peindre pendant la redirection, pour éviter le flash de la page.
   if (blocked) return null;
