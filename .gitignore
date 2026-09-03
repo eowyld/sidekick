@@ -10,3 +10,9 @@ CLAUDE.md
 
 # Cache de compilation TypeScript, régénéré à chaque build
 tsconfig.tsbuildinfo
+
+# Métadonnées Finder (macOS)
+.DS_Store
+
+# Dossiers de travail locaux (sources de logos, exports) — non versionnés
+FILES/
