@@ -24,10 +24,14 @@ export const SECTORS: Sector[] = ["live", "phono", "edition"];
 const DEFAULT_ENABLED_MODULES = DEFAULT_SIDEKICK_DATA.preferences
   .enabledModules as EnabledModules;
 
+/** Table → identifiants des lignes créées par le seed de démonstration. */
+export type DemoManifest = Record<string, string[]>;
+
 type PreferencesRow = {
   enabled_modules: Partial<EnabledModules>;
   onboarding_completed_at: string | null;
   onboarding_sectors: Sector[];
+  demo_seed: DemoManifest | null;
 };
 
 /**
@@ -40,18 +44,35 @@ function mergeEnabled(stored: Partial<EnabledModules> | null | undefined): Enabl
   return { ...DEFAULT_ENABLED_MODULES, ...(stored ?? {}) };
 }
 
+const BASE_COLUMNS = "enabled_modules, onboarding_completed_at, onboarding_sectors";
+/** Code Postgres « undefined_column ». */
+const UNDEFINED_COLUMN = "42703";
+
 async function fetchPreferences(): Promise<PreferencesRow | null> {
   const supabase = createClient();
-  const { data, error } = await supabase
+
+  let { data, error } = await supabase
     .from("user_preferences")
-    .select("enabled_modules, onboarding_completed_at, onboarding_sectors")
+    .select(`${BASE_COLUMNS}, demo_seed`)
     .maybeSingle();
+
+  // La colonne demo_seed arrive par migration. Tant qu'elle n'est pas appliquée,
+  // on relit sans elle plutôt que de laisser tomber toutes les préférences —
+  // sinon la sidebar et les règles de tâches perdent leur configuration.
+  if (error?.code === UNDEFINED_COLUMN) {
+    ({ data, error } = await supabase
+      .from("user_preferences")
+      .select(BASE_COLUMNS)
+      .maybeSingle());
+  }
+
   if (error) throw new Error(error.message);
   if (!data) return null; // aucune ligne encore : l'utilisateur est sur les défauts
   return {
     enabled_modules: (data.enabled_modules as Partial<EnabledModules>) ?? {},
     onboarding_completed_at: (data.onboarding_completed_at as string) ?? null,
     onboarding_sectors: (data.onboarding_sectors as Sector[]) ?? [],
+    demo_seed: (data.demo_seed as DemoManifest | null) ?? null,
   };
 }
 
@@ -107,11 +128,39 @@ export function usePreferencesData() {
           enabled_modules: nextEnabled,
           onboarding_completed_at: row?.onboarding_completed_at ?? null,
           onboarding_sectors: row?.onboarding_sectors ?? [],
+          demo_seed: row?.demo_seed ?? null,
         },
         { enabled_modules: nextEnabled }
       );
     },
     [enabledModules, row, persist]
+  );
+
+  /**
+   * Enregistre le manifeste des données d'exemple, ou l'efface après leur
+   * suppression. Attend la réponse Supabase : l'appelant a besoin de savoir
+   * si la trace est bien posée avant de rendre la main.
+   */
+  const setDemoSeed = useCallback(
+    async (manifest: DemoManifest | null) => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("not_authenticated");
+
+      const { error: upsertError } = await supabase
+        .from("user_preferences")
+        .upsert({
+          user_id: user.id,
+          demo_seed: manifest,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (upsertError) throw new Error(upsertError.message);
+      await mutate(KEY);
+    },
+    []
   );
 
   /**
@@ -132,6 +181,7 @@ export function usePreferencesData() {
           enabled_modules: nextEnabled,
           onboarding_completed_at: completedAt,
           onboarding_sectors: sectors,
+          demo_seed: row?.demo_seed ?? null,
         },
         {
           enabled_modules: nextEnabled,
@@ -140,13 +190,15 @@ export function usePreferencesData() {
         }
       );
     },
-    [enabledModules, persist]
+    [enabledModules, row, persist]
   );
 
   return {
     enabledModules,
     setEnabledModules,
     completeOnboarding,
+    setDemoSeed,
+    demoSeed: row?.demo_seed ?? null,
     onboardingCompleted: Boolean(row?.onboarding_completed_at),
     onboardingSectors: row?.onboarding_sectors ?? [],
     /** false tant que le chargement n'a pas eu lieu — évite le flash de sidebar. */

@@ -12,7 +12,7 @@ export type HeroEvent = {
   id: string;
   title: string;
   date: string; // ISO date
-  type: "representation" | "rehearsal" | "invoice" | "session" | "custom";
+  type: "representation" | "rehearsal" | "invoice" | "session" | "release" | "custom";
   sector?: string;
 };
 

@@ -13,9 +13,12 @@ import { PageError } from "@/components/ui/page-error";
 import { EventDialog } from "@/components/ui/event-dialog";
 import { formatTimeForDisplay } from "@/lib/utils";
 import { enumerateDateKeysInclusive } from "@/modules/calendar/week-schedule-utils";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
+import { SectorOnboarding } from "@/components/onboarding/SectorOnboarding";
 import { DashboardHero } from "./DashboardHero";
 import { DashboardWeekRibbon, type RibbonEvent } from "./DashboardWeekRibbon";
 import { DashboardTodayList, type TodayTask } from "./DashboardTodayList";
+import { FirstStepCard } from "./FirstStepCard";
 
 // ─── Helpers dates ────────────────────────────────────────────────────────────
 
@@ -47,7 +50,7 @@ function getRibbonCta(
     return { label: "Voir dans Live →", href: "/live" };
   if (id.startsWith("rev-inv-"))
     return { label: "Voir dans Revenus →", href: "/revenus" };
-  if (id.startsWith("phono-ses-"))
+  if (id.startsWith("phono-ses-") || id.startsWith("phono-rel-"))
     return { label: "Voir dans Phono →", href: "/phono" };
   // Les événements custom n'ont pas de CTA
   return null;
@@ -63,10 +66,18 @@ export function DashboardPage() {
     live: true, phono: true, admin: true, marketing: true, edition: true, revenus: true,
   };
 
+  const {
+    onboardingCompleted,
+    onboardingSectors,
+    preferencesReady: prefsLoaded,
+  } = usePreferencesData();
+  // Fermé localement dès la validation, sans attendre le rechargement SWR.
+  const [onboardingDone, setOnboardingDone] = useState(false);
+
   const { tasks, setTasks, error: tasksError } = useTasksData();
   const { tourDates, rehearsals, error: liveError } = useLiveData();
   const { invoices, error: incomesError } = useIncomesData();
-  const { sessions, error: phonoError } = usePhonoData();
+  const { sessions, albums, tracks, podcasts, error: phonoError } = usePhonoData();
   const { customEvents, error: calendarError } = useCalendarData();
 
   const now = useMemo(() => new Date(), []);
@@ -149,6 +160,35 @@ export function DashboardPage() {
         ];
         push(d, { id: `phono-ses-${s.id}`, title: s.title || s.location || "Session", sector: "phono", detail: { subLabel: "Session studio", dateKey: toDateKey(d), fields } });
       });
+      albums.forEach((a) => {
+        const d = parseDate(a.releaseDate);
+        if (!inRange(d)) return;
+        const typeLabel = a.type === "ep" ? "EP" : a.type === "single" ? "Single" : "Album";
+        const fields = [
+          { label: "Type", value: typeLabel },
+          ...(a.artist ? [{ label: "Artiste", value: a.artist }] : []),
+        ];
+        push(d, { id: `phono-rel-alb-${a.id}`, title: a.title || "Sortie", sector: "phono", detail: { subLabel: `Sortie ${typeLabel}`, dateKey: toDateKey(d), fields } });
+      });
+      tracks.forEach((t) => {
+        const d = parseDate(t.releaseDate);
+        if (!inRange(d)) return;
+        // Évite le doublon : titre publié le même jour au sein d'un album listé.
+        const trackKey = toDateKey(d);
+        const inAlbumSameDay = albums.some((a) => {
+          const ad = parseDate(a.releaseDate);
+          return ad && toDateKey(ad) === trackKey && (a.trackIds ?? []).includes(t.id);
+        });
+        if (inAlbumSameDay) return;
+        const fields = t.mainArtist ? [{ label: "Artiste", value: t.mainArtist }] : [];
+        push(d, { id: `phono-rel-trk-${t.id}`, title: t.title || "Sortie titre", sector: "phono", detail: { subLabel: "Sortie titre", dateKey: toDateKey(d), fields } });
+      });
+      podcasts.forEach((p) => {
+        const d = parseDate(p.releaseDate);
+        if (!inRange(d)) return;
+        const fields = p.artists ? [{ label: "Artistes", value: p.artists }] : [];
+        push(d, { id: `phono-rel-pod-${p.id}`, title: p.title || "Sortie podcast", sector: "phono", detail: { subLabel: "Sortie podcast", dateKey: toDateKey(d), fields } });
+      });
     }
     customEvents.forEach((e) => {
       const sector = (e.sector ?? "other") as RibbonEvent["sector"];
@@ -189,7 +229,7 @@ export function DashboardPage() {
     });
 
     return map;
-  }, [preferencesReady, weekDays, tourDates, rehearsals, invoices, sessions, customEvents, enabled]);
+  }, [preferencesReady, weekDays, tourDates, rehearsals, invoices, sessions, albums, tracks, podcasts, customEvents, enabled]);
 
   const tomorrowKey = useMemo(() => {
     const t = new Date(today);
@@ -227,7 +267,7 @@ export function DashboardPage() {
       id: string;
       title: string;
       date: string;
-      type: "representation" | "rehearsal" | "invoice" | "session" | "custom";
+      type: "representation" | "rehearsal" | "invoice" | "session" | "release" | "custom";
       sector?: string;
     };
     const events: HeroEv[] = [];
@@ -246,6 +286,25 @@ export function DashboardPage() {
     sessions.forEach((s) => {
       const d = parseDate(s.date);
       if (d) events.push({ id: `phono-ses-${s.id}`, title: s.title || s.location || "Session", date: toDateKey(d), type: "session", sector: "phono" });
+    });
+    albums.forEach((a) => {
+      const d = parseDate(a.releaseDate);
+      if (d) events.push({ id: `phono-rel-alb-${a.id}`, title: a.title || "Sortie", date: toDateKey(d), type: "release", sector: "phono" });
+    });
+    tracks.forEach((t) => {
+      const d = parseDate(t.releaseDate);
+      if (!d) return;
+      const trackKey = toDateKey(d);
+      const inAlbumSameDay = albums.some((a) => {
+        const ad = parseDate(a.releaseDate);
+        return ad && toDateKey(ad) === trackKey && (a.trackIds ?? []).includes(t.id);
+      });
+      if (inAlbumSameDay) return;
+      events.push({ id: `phono-rel-trk-${t.id}`, title: t.title || "Sortie titre", date: trackKey, type: "release", sector: "phono" });
+    });
+    podcasts.forEach((p) => {
+      const d = parseDate(p.releaseDate);
+      if (d) events.push({ id: `phono-rel-pod-${p.id}`, title: p.title || "Sortie podcast", date: toDateKey(d), type: "release", sector: "phono" });
     });
     customEvents.forEach((e) => {
       const sd = parseDate(e.date);
@@ -278,7 +337,7 @@ export function DashboardPage() {
       }));
 
     return { tasks: heroTasks, events, projects };
-  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, customEvents, data.projects]);
+  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, podcasts, customEvents, data.projects]);
 
   const { phrase, accent, loading: heroLoading } = useDashboardHero(heroPayload);
 
@@ -297,8 +356,29 @@ export function DashboardPage() {
     />
   );
 
+  const showOnboarding = prefsLoaded && !onboardingCompleted && !onboardingDone;
+
+  // Compte réellement vierge : aucune donnée dans les modules du tableau de
+  // bord. Le seed de démonstration remplit ces tables, la carte disparaît donc
+  // d'elle-même quand l'utilisateur a choisi les exemples.
+  const isEmptyAccount =
+    tasks.length === 0 &&
+    tourDates.length === 0 &&
+    invoices.length === 0 &&
+    sessions.length === 0;
+
+  if (showOnboarding) {
+    return <SectorOnboarding onDone={() => setOnboardingDone(true)} />;
+  }
+
   return (
     <div>
+      {isEmptyAccount && (
+        <div className="mb-6">
+          <FirstStepCard sectors={onboardingSectors} />
+        </div>
+      )}
+
       <DashboardHero
         now={now}
         phrase={phrase}

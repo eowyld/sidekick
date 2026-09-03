@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Loader2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { usePreferencesData, type EnabledModules } from "@/hooks/usePreferencesData";
+import { removeDemoData } from "@/lib/demo-seed";
 import { usePostHog } from "posthog-js/react";
 
 const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: string }[] = [
@@ -38,12 +42,38 @@ const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: st
 ];
 
 export function CustomizationPage() {
-  const { enabledModules: enabled, setEnabledModules } = usePreferencesData();
+  const { enabledModules: enabled, setEnabledModules, demoSeed, setDemoSeed } =
+    usePreferencesData();
   const posthog = usePostHog();
+  const [removingDemo, setRemovingDemo] = useState(false);
 
   const handleToggle = (key: keyof EnabledModules, value: boolean) => {
     setEnabledModules({ [key]: value });
     posthog?.capture("module_visibility_updated", { module: "settings" });
+  };
+
+  const demoRowCount = useMemo(
+    () =>
+      demoSeed
+        ? Object.values(demoSeed).reduce((sum, ids) => sum + ids.length, 0)
+        : 0,
+    [demoSeed]
+  );
+
+  const handleRemoveDemo = async () => {
+    if (!demoSeed) return;
+    setRemovingDemo(true);
+    try {
+      await removeDemoData(demoSeed);
+      await setDemoSeed(null);
+      posthog?.capture("demo_data_removed");
+      toast.success("Données d'exemple supprimées.");
+    } catch (e) {
+      console.error("[settings] suppression des données d'exemple échouée", e);
+      toast.error("Suppression impossible. Réessaie dans un instant.");
+    } finally {
+      setRemovingDemo(false);
+    }
   };
 
   return (
@@ -77,6 +107,34 @@ export function CustomizationPage() {
           ))}
         </CardContent>
       </Card>
+
+      {demoSeed && demoRowCount > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Données d&apos;exemple</CardTitle>
+            <CardDescription>
+              Ton compte contient {demoRowCount} éléments fictifs créés à
+              l&apos;inscription. Les supprimer ne touchera pas à ce que tu as
+              saisi toi-même.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveDemo}
+              disabled={removingDemo}
+              className="gap-2"
+            >
+              {removingDemo ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {removingDemo ? "Suppression…" : "Supprimer les données d'exemple"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

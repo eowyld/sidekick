@@ -15,8 +15,9 @@ type Props = {
 };
 
 function formatHeader(now: Date): string {
-  const day = now.toLocaleDateString("fr-FR", { weekday: "long", timeZone: "Europe/Paris" });
-  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+  // Pas de timeZone forcée : on suit le fuseau local de l'utilisateur.
+  const day = now.toLocaleDateString("fr-FR", { weekday: "long" });
+  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   return `${day.charAt(0).toUpperCase()}${day.slice(1)} · ${time.replace(":", "h")}`;
 }
 
