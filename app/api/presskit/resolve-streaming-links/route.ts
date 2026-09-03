@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabase } from "@/lib/supabase-server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -307,6 +309,27 @@ async function webSearchForPlatform(
 /* ---------- Main handler ---------- */
 
 export async function GET(req: NextRequest) {
+  // La route déclenche des requêtes sortantes vers MusicBrainz et les
+  // plateformes. Ouverte, elle offrait à n'importe qui un relais de scraping
+  // gratuit sous notre nom. Son unique appelant est l'éditeur de presskit,
+  // qui est authentifié.
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const limit = rateLimit({
+    key: `streaming-links:${user.id}`,
+    limit: 20,
+    windowMs: 60 * 1000,
+  });
+  if (!limit.allowed) {
+    return tooManyRequests(limit.retryAfter);
+  }
+
   const artist = req.nextUrl.searchParams.get("artist")?.trim() || "";
   if (!artist) {
     return NextResponse.json({ error: "Missing artist parameter." }, { status: 400 });

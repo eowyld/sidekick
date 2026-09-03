@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { siretDigitsOnly } from "@/modules/admin/lib/siret";
 import { mapRechercheEntreprisesJson } from "@/modules/admin/lib/recherche-entreprises-siret";
 
@@ -16,6 +17,17 @@ export async function GET(req: NextRequest) {
     } = await supabase.auth.getUser();
     if (userError || !user?.id) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
+    // L'API publique data.gouv est appelée en notre nom : on ne veut pas être
+    // celui qui la martèle, ni se faire limiter côté amont.
+    const limit = rateLimit({
+      key: `siret:${user.id}`,
+      limit: 30,
+      windowMs: 60 * 1000,
+    });
+    if (!limit.allowed) {
+      return tooManyRequests(limit.retryAfter);
     }
 
     const siretParam = req.nextUrl.searchParams.get("siret") ?? "";

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { safeExternalUrl } from "@/lib/safe-redirect";
 
 /**
  * Redirige vers l'URL cible et enregistre un clic pour la campagne.
@@ -16,10 +17,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
 
-  let dest: string;
+  let decoded: string;
   try {
-    dest = decodeURIComponent(destEncoded);
+    decoded = decodeURIComponent(destEncoded);
   } catch {
+    return NextResponse.redirect(new URL("/", req.nextUrl.origin));
+  }
+
+  // Sans cette validation, la route est une redirection ouverte : un lien
+  // portant le domaine SIDEKICK renvoyant vers n'importe quel site.
+  const dest = safeExternalUrl(decoded);
+  if (!dest) {
+    console.warn("[Track click] destination refusée:", decoded);
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
 

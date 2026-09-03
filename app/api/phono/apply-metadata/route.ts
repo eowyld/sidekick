@@ -5,12 +5,26 @@ import os from "os";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { createServerSupabase } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 
 const execFileAsync = promisify(execFile);
 
-const FFMPEG = "/usr/local/bin/ffmpeg";
+const FFMPEG = process.env.FFMPEG_PATH?.trim() || "/usr/local/bin/ffmpeg";
+
+/**
+ * Écriture des métadonnées dans les fichiers audio — désactivée par défaut.
+ *
+ * La route dépend d'un binaire ffmpeg installé sur la machine, absent de
+ * l'environnement de production : la fonctionnalité y est cassée depuis
+ * toujours. Elle acceptait par ailleurs des fichiers de n'importe qui, sans
+ * authentification.
+ *
+ * Le code reste en place et fonctionne en local en posant
+ * `PHONO_METADATA_ENABLED=true` (et `FFMPEG_PATH` si besoin).
+ */
+const METADATA_ENABLED = process.env.PHONO_METADATA_ENABLED === "true";
 
 type IncomingMetadata = {
   title?: string;
@@ -30,6 +44,23 @@ type IncomingMetadata = {
 };
 
 export async function POST(req: NextRequest) {
+  // Une route qui reçoit des fichiers doit savoir de qui ils viennent : sans
+  // cette vérification, n'importe qui pouvait téléverser sur le serveur.
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  if (!METADATA_ENABLED) {
+    return Response.json(
+      { error: "feature_disabled", detail: "L'écriture des métadonnées n'est pas disponible." },
+      { status: 503 }
+    );
+  }
+
   const form = await req.formData();
   const file = form.get("file");
   const metadataRaw = form.get("metadata");

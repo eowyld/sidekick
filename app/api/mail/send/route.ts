@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * Injecte un pixel de tracking dans le HTML de l'email.
@@ -62,6 +63,14 @@ function injectClickTracking(html: string, campaignId: string, origin: string): 
  *   campaignName?: string (optionnel, pour l'historique)
  * }
  */
+/**
+ * Le client envoie tous les contacts d'un segment en un seul appel, sans
+ * découpage : la borne doit couvrir une vraie liste d'artiste indépendant tout
+ * en gardant un plafond. À revoir le jour où l'envoi sera découpé en lots.
+ */
+const MAX_RECIPIENTS_PER_CALL = 500;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -70,6 +79,23 @@ export async function POST(req: NextRequest) {
     if (!to || !subject || !html || !fromEmail) {
       return NextResponse.json(
         { error: "Missing required fields: to, subject, html, fromEmail" },
+        { status: 400 }
+      );
+    }
+
+    // `to` n'était pas borné : un seul appel pouvait viser des milliers
+    // d'adresses, contournant la limite de débit qui compte les appels.
+    const recipients = Array.isArray(to) ? to : [to];
+    if (
+      recipients.length === 0 ||
+      recipients.length > MAX_RECIPIENTS_PER_CALL ||
+      !recipients.every((r) => typeof r === "string" && EMAIL_PATTERN.test(r))
+    ) {
+      return NextResponse.json(
+        {
+          error: `Destinataires invalides : ${MAX_RECIPIENTS_PER_CALL} adresses valides au maximum par envoi.`,
+          recipientCount: recipients.length,
+        },
         { status: 400 }
       );
     }
@@ -83,6 +109,17 @@ export async function POST(req: NextRequest) {
 
     if (userError || !user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    // Un envoi de campagne part de la boîte de l'utilisateur : une boucle
+    // grillerait son quota Gmail et abîmerait sa réputation d'expéditeur.
+    const limit = rateLimit({
+      key: `mail-send:${user.id}`,
+      limit: 60,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!limit.allowed) {
+      return tooManyRequests(limit.retryAfter);
     }
 
     const meta = user.user_metadata ?? {};

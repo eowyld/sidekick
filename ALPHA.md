@@ -212,6 +212,37 @@ sur invitation ; bloquant dès lors que l'inscription est libre.
 
 Le template `reset-password` était déjà en place côté Supabase.
 
+### ✅ Vendredi 04/09 (suite) — sécurité des routes API
+
+Remonté depuis le lundi 07/09.
+
+- **Redirection ouverte** sur `mail/track/click` : la route suivait n'importe
+  quelle destination passée en paramètre. `src/lib/safe-redirect.ts` n'autorise
+  plus que `http`/`https` avec un hôte réel. C'était un tremplin de hameçonnage
+  portant le domaine, la veille de son ouverture.
+- **`phono/apply-metadata`** : acceptait des fichiers sans authentification.
+  Session exigée, et route désactivée sauf `PHONO_METADATA_ENABLED=true`.
+  Le code reste fonctionnel en local.
+- **Budget IA** : `force=true` contournait le cache quotidien sans borne.
+  Plafond de 5 générations par jour et par compte (`generation_count`) ;
+  au-delà, le dernier résultat est servi plutôt qu'une erreur.
+- **`presskit/resolve-streaming-links`** : ouverte, elle offrait un relais de
+  scraping gratuit. Authentification ajoutée.
+- **`src/lib/rate-limit.ts`** appliqué à `mail/send` (60/h), `siret-annuaire`
+  (30/min), `resolve-streaming-links` (20/min).
+- **`mail/send`** : `to` n'était pas borné, un appel pouvait viser des milliers
+  d'adresses. Plafond de 500 et validation du format.
+
+**Portée assumée du limiteur** : mémoire locale à chaque instance Vercel, perdue
+à froid. Garde-fou contre une boucle ou un double-clic, pas contre une attaque
+distribuée. Un limiteur partagé se justifiera avec le trafic.
+
+**Non traité** : `mail/track/open` et `record` restent publics (pixels de suivi,
+publics par nature), `presskit/[id]` sert une fonctionnalité fermée, et
+l'entropie des jetons iCal n'a pas pu être vérifiée — le code qui les génère
+n'a pas été retrouvé. Zod n'a pas été posé sur toutes les routes : les entrées
+qui comptaient sont validées à la main, le reste aurait été du volume.
+
 ### ⬜ Reste — semaine 1 (31/08 → 04/09)
 
 | Jour | Chantier |

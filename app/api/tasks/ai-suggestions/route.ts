@@ -82,6 +82,9 @@ ${ruleLines}`
 Propose des tâches que l'artiste n'a pas encore et qui ont une vraie valeur ajoutée. Justifie chacune en une phrase courte.`;
 }
 
+/** Générations réelles autorisées par jour et par compte, `force` compris. */
+const MAX_GENERATIONS_PER_DAY = 5;
+
 export async function POST(req: Request) {
   const supabase = await createServerSupabase();
   const {
@@ -103,14 +106,29 @@ export async function POST(req: Request) {
 
   const today = new Date().toISOString().split("T")[0];
 
+  const { data: existing } = await supabase
+    .from("task_suggestions")
+    .select("suggestions, generation_count")
+    .eq("user_id", user.id)
+    .eq("date", today)
+    .maybeSingle();
+
+  const generationCount = (existing?.generation_count as number | undefined) ?? 0;
+
+  // `force=true` contournait le cache sans aucune borne : le budget Anthropic
+  // était à la merci d'un clic répété sur « régénérer ». On sert alors le
+  // dernier résultat connu plutôt que de refuser sèchement.
+  if (body.force && generationCount >= MAX_GENERATIONS_PER_DAY) {
+    return Response.json({
+      suggestions: existing?.suggestions ?? [],
+      cached: true,
+      quotaReached: true,
+    });
+  }
+
   // Check Supabase cache (unless force=true)
   if (!body.force) {
-    const { data: cached } = await supabase
-      .from("task_suggestions")
-      .select("suggestions")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .single();
+    const cached = existing;
 
     if (cached) {
       getPostHogClient().capture({
@@ -138,6 +156,7 @@ export async function POST(req: Request) {
       user_id: user.id,
       date: today,
       suggestions: object.suggestions,
+      generation_count: generationCount + 1,
     });
 
     getPostHogClient().capture({
