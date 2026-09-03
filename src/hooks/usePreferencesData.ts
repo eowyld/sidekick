@@ -32,6 +32,7 @@ type PreferencesRow = {
   onboarding_completed_at: string | null;
   onboarding_sectors: Sector[];
   demo_seed: DemoManifest | null;
+  reminders_enabled: boolean;
 };
 
 /**
@@ -53,12 +54,13 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
 
   let { data, error } = await supabase
     .from("user_preferences")
-    .select(`${BASE_COLUMNS}, demo_seed`)
+    .select(`${BASE_COLUMNS}, demo_seed, reminders_enabled`)
     .maybeSingle();
 
-  // La colonne demo_seed arrive par migration. Tant qu'elle n'est pas appliquée,
-  // on relit sans elle plutôt que de laisser tomber toutes les préférences —
-  // sinon la sidebar et les règles de tâches perdent leur configuration.
+  // Les colonnes demo_seed et reminders_enabled arrivent par migration. Tant
+  // qu'elles ne sont pas appliquées, on relit sans elles plutôt que de laisser
+  // tomber toutes les préférences — sinon la sidebar et les règles de tâches
+  // perdent leur configuration.
   if (error?.code === UNDEFINED_COLUMN) {
     ({ data, error } = await supabase
       .from("user_preferences")
@@ -73,6 +75,8 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
     onboarding_completed_at: (data.onboarding_completed_at as string) ?? null,
     onboarding_sectors: (data.onboarding_sectors as Sector[]) ?? [],
     demo_seed: (data.demo_seed as DemoManifest | null) ?? null,
+    // Absence de valeur = rappels actifs, comme le défaut de la colonne.
+    reminders_enabled: (data as { reminders_enabled?: boolean }).reminders_enabled !== false,
   };
 }
 
@@ -129,11 +133,29 @@ export function usePreferencesData() {
           onboarding_completed_at: row?.onboarding_completed_at ?? null,
           onboarding_sectors: row?.onboarding_sectors ?? [],
           demo_seed: row?.demo_seed ?? null,
+          reminders_enabled: row?.reminders_enabled ?? true,
         },
         { enabled_modules: nextEnabled }
       );
     },
     [enabledModules, row, persist]
+  );
+
+  /** Interrupteur des rappels de démarches envoyés par email. */
+  const setRemindersEnabled = useCallback(
+    (value: boolean) => {
+      persist(
+        {
+          enabled_modules: row?.enabled_modules ?? {},
+          onboarding_completed_at: row?.onboarding_completed_at ?? null,
+          onboarding_sectors: row?.onboarding_sectors ?? [],
+          demo_seed: row?.demo_seed ?? null,
+          reminders_enabled: value,
+        },
+        { reminders_enabled: value }
+      );
+    },
+    [row, persist]
   );
 
   /**
@@ -182,6 +204,7 @@ export function usePreferencesData() {
           onboarding_completed_at: completedAt,
           onboarding_sectors: sectors,
           demo_seed: row?.demo_seed ?? null,
+          reminders_enabled: row?.reminders_enabled ?? true,
         },
         {
           enabled_modules: nextEnabled,
@@ -199,6 +222,8 @@ export function usePreferencesData() {
     completeOnboarding,
     setDemoSeed,
     demoSeed: row?.demo_seed ?? null,
+    remindersEnabled: row?.reminders_enabled ?? true,
+    setRemindersEnabled,
     onboardingCompleted: Boolean(row?.onboarding_completed_at),
     onboardingSectors: row?.onboarding_sectors ?? [],
     /** false tant que le chargement n'a pas eu lieu — évite le flash de sidebar. */

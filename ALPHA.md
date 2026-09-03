@@ -100,12 +100,42 @@ Vérifié : préférence modifiée dans un navigateur, effective en fenêtre pri
 Réserve connue : l'infobulle est portée par un `div` non focusable, donc visible
 au survol mais pas au clavier.
 
+### ✅ Mercredi 02/09 — onboarding, landing, branding
+
+Onboarding en deux temps (secteurs puis données d'exemple), écrans d'auth
+refondus, identité visuelle et police Archivo, suppression de la waitlist.
+Commits `0312d00`, `14d1705`, `29100ac`, `1310f93`, `380da42`, `713ce3f`.
+La landing reste en cours, non commitée.
+
+Corrigé au passage : `npm run lint` ne vérifiait plus rien depuis Next 16
+(`next lint` supprimé). Le lint retrouvé signale **205 problèmes préexistants**
+(80 erreurs, 125 avertissements), dont **24 `rules-of-hooks`** — la seule
+catégorie qui peut casser à l'exécution. Chantier à part, non traité.
+
+### ✅ Jeudi 03/09 — rappels de démarches par email
+
+- `vercel.json` : cron quotidien à 7h UTC (9h Paris l'été)
+- `app/api/cron/reminders/route.ts` : démarches non terminées à échéance sous
+  14 jours, **regroupées par utilisateur** — un email par personne, jamais un
+  par démarche
+- `src/lib/brevo.ts` : envoi factorisé, `/api/notify/signup` passe dessus
+- `reminders_enabled` et `reminders_last_sent_at` sur `user_preferences`,
+  interrupteur en Réglages > Personnalisation
+- SASU et Artiste-Auteur retirés du choix à la création d'un statut
+  (`SELECTABLE_STATUS_TYPES`) : peu répandus, et une seule démarche annuelle
+  chacun. `STATUS_TYPES` reste complet pour les libellés et la normalisation
+  des statuts déjà enregistrés.
+
+À faire avant le déploiement : renseigner `CRON_SECRET` et `BREVO_API_KEY`
+dans les variables d'environnement Vercel. Sans `CRON_SECRET`, la route refuse
+de s'exécuter.
+
+Non vérifiable en local : les crons Vercel ne tournent qu'en production.
+
 ### ⬜ Reste — semaine 1 (31/08 → 04/09)
 
 | Jour | Chantier |
 |---|---|
-| Mer 02/09 | Onboarding : écran post-inscription, multi-choix des secteurs, mise en avant des rappels |
-| Jeu 03/09 | Rappels 1/2 : Brevo, `vercel.json` cron, `/api/cron/reminders` protégée par secret, digest |
 | Ven 04/09 | Rappels 2/2 : couverture par statut, opt-out, widget dashboard · **lien d'écoute Phono** · **point hebdo** |
 
 ### ⬜ Reste — semaine 2 (07/09 → 11/09)

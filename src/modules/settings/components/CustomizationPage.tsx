@@ -42,8 +42,14 @@ const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: st
 ];
 
 export function CustomizationPage() {
-  const { enabledModules: enabled, setEnabledModules, demoSeed, setDemoSeed } =
-    usePreferencesData();
+  const {
+    enabledModules: enabled,
+    setEnabledModules,
+    demoSeed,
+    setDemoSeed,
+    remindersEnabled,
+    setRemindersEnabled,
+  } = usePreferencesData();
   const posthog = usePostHog();
   const [removingDemo, setRemovingDemo] = useState(false);
 
@@ -105,6 +111,34 @@ export function CustomizationPage() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rappels de démarches</CardTitle>
+          <CardDescription>
+            Un email récapitulatif quand des démarches administratives arrivent
+            à échéance. Un seul message par jour, jamais un par démarche.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
+            <div>
+              <Label className="text-sm font-medium">Recevoir les rappels par email</Label>
+              <p className="text-xs text-muted-foreground">
+                Tes démarches restent visibles dans l&apos;application même si tu
+                désactives les emails.
+              </p>
+            </div>
+            <Switch
+              checked={remindersEnabled}
+              onCheckedChange={(checked) => {
+                setRemindersEnabled(checked);
+                posthog?.capture("reminders_toggled", { enabled: checked });
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

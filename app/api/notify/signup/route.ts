@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { escapeHtml, sendEmail } from "@/lib/brevo";
 
 /** Destinataire de la notification : le fondateur. */
 const NOTIFY_TO = process.env.SIGNUP_NOTIFY_TO?.trim() || "eliott.matton@gmail.com";
-/** Expéditeur — doit être un expéditeur vérifié côté Brevo. */
-const NOTIFY_FROM =
-  process.env.SIGNUP_NOTIFY_FROM?.trim() || "eliott.matton@gmail.com";
-
-const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
 const SECTOR_LABELS: Record<string, string> = {
   live: "Live",
@@ -30,15 +26,6 @@ const SECTOR_LABELS: Record<string, string> = {
  */
 const NOTIFY_WINDOW_MS = 60 * 60 * 1000;
 
-/** Le nom vient de l'inscrit : il ne doit jamais être interprété comme du HTML. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 /**
  * POST /api/notify/signup — prévient le fondateur qu'un compte vient d'être
@@ -82,12 +69,6 @@ export async function POST(request: Request) {
     /* corps absent ou illisible : on notifie quand même, sans les secteurs */
   }
 
-  const apiKey = process.env.BREVO_API_KEY?.trim();
-  if (!apiKey) {
-    console.error("[notify/signup] BREVO_API_KEY absente, notification ignorée");
-    return NextResponse.json({ ok: false, error: "not_configured" });
-  }
-
   const fullName =
     (user.user_metadata?.full_name as string | undefined)?.trim() || "—";
   const sectorLabels =
@@ -106,34 +87,18 @@ export async function POST(request: Request) {
     `Inscrit le : ${signedUpAt} (heure de Paris)`,
   ];
 
-  try {
-    const response = await fetch(BREVO_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "api-key": apiKey,
-        "Content-Type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        sender: { email: NOTIFY_FROM, name: "SIDEKICK" },
-        to: [{ email: NOTIFY_TO }],
-        replyTo: user.email ? { email: user.email } : undefined,
-        subject: `Nouvel inscrit — ${user.email ?? "compte créé"}`,
-        textContent: lines.join("\n"),
-        htmlContent: `<ul>${lines
-          .map((l) => `<li>${escapeHtml(l)}</li>`)
-          .join("")}</ul><p>Réponds directement à cet email pour lui écrire.</p>`,
-      }),
-    });
+  const result = await sendEmail({
+    to: NOTIFY_TO,
+    subject: `Nouvel inscrit — ${user.email ?? "compte créé"}`,
+    text: lines.join("\n"),
+    html: `<ul>${lines
+      .map((l) => `<li>${escapeHtml(l)}</li>`)
+      .join("")}</ul><p>Réponds directement à cet email pour lui écrire.</p>`,
+    replyTo: user.email ?? undefined,
+  });
 
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error("[notify/signup] Brevo a refusé l'envoi", response.status, detail);
-      return NextResponse.json({ ok: false, error: "send_failed" });
-    }
-  } catch (error) {
-    console.error("[notify/signup] envoi impossible", error);
-    return NextResponse.json({ ok: false, error: "send_failed" });
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.reason });
   }
 
   return NextResponse.json({ ok: true });

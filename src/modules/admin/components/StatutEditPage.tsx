@@ -41,7 +41,7 @@ import { mutate } from "swr";
 import {
   STATUS_ADDRESS_FIELDS,
   STATUS_FIELDS,
-  STATUS_TYPES,
+  SELECTABLE_STATUS_TYPES,
   typeLabel,
   normalizeStoredAdminStatusType,
   getStatusIdentityNameField,
@@ -155,7 +155,7 @@ export function StatutEditPage({ statusId }: StatutEditPageProps) {
 
   const initialTypeParam = searchParams.get("type") as AdminStatusType | null;
   const validInitialType =
-    initialTypeParam && STATUS_TYPES.some((t) => t.value === initialTypeParam)
+    initialTypeParam && SELECTABLE_STATUS_TYPES.some((t) => t.value === initialTypeParam)
       ? initialTypeParam
       : "auto_entrepreneur";
 
@@ -625,7 +625,7 @@ export function StatutEditPage({ statusId }: StatutEditPageProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_TYPES.map((t) => {
+                  {SELECTABLE_STATUS_TYPES.map((t) => {
                     const isIntermittentBlocked =
                       !isEdit &&
                       t.value === "intermittent" &&

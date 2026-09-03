@@ -8,6 +8,25 @@ export const STATUS_TYPES: { value: AdminStatusType; label: string }[] = [
   { value: "sasu", label: "SASU" },
 ];
 
+/**
+ * Statuts retirés de l'alpha : peu répandus chez les artistes visés, et ils ne
+ * génèrent qu'une démarche annuelle — trop peu pour tenir la promesse des
+ * rappels. Leurs formulaires, modèles de démarches et libellés restent en
+ * place ; seul le choix à la création disparaît.
+ *
+ * Rouvrir = retirer l'entrée de cet ensemble.
+ */
+const STATUS_TYPES_HIDDEN = new Set<AdminStatusType>(["artiste_auteur", "sasu"]);
+
+/**
+ * Types proposés à la création d'un statut. `STATUS_TYPES` reste complet : il
+ * sert aux libellés et à la normalisation des statuts déjà enregistrés, qui
+ * doivent continuer de s'afficher correctement.
+ */
+export const SELECTABLE_STATUS_TYPES = STATUS_TYPES.filter(
+  (type) => !STATUS_TYPES_HIDDEN.has(type.value)
+);
+
 export type StatusFieldConfig = {
   key: string;
   label: string;
