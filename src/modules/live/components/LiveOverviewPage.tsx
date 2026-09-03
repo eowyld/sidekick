@@ -158,8 +158,8 @@ export function LiveOverviewPage() {
     const rehs: UpcomingEvent[] = upcomingRehearsals.map((r) => ({
       key: `rehearsal-${r.id}`,
       type: "rehearsal",
-      title: r.label || `Répétition – ${r.location}`,
-      subtitle: [r.location, r.time].filter(Boolean).join(" · ") || "Répétition",
+      title: r.label || [`Répétition`, r.location || r.city].filter(Boolean).join(" – "),
+      subtitle: [r.location || r.city, r.time].filter(Boolean).join(" · ") || "Répétition",
       date: r.date,
       href: "/live/repetitions",
     }));
@@ -232,12 +232,15 @@ export function LiveOverviewPage() {
       }
 
       for (const r of upcomingRehearsals) {
-        const place = (r.address && r.address.trim()) || r.location || r.label || "";
-        const coords = await geocode(place, normalizeText(r.address) || normalizeText(r.city));
+        const place =
+          r.address && r.address.trim().length > 0
+            ? r.address
+            : [r.location, r.city].filter(Boolean).join(", ");
+        const coords = await geocode(place, normalizeText(r.city));
         mapPoints.push({
           lat: coords.lat,
           lng: coords.lng,
-          label: r.label || `Répétition – ${r.location}`,
+          label: r.label || [`Répétition`, r.location || r.city].filter(Boolean).join(" – "),
           type: "rehearsal",
         });
       }
@@ -270,8 +273,10 @@ export function LiveOverviewPage() {
           scrollWheelZoom: false,
           attributionControl: false,
         });
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          attribution: "&copy; OpenStreetMap &copy; CARTO",
+        // Tuiles OSM standard (sans clé) — assombries via un filtre CSS appliqué
+        // au tile-pane, cf. classes du conteneur plus bas.
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap",
           maxZoom: 19,
         }).addTo(map);
         mapInstanceRef.current = map;
@@ -527,7 +532,7 @@ export function LiveOverviewPage() {
           </div>
           <div
             ref={mapContainerRef}
-            className="h-72 w-full overflow-hidden rounded-lg border border-[rgba(245,245,245,0.08)] bg-[#101010] [&_.leaflet-container]:bg-[#101010]"
+            className="h-72 w-full overflow-hidden rounded-lg border border-[rgba(245,245,245,0.08)] bg-[#101010] [&_.leaflet-container]:bg-[#101010] [&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.75)_contrast(0.95)_grayscale(0.6)]"
           />
         </section>
       </div>

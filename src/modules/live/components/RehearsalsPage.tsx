@@ -26,8 +26,10 @@ type RemunerationEntry = { id: number; label: string; amount?: string };
 type EquipmentEntry = { id: number; label: string };
 
 
-function buildGoogleMapsUrl(location: string, address?: string): string {
-  const query = (address || location || "").trim();
+function buildGoogleMapsUrl(location: string, address?: string, city?: string): string {
+  const query = (
+    address?.trim() || [location, city].filter((v) => v && v.trim()).join(", ")
+  ).trim();
   if (!query) return "https://www.google.com/maps";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
@@ -166,7 +168,8 @@ export function RehearsalsPage() {
 
   const saveRehearsal = () => {
     const trimmedLocation = form.location.trim();
-    if (!trimmedLocation) return;
+    // Un lieu OU une ville suffit (même règle que pour les représentations).
+    if (!trimmedLocation && !form.city.trim()) return;
     const defaultDate = new Date();
     const frDefault =
       String(defaultDate.getDate()).padStart(2, "0") +
@@ -377,9 +380,11 @@ export function RehearsalsPage() {
                           <td className="px-4 py-3">{r.time}</td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center gap-1">
-                              {r.location}
+                              {r.location || (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                               <a
-                                href={buildGoogleMapsUrl(r.location, r.address)}
+                                href={buildGoogleMapsUrl(r.location, r.address, r.city)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-muted-foreground hover:text-foreground"
@@ -573,9 +578,11 @@ export function RehearsalsPage() {
                           <td className="px-4 py-3">{r.time}</td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center gap-1">
-                              {r.location}
+                              {r.location || (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                               <a
-                                href={buildGoogleMapsUrl(r.location, r.address)}
+                                href={buildGoogleMapsUrl(r.location, r.address, r.city)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-muted-foreground hover:text-foreground"
@@ -755,7 +762,7 @@ export function RehearsalsPage() {
               </div>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Lieu</label>
+              <label className="text-sm font-medium">Lieu (optionnel si ville renseignée)</label>
               <Input
                 value={form.location}
                 onChange={(e) =>
@@ -765,7 +772,7 @@ export function RehearsalsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Ville</label>
+              <label className="text-sm font-medium">Ville (optionnel si lieu renseigné)</label>
               <Input
                 value={form.city}
                 onChange={(e) =>
@@ -804,7 +811,7 @@ export function RehearsalsPage() {
             </Button>
             <Button
               onClick={saveRehearsal}
-              disabled={!form.location.trim()}
+              disabled={!form.location.trim() && !form.city.trim()}
             >
               {editingId !== null ? "Enregistrer" : "Ajouter"}
             </Button>

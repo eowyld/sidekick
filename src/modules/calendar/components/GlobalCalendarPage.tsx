@@ -165,6 +165,7 @@ type RehearsalItem = {
   date: string;
   time?: string;
   location: string;
+  city?: string;
   label?: string;
   address?: string;
   note?: string;
@@ -310,7 +311,7 @@ function buildCalendarEvents(
   const events: CalendarEvent[] = [];
 
   representations.forEach((r) => {
-    const dateKey = frToDateKey(r.date);
+    const dateKey = normalizeToDateKey(r.date);
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     const label =
@@ -337,19 +338,19 @@ function buildCalendarEvents(
   });
 
   rehearsals.forEach((r) => {
-    const dateKey = frToDateKey(r.date);
+    const dateKey = normalizeToDateKey(r.date);
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     events.push({
       id: `live-rehearsal-${r.id}`,
       dateKey,
-      label: r.label || r.location,
+      label: r.label || r.location || r.city || "Répétition",
       sector: "live",
       type: "rehearsal",
       subLabel: "Répétition",
       isPast,
       time: r.time,
-      place: r.location
+      place: r.location || r.city
     });
   });
 
@@ -681,13 +682,16 @@ function CustomEventHourMinuteRow(props: {
   );
 }
 
+// Tous les secteurs visibles par défaut. `sectorFiltersSafe` masque ensuite les
+// secteurs dont le module est désactivé ; un module activé reste donc visible
+// sans action de l'utilisateur.
 const DEFAULT_SECTOR_FILTERS = {
-  live: false,
-  phono: false,
-  admin: false,
-  marketing: false,
-  edition: false,
-  revenus: false,
+  live: true,
+  phono: true,
+  admin: true,
+  marketing: true,
+  edition: true,
+  revenus: true,
   other: true
 } satisfies Record<CalendarSector, boolean>;
 
@@ -746,7 +750,7 @@ function buildCalendarEventFields(
 
   if (type === "rehearsal") {
     const r = source as RehearsalItem;
-    const fields: EventDialogField[] = [{ label: "Lieu", value: r.location }];
+    const fields: EventDialogField[] = [{ label: "Lieu", value: r.location || r.city || "—" }];
     if (r.time) fields.push({ label: "Heure", value: r.time });
     if (r.address) fields.push({ label: "Adresse", value: r.address });
     if (r.note) fields.push({ label: "Note", value: r.note });
@@ -881,15 +885,35 @@ export function GlobalCalendarPage() {
     return d;
   });
 
+  // v2 : l'ancienne clé avait été persistée avec tous les secteurs à `false`
+  // (calendrier vide). On repart de la nouvelle valeur par défaut.
   const [sectorFilters, setSectorFilters] = useLocalStorage<Record<
     CalendarSector,
     boolean
-  >>("calendar:sector-filters", DEFAULT_SECTOR_FILTERS);
+  >>("calendar:sector-filters:v2", DEFAULT_SECTOR_FILTERS);
 
-  const sectorFiltersSafe = useMemo(
-    () => ({ ...DEFAULT_SECTOR_FILTERS, ...sectorFilters }),
-    [sectorFilters]
-  );
+  // Masque les secteurs des modules désactivés sans toucher au choix persisté :
+  // réactiver un module restaure donc son secteur.
+  const sectorFiltersSafe = useMemo(() => {
+    const merged = { ...DEFAULT_SECTOR_FILTERS, ...sectorFilters };
+    return {
+      ...merged,
+      live: merged.live && enabledModules.live,
+      phono: merged.phono && enabledModules.phono,
+      admin: merged.admin && enabledModules.admin,
+      marketing: merged.marketing && enabledModules.marketing,
+      edition: merged.edition && enabledModules.edition,
+      revenus: merged.revenus && enabledModules.revenus,
+    };
+  }, [
+    sectorFilters,
+    enabledModules.live,
+    enabledModules.phono,
+    enabledModules.admin,
+    enabledModules.marketing,
+    enabledModules.edition,
+    enabledModules.revenus,
+  ]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedEventAnchor, setSelectedEventAnchor] = useState<DOMRect | null>(null);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
@@ -1042,20 +1066,6 @@ export function GlobalCalendarPage() {
   }, [currentDate]);
 
   const weekMondayKey = useMemo(() => toDateKey(startOfWeekMonday(currentDate)), [currentDate]);
-
-  useEffect(() => {
-    // Synchronise les filtres avec les modules activés : un module désactivé est toujours masqué.
-    setSectorFilters((prev) => ({
-      ...DEFAULT_SECTOR_FILTERS,
-      ...prev,
-      live: enabledModules.live ? prev.live : false,
-      phono: enabledModules.phono ? prev.phono : false,
-      admin: enabledModules.admin ? prev.admin : false,
-      marketing: enabledModules.marketing ? prev.marketing : false,
-      edition: enabledModules.edition ? prev.edition : false,
-      revenus: enabledModules.revenus ? prev.revenus : false
-    }));
-  }, [enabledModules.live, enabledModules.phono, enabledModules.admin, enabledModules.marketing, enabledModules.edition, enabledModules.revenus]);
 
   const goToPreviousMonth = () => {
     setCurrentDate((prev) => {
