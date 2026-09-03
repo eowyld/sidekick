@@ -25,7 +25,7 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#101010]/90 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="font-bold text-lg tracking-wider text-white hover:text-[#F0FF00] transition-colors" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.1em" }}>
+          <Link href="/" className="font-bold text-lg tracking-wider text-white hover:text-[#F0FF00] transition-colors" style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}>
             SIDEKICK
           </Link>
 
@@ -73,7 +73,7 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
       <footer className="mt-20 border-t border-white/10 py-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between gap-6">
           <div>
-            <p className="font-bold text-white" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.1em" }}>
+            <p className="font-bold text-white" style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}>
               SIDEKICK
             </p>
             <p className="text-sm text-white/40 mt-1">

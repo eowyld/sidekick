@@ -12,6 +12,8 @@ const withMDX = createMDX({
 const nextConfig = {
   pageExtensions: ["ts", "tsx", "mdx"],
   reactStrictMode: true,
+  // Les captures produit de la landing sont servies en quality 90 (ProductShot).
+  images: { qualities: [75, 90] },
   turbopack: {
     root: path.resolve(__dirname)
   },

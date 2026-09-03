@@ -24,10 +24,10 @@ const config: Config = {
             strong: { color: "#f5f5f5" },
             h2: {
               color: "#f5f5f5",
-              fontFamily: "'Bebas Neue', sans-serif",
-              letterSpacing: "0.03em",
+              fontStretch: "125%",
+              letterSpacing: "-0.015em",
               fontSize: "1.75rem",
-              fontWeight: "400",
+              fontWeight: "700",
               marginTop: "2.5rem",
               marginBottom: "1rem",
             },

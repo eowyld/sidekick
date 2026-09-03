@@ -13,7 +13,7 @@ export function BlogSidebar({ articlesLies }: Props) {
       <div className="rounded-[2px] border border-[#F0FF00]/40 bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-5 flex flex-col gap-3">
         <p
           className="text-xl text-white"
-          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }}
+          style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}
         >
           Gère ta carrière avec SIDEKICK
         </p>

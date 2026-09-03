@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidekick.app";
-
   return {
     rules: [
       {
@@ -21,9 +20,14 @@ export default function robots(): MetadataRoute.Robots {
           "/incomes",
           "/admin",
           "/settings",
+          "/projects",
+          "/login",
+          "/inscription",
+          "/auth",
+          "/presskit",
         ],
       },
     ],
-    sitemap: `${siteUrl}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

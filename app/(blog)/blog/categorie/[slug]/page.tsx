@@ -6,6 +6,7 @@ import { BlogCard } from "@/components/blog/BlogCard";
 import { BlogBreadcrumb } from "@/components/blog/BlogBreadcrumb";
 import type { BlogCategorie } from "../../../../../types/blog";
 import { CATEGORIE_LABELS } from "../../../../../types/blog";
+import { SITE_URL } from "@/lib/site";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -22,16 +23,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const label = CATEGORIE_LABELS[categorie];
   if (!label) return {};
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidekick.app";
 
   return {
     title: `${label} — Articles | SIDEKICK Blog`,
     description: `Tous les articles SIDEKICK sur ${label.toLowerCase()} pour les artistes indépendants français.`,
-    alternates: { canonical: `${siteUrl}/blog/categorie/${slug}` },
+    alternates: { canonical: `${SITE_URL}/blog/categorie/${slug}` },
     openGraph: {
       title: `${label} — Articles | SIDEKICK Blog`,
       description: `Tous les articles SIDEKICK sur ${label.toLowerCase()} pour les artistes indépendants français.`,
-      url: `${siteUrl}/blog/categorie/${slug}`,
+      url: `${SITE_URL}/blog/categorie/${slug}`,
     },
     robots: { index: true, follow: true },
   };
@@ -57,7 +57,7 @@ export default async function CategoriePage({ params }: Props) {
         </span>
         <h1
           className="text-5xl md:text-7xl text-white"
-          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.02em" }}
+          style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}
         >
           {label}
         </h1>

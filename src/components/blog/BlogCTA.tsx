@@ -54,7 +54,7 @@ export function BlogCTA({ module, moduleLabel, variant = "mid" }: Props) {
     <div className="mt-12 rounded-[2px] border border-[#F0FF00]/40 bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-8 flex flex-col items-center text-center gap-5">
       <p
         className="text-3xl text-white"
-        style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }}
+        style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}
       >
         Gérer {moduleLabel} directement dans SIDEKICK
       </p>

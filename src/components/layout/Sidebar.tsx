@@ -40,6 +40,19 @@ const groupOrganisation = [
 
 const groupMusique = [
   {
+    label: "Live",
+    icon: Mic2,
+    key: "live",
+    href: "/live",
+    sub: [
+      { href: "/live", label: "Vue d'ensemble" },
+      { href: "/live/representations", label: "Représentations" },
+      { href: "/live/repetitions", label: "Répétitions" },
+      { href: "/live/prospection", label: "Prospection" },
+      { href: "/live/materiel", label: "Matériel" },
+    ],
+  },
+  {
     label: "Phono",
     icon: Music2,
     key: "phono",
@@ -59,19 +72,6 @@ const groupMusique = [
       { href: "/edition/sync", label: "Synchronisation" },
     ],
   },
-  {
-    label: "Live",
-    icon: Mic2,
-    key: "live",
-    href: "/live",
-    sub: [
-      { href: "/live", label: "Vue d'ensemble" },
-      { href: "/live/representations", label: "Représentations" },
-      { href: "/live/repetitions", label: "Répétitions" },
-      { href: "/live/prospection", label: "Prospection" },
-      { href: "/live/materiel", label: "Matériel" },
-    ],
-  },
 ];
 
 const groupBusiness = [
@@ -89,6 +89,18 @@ const groupBusiness = [
     ],
   },
   {
+    label: "Admin",
+    icon: Briefcase,
+    key: "admin",
+    href: "/admin",
+    sub: [
+      { href: "/admin", label: "Mes statuts" },
+      { href: "/admin/demarches", label: "Mes démarches" },
+      { href: "/admin/comptabilite", label: "Ma comptabilité" },
+      { href: "/admin/contrats", label: "Mes contrats" },
+    ],
+  },
+  {
     label: "Marketing",
     icon: Megaphone,
     key: "marketing",
@@ -98,18 +110,6 @@ const groupBusiness = [
       { href: "/marketing/publications", label: "Publications" },
       { href: "/marketing/mailing", label: "Mailing" },
       { href: "/marketing/presskit", label: "Presskit" },
-    ],
-  },
-  {
-    label: "Admin",
-    icon: Briefcase,
-    key: "admin",
-    href: "/admin",
-    sub: [
-      { href: "/admin", label: "Mes statuts" },
-      { href: "/admin/comptabilite", label: "Ma comptabilité" },
-      { href: "/admin/demarches", label: "Mes démarches" },
-      { href: "/admin/contrats", label: "Mes contrats" },
     ],
   },
 ];
@@ -312,7 +312,7 @@ export function Sidebar() {
       >
         {!collapsed && (
           <Link href="/" className="mr-3 block flex-1">
-            <SidekickLogo className="max-w-[180px]" />
+            <SidekickLogo className="h-10 w-auto" />
           </Link>
         )}
         <button

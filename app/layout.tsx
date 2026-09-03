@@ -1,10 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { Archivo } from "next/font/google";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import { Toaster } from "sonner";
 import "./globals.css";
+
+/**
+ * Police unique du produit — landing, blog, auth, presskit et app interne.
+ * Variable font : l'axe `wdth` permet la version large des titres (font-stretch)
+ * sans charger une seconde famille.
+ */
+const archivo = Archivo({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  display: "swap",
+  variable: "--font-archivo",
+});
 
 const siteDescription =
   "SIDEKICK centralise phono, publishing, royalties, mailing, marketing, organisation de tournée, administration et facturation pour les artistes de musique indépendants.";
@@ -67,7 +80,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" className={archivo.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground">
         <PostHogProvider>
           <Suspense fallback={null}>

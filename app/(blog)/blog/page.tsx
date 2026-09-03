@@ -4,6 +4,7 @@ import { getArticles } from "@/lib/blog";
 import { BlogCard } from "@/components/blog/BlogCard";
 import type { BlogCategorie } from "../../../types/blog";
 import { CATEGORIE_LABELS } from "../../../types/blog";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Blog SIDEKICK — Ressources pour artistes indépendants",
@@ -29,7 +30,7 @@ function BlogJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "SIDEKICK",
-    url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidekick.app",
+    url: SITE_URL,
     description:
       "L'outil tout-en-un pour les artistes musicaux indépendants français.",
   };
@@ -62,7 +63,7 @@ export default function BlogIndexPage() {
         <div className="mb-14 flex flex-col gap-4">
           <h1
             className="text-6xl md:text-8xl text-white"
-            style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.02em" }}
+            style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}
           >
             Le Blog SIDEKICK
           </h1>

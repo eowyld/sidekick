@@ -29,7 +29,7 @@ export function BlogCard({ article }: Props) {
       </div>
 
       {/* Titre */}
-      <h2 className="text-lg font-bold leading-snug text-white group-hover:text-[#F0FF00] transition-colors" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }}>
+      <h2 className="text-lg font-bold leading-snug text-white group-hover:text-[#F0FF00] transition-colors" style={{ fontStretch: "125%", letterSpacing: "-0.015em" }}>
         {article.title}
       </h2>
 

@@ -20,11 +20,43 @@ html {
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    sans-serif;
+  font-family: var(--font-archivo), system-ui, -apple-system,
+    BlinkMacSystemFont, "SF Pro Text", sans-serif;
   background: #101010;
   color: #f5f5f5;
   overflow-y: scroll;
+}
+
+/*
+ * Titres : même famille, axe de largeur poussé au maximum et interlettrage
+ * resserré. Une seule police pour tout le produit — pas de casse forcée,
+ * les composants décident eux-mêmes des majuscules.
+ */
+.font-display {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-stretch: 125%;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.btn-glow {
+  border-radius: 2px;
+  transition: box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 24px rgba(240, 255, 0, 0.5), 0 0 6px rgba(240, 255, 0, 0.3);
+}
+
+.card-hover {
+  transition: border-color 300ms ease, box-shadow 300ms ease,
+    border-top-color 300ms ease;
+  border-top: 2px solid transparent;
+}
+
+.card-hover:hover {
+  border-top-color: #f0ff00;
+  box-shadow: 0 8px 32px rgba(240, 255, 0, 0.08);
 }
 
 * {

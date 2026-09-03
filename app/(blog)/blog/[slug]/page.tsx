@@ -10,6 +10,7 @@ import { BlogSidebar } from "@/components/blog/BlogSidebar";
 import { BlogCTA } from "@/components/blog/BlogCTA";
 import { BlogCard } from "@/components/blog/BlogCard";
 import { CATEGORIE_LABELS } from "../../../../types/blog";
+import { SITE_URL } from "@/lib/site";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -25,8 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = getArticleBySlug(slug);
   if (!article) return {};
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidekick.app";
-  const canonical = `${siteUrl}/blog/${article.slug}`;
+  const canonical = `${SITE_URL}/blog/${article.slug}`;
 
   return {
     title: `${article.title} | SIDEKICK Blog`,
@@ -61,7 +61,6 @@ export default async function ArticlePage({ params }: Props) {
   if (!article) notFound();
 
   const articlesLies = getArticlesLies(article);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidekick.app";
 
   // Compile MDX with @mdx-js/mdx using the same React runtime as the app
   const { default: MDXContent } = await evaluate(article.content ?? "", {
@@ -76,8 +75,8 @@ export default async function ArticlePage({ params }: Props) {
     description: article.description,
     datePublished: article.date,
     author: { "@type": "Organization", name: "SIDEKICK" },
-    publisher: { "@type": "Organization", name: "SIDEKICK", url: siteUrl },
-    url: `${siteUrl}/blog/${article.slug}`,
+    publisher: { "@type": "Organization", name: "SIDEKICK", url: SITE_URL },
+    url: `${SITE_URL}/blog/${article.slug}`,
     keywords: article.tags.join(", "),
   };
 
@@ -85,9 +84,9 @@ export default async function ArticlePage({ params }: Props) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Accueil", item: siteUrl },
-      { "@type": "ListItem", position: 2, name: "Blog", item: `${siteUrl}/blog` },
-      { "@type": "ListItem", position: 3, name: CATEGORIE_LABELS[article.categorie], item: `${siteUrl}/blog/categorie/${article.categorie}` },
+      { "@type": "ListItem", position: 1, name: "Accueil", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE_URL}/blog` },
+      { "@type": "ListItem", position: 3, name: CATEGORIE_LABELS[article.categorie], item: `${SITE_URL}/blog/categorie/${article.categorie}` },
       { "@type": "ListItem", position: 4, name: article.title },
     ],
   };
