@@ -105,8 +105,8 @@ au survol mais pas au clavier.
 | Jour | Chantier |
 |---|---|
 | Mer 02/09 | Onboarding : écran post-inscription, multi-choix des secteurs, mise en avant des rappels |
-| Jeu 03/09 | Rappels 1/2 : Resend, `vercel.json` cron, `/api/cron/reminders` protégée par secret, digest |
-| Ven 04/09 | Rappels 2/2 : couverture par statut, opt-out, widget dashboard · **point hebdo** |
+| Jeu 03/09 | Rappels 1/2 : Brevo, `vercel.json` cron, `/api/cron/reminders` protégée par secret, digest |
+| Ven 04/09 | Rappels 2/2 : couverture par statut, opt-out, widget dashboard · **lien d'écoute Phono** · **point hebdo** |
 
 ### ⬜ Reste — semaine 2 (07/09 → 11/09)
 
@@ -117,6 +117,29 @@ au survol mais pas au clavier.
 | Mer 09/09 | Légal : CGU, CGV, mentions, confidentialité, bandeau cookies PostHog, PITR + DPA |
 | Jeu 10/09 | Migration des 5 liens Projets · Payment Link et procédure d'invitation |
 | Ven 11/09 | Recette bout-en-bout sur 2 comptes vierges dont un profil mono-secteur |
+
+### ⬜ Lien d'écoute Phono — vendredi 04/09
+
+Depuis le catalogue Phono, générer un **lien d'écoute partageable** portant
+toutes les informations du titre : audio, crédits, ISRC, artistes et rôles,
+date de sortie, pochette.
+
+Usage : ce qu'un artiste envoie à un label, un programmateur, un éditeur ou un
+journaliste. Aujourd'hui il le fait avec un WeTransfer et un mail séparé pour
+les crédits.
+
+Décisions de conception à tenir :
+
+- **URLs signées à durée limitée**, pas de politique de lecture publique sur le
+  bucket. Un lien d'écoute est envoyé à une personne précise ; une master non
+  sortie qui fuite est le pire incident possible pour un artiste. Les 4 policies
+  RLS de `storage.objects` restent intactes.
+- **Réutiliser l'infrastructure de slugs du presskit** (`presskit_user_slugs`)
+  plutôt que d'en créer une seconde. Le presskit est fermé pour l'alpha, son
+  code reste en place.
+- **Révocation** depuis le catalogue : un lien doit pouvoir être coupé.
+- `noindex` sur la page, et route ajoutée au matcher de `proxy.ts` en exclusion
+  explicite — c'est la seule surface publique volontairement rouverte.
 
 ---
 
@@ -141,6 +164,14 @@ piège de moins (cf. section Pièges).
 
 **`ModuleGuard` est une garde d'affichage, pas de sécurité.** Elle est côté
 client, donc contournable. La protection des données reste `proxy.ts` et la RLS.
+
+**Un seul fournisseur d'email : Brevo.** `app/api/notify/signup` l'utilise déjà
+(notification fondateur). Les rappels de démarches et le SMTP des mails d'auth
+Supabase passeront par le même compte : une intégration à maintenir, une seule
+authentification DNS (SPF/DKIM/DMARC) à faire sur le domaine. Resend n'est pas
+retenu. Deux clés distinctes côté Brevo : la **clé API** (`BREVO_API_KEY`, pour
+l'API transactionnelle appelée depuis les routes Next) et une **clé SMTP** (pour
+le relais SMTP renseigné dans Supabase Auth) — ce ne sont pas les mêmes.
 
 ---
 
