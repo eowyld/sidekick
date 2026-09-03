@@ -251,13 +251,53 @@ qui comptaient sont validées à la main, le reste aurait été du volume.
 
 ### ⬜ Reste — semaine 2 (07/09 → 11/09)
 
+La sécurité API a été faite en avance le 04/09, ce qui libère le lundi. Les
+journées sont volontairement chargées : le rythme constaté est d'environ quatre
+fois ce qu'une estimation classique prévoit.
+
+**L'ordre suit deux règles** : la donnée avant l'interface (refondre l'UI d'un
+module dont les données bougeront ensuite, c'est le faire deux fois), et les
+blocages juridiques avant la recette.
+
 | Jour | Chantier |
 |---|---|
-| Lun 07/09 | Sécurité API : auth + Zod sur les 19 routes, `apply-metadata` désactivée, rate limiting, quota IA |
-| Mar 08/09 | Intermittence : corriger l'allocation · `handleMutationError()` sur les hooks |
-| Mer 09/09 | Légal : CGU, CGV, mentions, confidentialité, bandeau cookies PostHog, PITR + DPA |
-| Jeu 10/09 | Migration des 5 liens Projets · OAuth Outlook |
-| Ven 11/09 | Recette bout-en-bout sur 2 comptes vierges dont un profil mono-secteur · **facturation électronique** (dernier chantier avant l'ouverture) |
+| Lun 07/09 | **Projets** (gros) — migration des 5 liens localStorage → Supabase, **puis** finalisation UI. C'est le seul module ouvert dont la donnée est encore fragile : il passe en premier. |
+| Mar 08/09 | **Revenus** (gros) — allocation d'intermittence, UI facturation / royalties / droits d'auteur, vue d'ensemble |
+| Mer 09/09 | **Admin** (gros) — simplification du module, statuts et démarches · Légal : CGU, CGV, mentions, confidentialité, bandeau cookies PostHog, PITR + DPA |
+| Jeu 10/09 | **Phono** UI/UX · **Édition catalogue** UI/UX · **Calendrier** : vue semaine et densité d'affichage |
+| Ven 11/09 | `handleMutationError()` sur les 20 hooks · OAuth Outlook · **facturation électronique** |
+| Sam 12/09 | Recette de déploiement (voir la section dédiée) sur 2 comptes vierges dont un profil mono-secteur |
+| Lun 14/09 | **Purge PostHog** avant d'ouvrir (voir ci-dessous) |
+
+**Si quelque chose doit sauter**, ce sont Factur-X et OAuth Outlook — les deux
+sont annoncés sur la landing, et modifier deux phrases coûte dix minutes contre
+plusieurs heures de développement. Les finalisations de modules, elles, sont le
+produit que les testeurs vont juger.
+
+`handleMutationError()` est placé après les refontes UI volontairement : les
+composants auront bougé, autant poser les messages d'erreur une seule fois, à
+la fin.
+
+### ⬜ Purge des données PostHog — lundi 14/09, avant l'ouverture
+
+`instrumentation-client.ts` portait une initialisation PostHog **sans garde
+localhost**, et c'est elle qui l'emportait sur celle de `PostHogProvider`
+(posthog-js ignore tout `init` suivant pour un même token). Résultat : depuis la
+mise en place de l'instrumentation, les événements de développement sont partis
+dans le projet de production, mélangés aux vrais.
+
+Corrigé le 03/09 — une seule initialisation, dans `instrumentation-client.ts`,
+avec la garde localhost, le masquage des champs de saisie et
+`capture_pageview: false`. Vérifié : zéro requête analytics en local.
+`NEXT_PUBLIC_ENABLE_POSTHOG_DEV=true` réactive l'envoi pour tester.
+
+Reste à faire **le jour de l'ouverture**, pour que les métriques d'alpha partent
+d'une base propre :
+
+- Supprimer les événements antérieurs au 14/09 dans le projet PostHog EU.
+- Vérifier au passage que les enregistrements de session d'avant le 03/09 ne
+  contiennent pas de contenu de champ non masqué — le masquage n'était pas
+  appliqué avant le correctif. Les supprimer si c'est le cas.
 
 ### ⬜ Lien d'écoute Phono — vendredi 04/09
 
@@ -437,12 +477,18 @@ calendrier est migré vers Supabase. Non traité, hors périmètre du jour.
 
 - 18 hooks sur 20 sans `catch` : les erreurs Supabase font un rollback silencieux,
   sans message à l'utilisateur (10 `toast.error` dans tout le code)
-- `app/api/phono/apply-metadata/route.ts` : upload non authentifié, chemin ffmpeg
-  codé en dur — déjà cassé en production, à désactiver
-- `IntermittenceDashboard.tsx` : l'allocation est un forfait 35 % codé en dur, sans
-  AEM ni SJR. Le seuil des 507 h, lui, est correct
-- Refontes UI par module (Projets, Phono/Sessions, Édition/Catalogue, Live,
-  Marketing, Admin) : 13 à 20 semaines, à faire après l'alpha en suivant PostHog
+- Refonte UI de Live et Marketing : hors périmètre alpha. Marketing est fermé,
+  Live est jugé utilisable en l'état. À reprendre après l'ouverture en suivant
+  ce que PostHog montrera.
+
+Traité dans le planning, plus de la dette :
+
+- **Intermittence** — l'allocation de `IntermittenceDashboard.tsx` est un forfait
+  de 35 % codé en dur, sans AEM ni SJR ; le seuil des 507 h, lui, est correct.
+  Fait partie du chantier **Revenus du 08/09**, ce n'est pas un sujet séparé.
+- `app/api/phono/apply-metadata/route.ts` : traité le 04/09 (authentification
+  exigée, route désactivée par défaut).
+- Messages d'erreur des 20 hooks : planifié le 11/09, après les refontes UI.
 
 ---
 
