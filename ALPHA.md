@@ -4,8 +4,11 @@ Document de reprise. À lire en premier pour reprendre le chantier de mise en
 vente. Mis à jour à chaque fin de journée.
 
 **Cible : ouverture de l'alpha le lundi 14/09/2026.**
-Alpha privée payante, sur invitation, paiement par Payment Link (pas de tunnel
-Stripe self-serve avant d'avoir la preuve que des gens paient).
+Alpha **gratuite et ouverte à tous** : inscription libre depuis la landing, sans
+carte bancaire ni engagement. Pas de paiement dans le périmètre — l'objectif de
+l'alpha est le volume de testeurs et le signal d'usage, pas le chiffre. La
+tarification (à partir de 8 €/mois) est annoncée sur la landing comme
+« après l'alpha », sans date.
 
 ---
 
@@ -132,6 +135,83 @@ de s'exécuter.
 
 Non vérifiable en local : les crons Vercel ne tournent qu'en production.
 
+### ✅ Jeudi 03/09 (suite) — domaine, SMTP Brevo, templates d'auth
+
+Domaine de production : **sidekickartists.com**, zone DNS chez **Porkbun**.
+Guide complet dans `docs/email-setup.md`, templates dans `docs/email-templates/`.
+
+DNS posés et vérifiés (`dig … @1.1.1.1`) :
+
+- Web : `A @ 216.198.79.1`, `CNAME www → …vercel-dns…` (Vercel)
+- Mail entrant : `MX 10 mx0002.neo.space`, `MX 20 mx0001.neo.space` (**Neo**)
+- **SPF** fusionné, un seul TXT : `v=spf1 include:spf0001.neo.space
+  include:spf.brevo.com ~all`
+- **DKIM** : `neo1._domainkey` (Neo) + `brevo1` / `brevo2._domainkey` (CNAME
+  Brevo)
+- **DMARC** : un seul TXT `_dmarc`, `p=none`, `rua` vers `no-reply@` + report
+  Brevo
+- Wildcard `*` de parking Porkbun **supprimé** (il faisait résoudre tous les
+  sous-domaines non définis)
+
+Boîtes mail (Neo, 1 boîte payante) :
+
+- `hello@sidekickartists.com` — **alias** (permet de répondre depuis cette
+  adresse) ; c'est le `Reply-To` public
+- `no-reply@sidekickartists.com` — **internal forwarding** ; expéditeur
+  technique de l'app, les bounces reviennent dans la boîte principale
+
+Brevo :
+
+- Domaine authentifié (SPF + DKIM verts), sender `no-reply@sidekickartists.com`
+  confirmé
+- **Deux clés distinctes** : clé API `xkeysib-…` (`BREVO_API_KEY`, routes Next) ≠
+  clé SMTP `xsmtpsib-…` (SMTP custom Supabase)
+- Piège rencontré : le **Login SMTP** n'est pas l'email du compte — prendre la
+  valeur exacte du champ « Login » de l'onglet *SMTP & API → SMTP*. Un mauvais
+  login donne `535 5.7.8 Authentication failed`.
+- Compte neuf : l'envoi peut être bloqué tant que Brevo n'a pas validé le compte
+
+Supabase :
+
+- Custom SMTP activé → `smtp-relay.brevo.com:587`, sender `no-reply@…`
+- Les 4 templates brandés (`confirm-signup`, `reset-password`, `magic-link`,
+  `change-email`) collés dans Authentication → Email Templates
+- Test *Send password recovery* : mail reçu, lien fonctionnel (redirige vers
+  `localhost:3000` car déclenché en local — normal)
+
+**⬜ Reste sur ce chantier :**
+
+- **Authentication → URL Configuration** : Site URL `https://sidekickartists.com`
+  + Redirect URLs en allowlist (`http://localhost:3000/**`,
+  `https://sidekickartists.com/**`, `https://*-<scope>.vercel.app/**`). Sans
+  l'entrée prod, le lien de recovery en production redirigera mal.
+- **Page « nouveau mot de passe »** côté app pour le flux `type=recovery` :
+  `/auth/callback` ne gère que le code PKCE des confirmations, pas la saisie
+  d'un nouveau mot de passe.
+- À la bascule `claude-edits` → `main` : poser `BREVO_API_KEY` et `CRON_SECRET`
+  sur Vercel (prod). La config SMTP custom est côté Supabase, projet unique,
+  déjà en place.
+- Resserrer le SPF `~all` → `-all` une fois `mail-tester.com` au vert et tous
+  les expéditeurs connus.
+
+### ✅ Vendredi 04/09 — récupération de mot de passe
+
+Il n'existait aucun parcours : ni lien « oublié » sur `/login`, ni appel à
+`resetPasswordForEmail`, ni page de saisie. `/auth/callback` renvoyait vers le
+tableau de bord, si bien qu'un lien de récupération connectait la personne sans
+jamais lui proposer de changer son mot de passe. Sans conséquence sur une alpha
+sur invitation ; bloquant dès lors que l'inscription est libre.
+
+- `app/(auth)/mot-de-passe-oublie/` — demande du lien, `redirectTo` vers
+  `/auth/callback?next=/nouveau-mot-de-passe` (le lien porte un code PKCE, il
+  doit passer par le callback)
+- `app/(auth)/nouveau-mot-de-passe/` — saisie + confirmation, minimum 8
+  caractères, et un écran « lien expiré » explicite quand la session est
+  absente plutôt qu'une erreur technique
+- lien « Oublié ? » à côté du champ mot de passe sur `/login`
+
+Le template `reset-password` était déjà en place côté Supabase.
+
 ### ⬜ Reste — semaine 1 (31/08 → 04/09)
 
 | Jour | Chantier |
@@ -145,8 +225,8 @@ Non vérifiable en local : les crons Vercel ne tournent qu'en production.
 | Lun 07/09 | Sécurité API : auth + Zod sur les 19 routes, `apply-metadata` désactivée, rate limiting, quota IA |
 | Mar 08/09 | Intermittence : corriger l'allocation · `handleMutationError()` sur les hooks |
 | Mer 09/09 | Légal : CGU, CGV, mentions, confidentialité, bandeau cookies PostHog, PITR + DPA |
-| Jeu 10/09 | Migration des 5 liens Projets · Payment Link et procédure d'invitation |
-| Ven 11/09 | Recette bout-en-bout sur 2 comptes vierges dont un profil mono-secteur |
+| Jeu 10/09 | Migration des 5 liens Projets · OAuth Outlook |
+| Ven 11/09 | Recette bout-en-bout sur 2 comptes vierges dont un profil mono-secteur · **facturation électronique** (dernier chantier avant l'ouverture) |
 
 ### ⬜ Lien d'écoute Phono — vendredi 04/09
 
@@ -173,6 +253,92 @@ Décisions de conception à tenir :
 
 ---
 
+### ⬜ OAuth Outlook — jeudi 10/09
+
+Aujourd'hui seul Google OAuth est fonctionnel (connexion à l'appli + envoi des
+campagnes mailing depuis l'adresse de l'utilisateur). Ajouter le même flux pour
+Microsoft / Outlook, pour ne pas exclure les artistes qui n'ont pas de compte
+Google.
+
+- Provider Azure AD côté Supabase Auth (client ID / secret, redirect URLs).
+- Scopes mail : envoi via Microsoft Graph (`Mail.Send`), équivalent de ce qui
+  est fait côté Gmail.
+- Bouton « Continuer avec Outlook » sur `/login` et `/inscription`, à côté de
+  Google.
+- La landing (`ProductProof`) annonce déjà « Compte Google ou Outlook » — à
+  livrer avant l'ouverture pour que ce soit vrai.
+
+---
+
+### ⬜ Facturation électronique — jeudi 10/09
+
+La réforme française rend la facture électronique obligatoire pour les
+indépendants. Pour l'alpha, périmètre minimal : **générer une facture au format
+Factur-X** (PDF/A-3 avec XML EN 16931 embarqué) à l'export, en plus du PDF
+actuel.
+
+- Réutiliser le modèle de données `user_invoices` existant ; ajouter les champs
+  manquants au regard d'EN 16931 (SIREN/SIRET émetteur et client, mentions
+  légales, TVA par ligne).
+- Génération de l'XML Factur-X + embarquement dans le PDF (profil *BASIC* ou
+  *EN 16931* suffisant au départ).
+- **Hors périmètre alpha** : transmission via une PDP / Chorus Pro, cycle de
+  vie (statuts émise/reçue/encaissée normalisés), annuaire. À planifier
+  après-alpha selon le calendrier officiel.
+- La landing (`ProductProof`) annonce déjà « Facturation électronique — format
+  Factur-X » — à livrer avant l'ouverture.
+
+---
+
+## Recette de déploiement — à faire en production, avant l'ouverture
+
+Rien de ce qui suit n'est vérifiable en local : emails réels, crons Vercel,
+URLs de redirection. À dérouler après la bascule `claude-edits` → `main`.
+
+**Configuration, d'abord**
+
+- [ ] Vercel : `BREVO_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`
+      (`https://sidekickartists.com`). Sans `CRON_SECRET`, la route de rappels
+      refuse de s'exécuter et le cron est silencieusement inerte.
+- [ ] Supabase → Authentication → URL Configuration : Site URL
+      `https://sidekickartists.com`, Redirect URLs en allowlist
+      (`https://sidekickartists.com/**`, `http://localhost:3000/**`,
+      `https://*-<scope>.vercel.app/**`).
+
+**Parcours de compte**
+
+- [ ] Inscription depuis la landing → email de confirmation reçu → le lien
+      ouvre l'app connectée, pas une page d'erreur.
+- [ ] Onboarding : choix des secteurs, puis données d'exemple. Vérifier que la
+      carte de suppression apparaît bien dans Réglages > Personnalisation.
+- [ ] Notification d'inscription reçue sur `hello@` / `SIGNUP_NOTIFY_TO`.
+- [ ] **Mot de passe oublié** : demander le lien, le recevoir, le suivre,
+      définir un nouveau mot de passe, se reconnecter avec. Puis rouvrir le
+      même lien une seconde fois — l'écran « lien expiré » doit s'afficher, pas
+      une erreur technique.
+- [ ] Connexion Google.
+
+**Rappels de démarches**
+
+- [ ] Créer un statut avec une démarche à échéance sous 14 jours, puis
+      déclencher la route à la main :
+      `curl -H "Authorization: Bearer $CRON_SECRET" https://sidekickartists.com/api/cron/reminders`
+      — la réponse donne `{ ok, sent, skipped }`.
+- [ ] Email reçu, avec toutes les démarches regroupées dans un seul message.
+- [ ] Couper l'interrupteur en Réglages, rappeler la route : `skipped` augmente,
+      aucun email.
+- [ ] Rappeler la route dans la même journée : `skipped` augmente
+      (`reminders_last_sent_at` empêche le doublon).
+- [ ] Laisser passer un vrai cycle de cron (7h UTC) et vérifier l'exécution
+      dans les logs Vercel.
+
+**Délivrabilité**
+
+- [ ] `mail-tester.com` au vert sur un email envoyé par l'app.
+- [ ] Une fois tous les expéditeurs connus, resserrer le SPF `~all` → `-all`.
+
+---
+
 ## Décisions prises, et pourquoi
 
 **Projets se limite à sa migration Supabase, la refonte UI attend l'après-alpha.**
@@ -180,8 +346,12 @@ Le module est ouvert dans le périmètre : il doit être *fiable*, pas *beau*. U
 projet qui disparaît au changement de navigateur tue l'alpha, un projet moche
 non. PostHog dira au J14 si la refonte vaut le coup.
 
-**Pas de tunnel Stripe self-serve.** Payment Link + ouverture manuelle suffisent
-pour une alpha sur invitation, et ça rend deux jours.
+**Alpha gratuite et ouverte, pas de paiement du tout.** Ni tunnel Stripe, ni
+Payment Link, ni invitations : l'inscription est libre depuis la landing. Une
+alpha payante sur invitation testait la disposition à payer sur un produit que
+personne n'a encore utilisé ; on teste d'abord l'usage. Le prix se validera après,
+sur une base d'utilisateurs réels. Ça rend aussi les deux jours de tunnel de
+paiement.
 
 **`onboarding_sectors` est volontairement redondant avec `enabled_modules`.**
 Il fige le choix d'inscription, pour que la répartition au J14 ne soit pas

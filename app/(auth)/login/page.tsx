@@ -146,9 +146,17 @@ function LoginPageContent() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className={FIELD_LABEL}>
-              Mot de passe
-            </Label>
+            <div className="flex items-baseline justify-between gap-3">
+              <Label htmlFor="password" className={FIELD_LABEL}>
+                Mot de passe
+              </Label>
+              <Link
+                href="/mot-de-passe-oublie"
+                className="text-xs text-[#f5f5f5]/50 transition-colors hover:text-[#F0FF00]"
+              >
+                Oublié ?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"
