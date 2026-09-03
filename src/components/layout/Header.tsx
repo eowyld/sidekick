@@ -86,8 +86,15 @@ export function Header() {
     posthog?.capture("user_signed_out");
     posthog?.reset();
     const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/");
+    // signOut() en scope global part révoquer le refresh token côté serveur ;
+    // si cet appel échoue (réseau, 5xx), il rend la main SANS purger la session
+    // locale ni couper l'auto-refresh — la session ressuscite quelques secondes
+    // plus tard. On force donc une purge locale en repli.
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      await supabase.auth.signOut({ scope: "local" });
+    }
+    router.replace("/login");
   };
 
   const handleOpenSettings = () => {

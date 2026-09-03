@@ -6,9 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth-errors";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { AuthMessage } from "@/components/auth/AuthMessage";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const FIELD_LABEL = "text-xs uppercase tracking-[0.12em] text-[#f5f5f5]/60";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -18,11 +24,19 @@ function LoginPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
-    searchParams.get("error") === "oauth" ? "Erreur lors de la connexion Google. Réessaie." : null
+    searchParams.get("error") === "oauth"
+      ? "La connexion Google a échoué. Réessaie."
+      : null
+  );
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
+    "idle"
   );
   const [loading, setLoading] = useState(false);
   const nextPath =
-    redirectedFrom && redirectedFrom.startsWith("/") && !redirectedFrom.startsWith("//")
+    redirectedFrom &&
+    redirectedFrom.startsWith("/") &&
+    !redirectedFrom.startsWith("//")
       ? redirectedFrom
       : "/dashboard";
 
@@ -43,54 +57,83 @@ function LoginPageContent() {
       });
       if (err) throw err;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de la connexion Google");
+      setError(authErrorMessage(err));
       setGoogleLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResendState("sending");
+    try {
+      const supabase = createClient();
+      await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        },
+      });
+      setResendState("sent");
+    } catch {
+      setResendState("idle");
+      setError("Impossible de renvoyer l'email pour le moment.");
     }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNeedsConfirmation(false);
     setLoading(true);
     try {
       const supabase = createClient();
       const { error: err } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
       if (err) throw err;
       router.push(nextPath);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de connexion");
+      setError(authErrorMessage(err));
+      setNeedsConfirmation(isEmailNotConfirmed(err));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Connexion
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Connecte-toi à ton espace Sidekick
-          </p>
-        </div>
+    <AuthShell>
+      <div className="space-y-8">
+        <h1 className="font-display text-2xl uppercase leading-none">
+          Connexion
+        </h1>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-lg border bg-card p-6 shadow-sm space-y-4"
-        >
-          {error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
+        {error && (
+          <div className="space-y-3">
+            <AuthMessage>{error}</AuthMessage>
+            {needsConfirmation && (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendState !== "idle" || !email}
+                className="text-xs uppercase tracking-[0.15em] text-[#F0FF00] transition-opacity hover:opacity-80 disabled:opacity-50"
+              >
+                {resendState === "sending"
+                  ? "Envoi…"
+                  : resendState === "sent"
+                    ? "Email renvoyé"
+                    : "Renvoyer l'email de confirmation"}
+              </button>
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className={FIELD_LABEL}>
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
@@ -99,10 +142,13 @@ function LoginPageContent() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              className="h-11"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Mot de passe</Label>
+            <Label htmlFor="password" className={FIELD_LABEL}>
+              Mot de passe
+            </Label>
             <Input
               id="password"
               type="password"
@@ -110,72 +156,59 @@ function LoginPageContent() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              className="h-11"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading || googleLoading}>
+          <Button
+            type="submit"
+            size="lg"
+            className="btn-glow w-full"
+            disabled={loading || googleLoading}
+          >
             {loading ? "Connexion…" : "Se connecter"}
           </Button>
-
-          {/* Séparateur */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">ou</span>
-            </div>
-          </div>
-
-          {/* Bouton Google */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
-          >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                fill="#4285F4"
-              />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="#34A853"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="#EA4335"
-              />
-            </svg>
-            {googleLoading ? "Redirection…" : "Continuer avec Google"}
-          </Button>
-
-          <p className="text-center text-sm text-muted-foreground">
-            Pas encore de compte ?{" "}
-            <Link href="/inscription" className="font-medium text-primary hover:underline">
-              S&apos;inscrire
-            </Link>
-          </p>
         </form>
 
-        <p className="text-center">
-          <Link href="/" className="text-sm text-muted-foreground hover:underline">
-            Retour à l&apos;accueil
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-[rgba(245,245,245,0.12)]" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-[#101010] px-3 text-[10px] uppercase tracking-[0.2em] text-[#f5f5f5]/40">
+              ou
+            </span>
+          </div>
+        </div>
+
+        <GoogleAuthButton
+          onClick={handleGoogleSignIn}
+          disabled={googleLoading || loading}
+          loading={googleLoading}
+        />
+
+        <p className="text-center text-sm text-[#f5f5f5]/60">
+          Pas encore de compte ?{" "}
+          <Link
+            href="/inscription"
+            className="font-medium text-[#F0FF00] hover:underline"
+          >
+            S&apos;inscrire
           </Link>
         </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><p className="text-sm text-muted-foreground">Chargement…</p></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#101010]">
+          <p className="text-sm text-[#f5f5f5]/60">Chargement…</p>
+        </div>
+      }
+    >
       <LoginPageContent />
     </Suspense>
   );
