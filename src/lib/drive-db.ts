@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { STORAGE_QUOTA_BYTES } from "@/modules/phono/lib/audio-limits";
+
 export interface DriveFolderRow {
   id: string;
   user_id: string;
@@ -486,8 +488,9 @@ export async function uploadDriveFileToPath(
     onProgress(100);
   }
 
-  const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(path);
-  return { url: urlData.publicUrl, path };
+  // Le bucket est privé : une URL publique ne répond pas. Les consommateurs
+  // demandent une URL signée à /api/phono/signed-audio au moment de lire.
+  return { url: "", path };
 }
 
 export async function uploadDriveFile(
@@ -603,11 +606,11 @@ export async function listStorageContents(
     if (isPlaceholderFileName(name)) continue;
     const childPath = folderPath ? `${folderPath}/${name}` : name;
     if (hasFileSizeMetadata(item)) {
-      const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath);
+      // Bucket privé : pas d'URL publique exploitable, on renvoie le path seul.
       files.push({
         name,
         path: childPath,
-        url: urlData.publicUrl,
+        url: "",
         sizeBytes: Number(item.metadata?.size) || 0,
         updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
       });
@@ -625,11 +628,11 @@ export async function listStorageContents(
         createdAt: ("created_at" in item ? (item.created_at as string | null) : null) ?? null
       });
     } else {
-      const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath);
+      // Bucket privé : pas d'URL publique exploitable, on renvoie le path seul.
       files.push({
         name,
         path: childPath,
-        url: urlData.publicUrl,
+        url: "",
         sizeBytes: Number(item.metadata?.size) || 0,
         updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
       });
@@ -720,9 +723,13 @@ async function calculateStorageUsedFromFiles(
   return await sumFilesInPath(userId);
 }
 
-/** Limite de stockage par utilisateur : 1 GB */
-export const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024;
-/** Taille maximale par fichier : 50 MB */
+/** Quota global par utilisateur. Aligné sur le plafond audio, qui le domine. */
+export const STORAGE_LIMIT_BYTES = STORAGE_QUOTA_BYTES;
+
+/**
+ * Plafond des fichiers Drive génériques (PDF, images, contrats).
+ * L'audio a son propre plafond, plus haut : voir `MAX_AUDIO_BYTES`.
+ */
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 /** Supprime un dossier Storage et tout son contenu. */

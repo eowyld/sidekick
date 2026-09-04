@@ -22,6 +22,8 @@ import {
   isValidDateFr,
   isoToFr,
 } from "@/lib/date-format";
+import { normalizeTrackGuests } from "@/modules/phono/lib/track";
+import { VersionAudioField } from "./listening/VersionAudioField";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -268,13 +270,6 @@ function albumTypeLabel(type: AlbumType): string {
   return ALBUM_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
-function parseTrackGuest(raw: string): { name: string; role?: string } {
-  const value = String(raw ?? "").trim();
-  if (!value) return { name: "" };
-  const [name = "", role = ""] = value.split(" – ");
-  return { name: name.trim(), role: role.trim() || undefined };
-}
-
 function computeAlbumContributors(
   album: Album,
   albumTracks: Track[]
@@ -294,8 +289,7 @@ function computeAlbumContributors(
   (album.guests ?? []).forEach((g) => push(g.name, roleLabel(g.role)));
   albumTracks.forEach((t) => {
     push(t.mainArtist, roleLabel(t.role));
-    (t.guestArtists ?? []).forEach((raw) => {
-      const guest = parseTrackGuest(raw);
+    normalizeTrackGuests(t.guestArtists).forEach((guest) => {
       push(guest.name, guest.role);
     });
   });
@@ -468,6 +462,18 @@ export function CatalogPage() {
       ...prev,
       versions: prev.versions.map((v) =>
         v.id === versionId ? { ...v, label } : v
+      ),
+    }));
+  };
+
+  const patchDraftVersion = (
+    versionId: string,
+    patch: Partial<TrackVersion>
+  ) => {
+    setDraft((prev) => ({
+      ...prev,
+      versions: prev.versions.map((v) =>
+        v.id === versionId ? { ...v, ...patch } : v
       ),
     }));
   };
@@ -810,6 +816,25 @@ export function CatalogPage() {
               ...t,
               versions: (t.versions ?? []).map((v) =>
                 v.id === versionId ? { ...v, label } : v
+              ),
+            }
+          : t
+      )
+    );
+  };
+
+  const patchVersion = (
+    trackId: string,
+    versionId: string,
+    patch: Partial<TrackVersion>
+  ) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? {
+              ...t,
+              versions: (t.versions ?? []).map((v) =>
+                v.id === versionId ? { ...v, ...patch } : v
               ),
             }
           : t
@@ -1486,24 +1511,30 @@ export function CatalogPage() {
                   </div>
                   <div className="space-y-2">
                     {draft.versions.map((v) => (
-                      <div key={v.id} className="flex gap-2">
-                        <Input
-                          value={v.label}
-                          onChange={(e) =>
-                            updateDraftVersion(v.id, e.target.value)
-                          }
-                          placeholder="Ex. Version radio, Instrumental…"
-                          className="flex-1"
+                      <div key={v.id} className="space-y-1">
+                        <div className="flex gap-2">
+                          <Input
+                            value={v.label}
+                            onChange={(e) =>
+                              updateDraftVersion(v.id, e.target.value)
+                            }
+                            placeholder="Ex. Version radio, Instrumental…"
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDraftVersion(v.id)}
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <VersionAudioField
+                          version={v}
+                          onChange={(patch) => patchDraftVersion(v.id, patch)}
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeDraftVersion(v.id)}
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1869,24 +1900,32 @@ export function CatalogPage() {
                         </div>
                         <div className="space-y-2">
                           {(track.versions ?? []).map((v: TrackVersion) => (
-                            <div key={v.id} className="flex gap-2">
-                              <Input
-                                value={v.label}
-                                onChange={(e) =>
-                                  updateVersion(track.id, v.id, e.target.value)
+                            <div key={v.id} className="space-y-1">
+                              <div className="flex gap-2">
+                                <Input
+                                  value={v.label}
+                                  onChange={(e) =>
+                                    updateVersion(track.id, v.id, e.target.value)
+                                  }
+                                  placeholder="Ex. Version radio, Instrumental…"
+                                  className="flex-1"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeVersion(track.id, v.id)}
+                                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <VersionAudioField
+                                version={v}
+                                onChange={(patch) =>
+                                  patchVersion(track.id, v.id, patch)
                                 }
-                                placeholder="Ex. Version radio, Instrumental…"
-                                className="flex-1"
                               />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeVersion(track.id, v.id)}
-                                className="shrink-0 text-muted-foreground hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
                             </div>
                           ))}
                         </div>
@@ -3684,7 +3723,8 @@ export function CatalogPage() {
                         <div className="flex items-center gap-2">
                           <Checkbox
                             id={`podcast-live-${podcast.id}`}
-                            checked={podcast.isLive}
+                            // Compat temporaire : isLive est remplacé par `format` en phase 3 du chantier.
+                            checked={Boolean(podcast.isLive)}
                             onCheckedChange={(checked) =>
                               updatePodcast(podcast.id, { isLive: checked === true })
                             }
@@ -4000,7 +4040,8 @@ size="sm"
                             Vidéo / En direct
                           </dt>
                           <dd className="mt-1 text-sm">
-                            {[podcast.isVideo && "Vidéo", podcast.isLive && "En direct"]
+                            {/* Compat temporaire : isLive est remplacé par `format` en phase 3 du chantier. */}
+                            {[podcast.isVideo && "Vidéo", Boolean(podcast.isLive) && "En direct"]
                               .filter(Boolean)
                               .join(" · ") || "—"}
                           </dd>

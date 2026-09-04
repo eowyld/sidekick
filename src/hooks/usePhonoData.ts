@@ -3,7 +3,8 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
-import type { Track, Album, Podcast } from "@/lib/sidekick-store";
+import type { Track, Album, Podcast, Mix, TrackGuest } from "@/lib/sidekick-store";
+import { normalizeTrackGuests } from "@/modules/phono/lib/track";
 
 // ─── Local session type (SessionsStudioPage) ─────────────────────────────────
 
@@ -50,7 +51,10 @@ function trackToRow(t: Track, userId: string): Record<string, unknown> {
     title: t.title,
     main_artist: t.mainArtist,
     role: t.role,
-    guest_artists: t.guestArtists ?? [],
+    // Toujours écrit en `TrackGuest[]`. Combiné à la normalisation en lecture,
+    // les données historiques au format `"Nom – Rôle"` se convertissent d'elles-
+    // mêmes au fil des enregistrements, sans migration SQL.
+    guest_artists: normalizeTrackGuests(t.guestArtists),
     isrc: t.isrc ?? "",
     release_date: t.releaseDate ?? "",
     self_produced: t.selfProduced ?? true,
@@ -72,7 +76,9 @@ function rowToTrack(row: Record<string, unknown>): Track {
     title: row.title as string,
     mainArtist: row.main_artist as string,
     role: row.role as Track["role"],
-    guestArtists: (row.guest_artists as string[]) ?? [],
+    guestArtists: normalizeTrackGuests(
+      row.guest_artists as Array<string | TrackGuest> | undefined
+    ),
     isrc: (row.isrc as string) ?? "",
     releaseDate: (row.release_date as string) ?? "",
     selfProduced: row.self_produced as boolean,
@@ -153,6 +159,8 @@ function rowToPodcast(row: Record<string, unknown>): Podcast {
     publishedOn: (row.published_on as string) ?? "",
     isVideo: row.is_video as boolean,
     isLive: row.is_live as boolean,
+    format:
+      (row.format as Mix["format"]) ?? (row.is_live ? "live_set" : "dj_set"),
     status: (row.status as Podcast["status"]) ?? "en_production",
     releaseDate: (row.release_date as string) ?? "",
     tracklist: (row.tracklist as Podcast["tracklist"]) ?? [],

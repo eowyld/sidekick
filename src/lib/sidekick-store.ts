@@ -344,9 +344,43 @@ export type PhonoRole =
   | "beatmaker"
   | "ingenieur_du_son";
 
+/**
+ * Un intervenant sur un titre.
+ *
+ * Historiquement stocké en chaîne concaténée `"Nom – Rôle"`, re-découpée sur
+ * `" – "` à cinq endroits — dont le constructeur du payload de métadonnées.
+ * Un nom contenant un tiret cassait silencieusement les crédits écrits dans le
+ * fichier, sur des données qui alimentent des déclarations de droits.
+ *
+ * La colonne `guest_artists` est un `jsonb` : elle accepte les deux formes.
+ * `normalizeTrackGuests` convertit à la lecture, l'écriture se fait toujours
+ * au nouveau format.
+ */
+export interface TrackGuest {
+  name: string;
+  /** Libellé lisible, pas une clé `PhonoRole`. Ex. « Ingé Mixage ». */
+  role: string;
+}
+
 export interface TrackVersion {
   id: string;
   label: string;
+  /**
+   * ISRC propre à cette version. L'ISRC identifie un enregistrement, pas une
+   * œuvre : radio edit, instrumental et live ont chacun le leur. Vide, la
+   * version hérite de `Track.isrc` à l'affichage.
+   */
+  isrc?: string;
+  /** Chemin dans le bucket `drive`. Absent = version sans fichier audio. */
+  audioPath?: string;
+  /** `upload` = fichier déposé depuis le catalogue, `drive` = fichier déjà rangé dans le Drive. */
+  audioSource?: "upload" | "drive";
+  /** Nom de fichier d'origine, affiché tel quel à l'artiste. */
+  audioName?: string;
+  durationMs?: number;
+  sizeBytes?: number;
+  /** ~400 valeurs entre 0 et 1, calculées dans le navigateur à l'ajout. */
+  peaks?: number[];
 }
 
 export interface Track {
@@ -354,7 +388,11 @@ export interface Track {
   title: string;
   mainArtist: string;
   role: PhonoRole;
-  guestArtists: string[];
+  /**
+   * Tolère l'ancien format `"Nom – Rôle"` en lecture. Toujours écrit en
+   * `TrackGuest[]`. Utiliser `normalizeTrackGuests` avant tout usage.
+   */
+  guestArtists: Array<string | TrackGuest>;
   isrc: string;
   releaseDate: string;
   selfProduced: boolean;
@@ -409,26 +447,43 @@ export interface Session {
   [key: string]: unknown;
 }
 
-export interface PodcastTracklistItem {
+export interface MixTracklistItem {
   id: string;
   artist: string;
   label: string;
+  /** Timecode `M:SS` ou `H:MM:SS`. */
   time: string;
 }
 
-export interface Podcast {
+/**
+ * Longs formats non phonographiques : DJ set, live set, mix, émission.
+ *
+ * Ils n'ont ni ISRC ni version ni distributeur. Leur valeur juridique tient à
+ * la tracklist, qui détermine la répartition des droits vers les ayants droit
+ * des titres joués — c'est le format exigé par Mixcloud, Resident Advisor et
+ * la SACEM.
+ */
+export type MixFormat = "dj_set" | "live_set" | "mix" | "podcast";
+
+export interface Mix {
   id: string;
   title: string;
   artists: string;
   publishedOn: string;
+  format: MixFormat;
+  /** Captation vidéo. Orthogonal au format : un live set peut être filmé. */
   isVideo: boolean;
-  isLive: boolean;
   status: ReleaseStatus;
   releaseDate: string;
-  tracklist: PodcastTracklistItem[];
+  tracklist: MixTracklistItem[];
   cover?: string;
   [key: string]: unknown;
 }
+
+/** @deprecated Utiliser `Mix`. Alias conservé le temps de la migration. */
+export type Podcast = Mix;
+/** @deprecated Utiliser `MixTracklistItem`. */
+export type PodcastTracklistItem = MixTracklistItem;
 
 // --- Store global ---
 export interface SidekickData {
@@ -476,7 +531,7 @@ export interface SidekickData {
     albums: Album[];
     tracks: Track[];
     sessions: Session[];
-    podcasts: Podcast[];
+    mixes: Mix[];
   };
   projects: {
     projects: Project[];
@@ -564,7 +619,7 @@ export const DEFAULT_SIDEKICK_DATA: SidekickData = {
     albums: [],
     tracks: [],
     sessions: [],
-    podcasts: []
+    mixes: []
   },
   projects: {
     projects: [],

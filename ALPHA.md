@@ -263,7 +263,7 @@ blocages juridiques avant la recette.
 |---|---|
 | Lun 07/09 | **Projets** (gros) — migration des 5 liens localStorage → Supabase, **puis** finalisation UI. C'est le seul module ouvert dont la donnée est encore fragile : il passe en premier. |
 | Mar 08/09 | **Revenus** (gros) — allocation d'intermittence, UI facturation / royalties / droits d'auteur, vue d'ensemble |
-| Mer 09/09 | **Admin** (gros) — simplification du module, statuts et démarches · Légal : CGU, CGV, mentions, confidentialité, bandeau cookies PostHog, PITR + DPA |
+| Mer 09/09 | **Admin** (gros) — simplification du module, statuts et démarches · Légal : CGU, CGV, mentions, confidentialité (+ **FAQ `/faq`** à finaliser en même temps : contenu à relire, `sameAs` du JSON-LD à compléter), bandeau cookies PostHog, PITR + DPA |
 | Jeu 10/09 | **Phono** UI/UX · **Édition catalogue** UI/UX · **Calendrier** : vue semaine et densité d'affichage |
 | Ven 11/09 | `handleMutationError()` sur les 20 hooks · OAuth Outlook · **facturation électronique** |
 | Sam 12/09 | Recette de déploiement (voir la section dédiée) sur 2 comptes vierges dont un profil mono-secteur |
@@ -375,6 +375,26 @@ URLs de redirection. À dérouler après la bascule `claude-edits` → `main`.
       `https://sidekickartists.com`, Redirect URLs en allowlist
       (`https://sidekickartists.com/**`, `http://localhost:3000/**`,
       `https://*-<scope>.vercel.app/**`).
+
+**Stockage audio — abonnement Supabase Pro**
+
+L'hébergement des fichiers audio du catalogue Phono (un fichier par version de
+titre, masters WAV inclus) ne rentre pas dans les limites du plan Free. Un WAV
+44,1 kHz / 24 bits de 4 minutes pèse ~64 Mo, au-dessus du plafond d'upload de
+50 Mo ; un catalogue de 24 titres × 3 versions approche 3,6 Go, contre 1 Go de
+quota. Le code est écrit pour les gros fichiers dès l'alpha et piloté par
+variables d'environnement : le jour du basculement, aucun redéploiement n'est
+nécessaire.
+
+- [ ] Souscrire **Supabase Pro** (~25 $/mois, 100 Go de stockage inclus).
+- [ ] Supabase → Settings → Storage : relever le plafond d'upload par fichier
+      à **200 Mo** (défaut Free : 50 Mo).
+- [ ] Vercel : `NEXT_PUBLIC_MAX_AUDIO_MB=200` et
+      `NEXT_PUBLIC_STORAGE_QUOTA_GB=20`. Sans ces variables, l'app retombe sur
+      les valeurs Free (50 Mo / 1 Go) et refuse les masters 24 bits avec un
+      message explicite.
+- [ ] Vérifier après bascule : uploader un WAV 24 bits de plus de 50 Mo sur une
+      version de titre — l'upload doit aboutir et la waveform s'afficher.
 
 **Parcours de compte**
 
