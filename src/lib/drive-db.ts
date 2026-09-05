@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { STORAGE_QUOTA_BYTES } from "@/modules/phono/lib/audio-limits";
+import { STORAGE_QUOTA_BYTES, formatBytes } from "@/modules/phono/lib/audio-limits";
 
 export interface DriveFolderRow {
   id: string;
@@ -427,24 +427,43 @@ export interface UploadDriveResult {
   path: string;
 }
 
+export interface UploadDriveOptions {
+  /** Progression 0-100 pendant l'envoi. */
+  onProgress?: (progress: number) => void;
+  /**
+   * Plafond par fichier, en octets. Défaut : `MAX_FILE_SIZE_BYTES`, calibré
+   * pour les fichiers Drive génériques (PDF, images, contrats).
+   *
+   * Surchargeable parce que l'audio du catalogue n'a pas les mêmes besoins
+   * qu'un PDF : un master WAV 24 bits pèse couramment plus de 50 Mo, et son
+   * plafond est piloté par `NEXT_PUBLIC_MAX_AUDIO_MB` (voir `MAX_AUDIO_BYTES`)
+   * pour pouvoir être relevé sans redéploiement. Sans cette surcharge, le
+   * contrôle générique court-circuiterait le plafond audio.
+   */
+  maxBytes?: number;
+}
+
 export async function uploadDriveFileToPath(
   supabase: SupabaseClient,
   userId: string,
   file: File,
   subPath: string,
-  onProgress?: (progress: number) => void
+  options: UploadDriveOptions = {}
 ): Promise<UploadDriveResult> {
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    const maxFileMB = (MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+  const { onProgress, maxBytes = MAX_FILE_SIZE_BYTES } = options;
+
+  if (file.size > maxBytes) {
     throw new Error(
-      `Taille maximale par fichier dépassée. Maximum: ${maxFileMB} MB.`
+      `Fichier trop volumineux : ${formatBytes(file.size)}, limite actuelle ${formatBytes(maxBytes)}.`
     );
   }
   const currentUsed = await getUserStorageUsed(supabase, userId);
   if (currentUsed + file.size > STORAGE_LIMIT_BYTES) {
-    const usedGB = (currentUsed / (1024 * 1024 * 1024)).toFixed(2);
+    // La limite est lue depuis la constante, jamais écrite en dur : elle est
+    // pilotée par NEXT_PUBLIC_STORAGE_QUOTA_GB et changera au passage en
+    // Supabase Pro. Un « / 1 Go » figé mentirait dès ce jour-là.
     throw new Error(
-      `Espace de stockage insuffisant. Utilisé : ${usedGB} GB / 1 GB. Taille du fichier : ${(file.size / (1024 * 1024)).toFixed(2)} MB.`
+      `Espace insuffisant : ${formatBytes(currentUsed)} utilisés sur ${formatBytes(STORAGE_LIMIT_BYTES)}, ce fichier pèse ${formatBytes(file.size)}.`
     );
   }
 

@@ -211,7 +211,7 @@ export function useDriveData(): UseDriveDataResult {
           : fullStoragePath;
 
       const { url, path: uploadedPath } = isStorageFolder
-        ? await uploadDriveFileToPath(supabase, userId, file, subPathUnderUser, onProgress)
+        ? await uploadDriveFileToPath(supabase, userId, file, subPathUnderUser, { onProgress })
         : await uploadDriveFile(supabase, userId, file);
       if (isStorageFolder) {
         await refreshStorageUsed(supabase);
