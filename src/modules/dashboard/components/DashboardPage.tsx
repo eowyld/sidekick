@@ -68,7 +68,6 @@ export function DashboardPage() {
 
   const {
     onboardingCompleted,
-    onboardingSectors,
     preferencesReady: prefsLoaded,
   } = usePreferencesData();
   // Fermé localement dès la validation, sans attendre le rechargement SWR.
@@ -77,7 +76,7 @@ export function DashboardPage() {
   const { tasks, setTasks, error: tasksError } = useTasksData();
   const { tourDates, rehearsals, error: liveError } = useLiveData();
   const { invoices, error: incomesError } = useIncomesData();
-  const { sessions, albums, tracks, podcasts, error: phonoError } = usePhonoData();
+  const { sessions, albums, tracks, mixes, error: phonoError } = usePhonoData();
   const { customEvents, error: calendarError } = useCalendarData();
 
   const now = useMemo(() => new Date(), []);
@@ -183,11 +182,11 @@ export function DashboardPage() {
         const fields = t.mainArtist ? [{ label: "Artiste", value: t.mainArtist }] : [];
         push(d, { id: `phono-rel-trk-${t.id}`, title: t.title || "Sortie titre", sector: "phono", detail: { subLabel: "Sortie titre", dateKey: toDateKey(d), fields } });
       });
-      podcasts.forEach((p) => {
+      mixes.forEach((p) => {
         const d = parseDate(p.releaseDate);
         if (!inRange(d)) return;
         const fields = p.artists ? [{ label: "Artistes", value: p.artists }] : [];
-        push(d, { id: `phono-rel-pod-${p.id}`, title: p.title || "Sortie podcast", sector: "phono", detail: { subLabel: "Sortie podcast", dateKey: toDateKey(d), fields } });
+        push(d, { id: `phono-rel-mix-${p.id}`, title: p.title || "Sortie mix", sector: "phono", detail: { subLabel: "Sortie mix", dateKey: toDateKey(d), fields } });
       });
     }
     customEvents.forEach((e) => {
@@ -229,7 +228,7 @@ export function DashboardPage() {
     });
 
     return map;
-  }, [preferencesReady, weekDays, tourDates, rehearsals, invoices, sessions, albums, tracks, podcasts, customEvents, enabled]);
+  }, [preferencesReady, weekDays, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, enabled]);
 
   const tomorrowKey = useMemo(() => {
     const t = new Date(today);
@@ -302,9 +301,9 @@ export function DashboardPage() {
       if (inAlbumSameDay) return;
       events.push({ id: `phono-rel-trk-${t.id}`, title: t.title || "Sortie titre", date: trackKey, type: "release", sector: "phono" });
     });
-    podcasts.forEach((p) => {
+    mixes.forEach((p) => {
       const d = parseDate(p.releaseDate);
-      if (d) events.push({ id: `phono-rel-pod-${p.id}`, title: p.title || "Sortie podcast", date: toDateKey(d), type: "release", sector: "phono" });
+      if (d) events.push({ id: `phono-rel-mix-${p.id}`, title: p.title || "Sortie mix", date: toDateKey(d), type: "release", sector: "phono" });
     });
     customEvents.forEach((e) => {
       const sd = parseDate(e.date);
@@ -337,7 +336,7 @@ export function DashboardPage() {
       }));
 
     return { tasks: heroTasks, events, projects };
-  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, podcasts, customEvents, data.projects]);
+  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, data.projects]);
 
   const { phrase, accent, loading: heroLoading } = useDashboardHero(heroPayload);
 
@@ -375,7 +374,7 @@ export function DashboardPage() {
     <div>
       {isEmptyAccount && (
         <div className="mb-6">
-          <FirstStepCard sectors={onboardingSectors} />
+          <FirstStepCard />
         </div>
       )}
 

@@ -201,7 +201,7 @@ type PhonoAlbumItem = {
   releaseDate?: string;
   trackIds?: string[];
 };
-type PhonoPodcastItem = {
+type PhonoMixItem = {
   id: string;
   title: string;
   artists?: string;
@@ -300,7 +300,7 @@ function buildCalendarEvents(
   sessions: SessionItem[],
   phonoTracks: PhonoTrackItem[],
   phonoAlbums: PhonoAlbumItem[],
-  phonoPodcasts: PhonoPodcastItem[],
+  phonoMixes: PhonoMixItem[],
   tasks: TaskItem[],
   marketingEvents: MarketingItem[],
   adminProcedures: AdminProcedureItem[],
@@ -427,18 +427,18 @@ function buildCalendarEvents(
     });
   });
 
-  // Sorties de podcasts (Phono)
-  phonoPodcasts.forEach((p) => {
+  // Sorties de mixes (Phono)
+  phonoMixes.forEach((p) => {
     const dateKey = normalizeToDateKey(p.releaseDate || "");
     if (!dateKey) return;
     const isPast = dateKey < todayKey;
     events.push({
-      id: `phono-podcast-release-${p.id}`,
+      id: `phono-mix-release-${p.id}`,
       dateKey,
-      label: p.title || "Sortie podcast",
+      label: p.title || "Sortie mix",
       sector: "phono",
       type: "track_release",
-      subLabel: p.artists ? `Podcast · ${p.artists}` : "Podcast",
+      subLabel: p.artists ? `Mix · ${p.artists}` : "Mix",
       isPast
     });
   });
@@ -778,7 +778,7 @@ function buildCalendarEventFields(
   }
 
   if (type === "album_release" || type === "track_release") {
-    // source est PhonoAlbumItem | PhonoTrackItem | PhonoPodcastItem
+    // source est PhonoAlbumItem | PhonoTrackItem | PhonoMixItem
     const a = source as { title?: string; artist?: string; mainArtist?: string; type?: string; artists?: string };
     const fields: EventDialogField[] = [];
     const artist = a.artist ?? a.mainArtist ?? a.artists;
@@ -964,7 +964,7 @@ export function GlobalCalendarPage() {
   const {
     tracks: phonoTracks,
     albums: phonoAlbums,
-    podcasts: phonoPodcasts,
+    mixes: phonoMixes,
     sessions: phonoSessions
   } = usePhonoData();
   const sessions = phonoSessions as unknown as SessionItem[];
@@ -987,7 +987,7 @@ export function GlobalCalendarPage() {
         sessions,
         phonoTracks,
         phonoAlbums,
-        phonoPodcasts,
+        phonoMixes,
         tasks,
         marketingEvents,
         adminProcedures,
@@ -1002,7 +1002,7 @@ export function GlobalCalendarPage() {
       sessions,
       phonoTracks,
       phonoAlbums,
-      phonoPodcasts,
+      phonoMixes,
       tasks,
       marketingEvents,
       adminProcedures,
@@ -1188,10 +1188,10 @@ export function GlobalCalendarPage() {
       const source = phonoTracks.find((t) => String(t.id) === id) ?? null;
       return { event: selectedEvent, source };
     }
-    const podcastReleaseMatch = selectedEvent.id.match(/^phono-podcast-release-(.+)$/);
-    if (podcastReleaseMatch) {
-      const id = podcastReleaseMatch[1];
-      const source = phonoPodcasts.find((p) => String(p.id) === id) ?? null;
+    const mixReleaseMatch = selectedEvent.id.match(/^phono-mix-release-(.+)$/);
+    if (mixReleaseMatch) {
+      const id = mixReleaseMatch[1];
+      const source = phonoMixes.find((p) => String(p.id) === id) ?? null;
       return { event: selectedEvent, source };
     }
 
@@ -1255,7 +1255,7 @@ export function GlobalCalendarPage() {
     sessions,
     phonoAlbums,
     phonoTracks,
-    phonoPodcasts,
+    phonoMixes,
     tasks,
     marketingEvents,
     adminProcedures,

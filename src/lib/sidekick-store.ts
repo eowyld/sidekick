@@ -480,11 +480,6 @@ export interface Mix {
   [key: string]: unknown;
 }
 
-/** @deprecated Utiliser `Mix`. Alias conservé le temps de la migration. */
-export type Podcast = Mix;
-/** @deprecated Utiliser `MixTracklistItem`. */
-export type PodcastTracklistItem = MixTracklistItem;
-
 // --- Store global ---
 export interface SidekickData {
   tasks: Todo[];

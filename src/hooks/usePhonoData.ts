@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
-import type { Track, Album, Podcast, Mix, TrackGuest } from "@/lib/sidekick-store";
+import type { Track, Album, Mix, TrackGuest } from "@/lib/sidekick-store";
 import { normalizeTrackGuests } from "@/modules/phono/lib/track";
 
 // ─── Local session type (SessionsStudioPage) ─────────────────────────────────
@@ -27,7 +27,7 @@ export type StudioSession = {
   note?: string;
 };
 
-export type { Track, Album, Podcast };
+export type { Track, Album, Mix };
 
 // ─── SWR key ─────────────────────────────────────────────────────────────────
 
@@ -36,11 +36,11 @@ const KEY = "user_phono";
 type PhonoData = {
   tracks: Track[];
   albums: Album[];
-  podcasts: Podcast[];
+  mixes: Mix[];
   sessions: StudioSession[];
 };
 
-const FALLBACK: PhonoData = { tracks: [], albums: [], podcasts: [], sessions: [] };
+const FALLBACK: PhonoData = { tracks: [], albums: [], mixes: [], sessions: [] };
 
 // ─── Row mappers ─────────────────────────────────────────────────────────────
 
@@ -135,35 +135,33 @@ function rowToAlbum(row: Record<string, unknown>): Album {
   };
 }
 
-function podcastToRow(p: Podcast, userId: string): Record<string, unknown> {
+function mixToRow(m: Mix, userId: string): Record<string, unknown> {
   return {
-    id: p.id,
+    id: m.id,
     user_id: userId,
-    title: p.title,
-    artists: p.artists ?? "",
-    published_on: p.publishedOn ?? "",
-    is_video: p.isVideo ?? false,
-    is_live: p.isLive ?? false,
-    status: p.status ?? "en_production",
-    release_date: p.releaseDate ?? "",
-    tracklist: p.tracklist ?? [],
-    cover: p.cover ?? null,
+    title: m.title,
+    artists: m.artists ?? "",
+    published_on: m.publishedOn ?? "",
+    format: m.format ?? "dj_set",
+    is_video: m.isVideo ?? false,
+    status: m.status ?? "en_production",
+    release_date: m.releaseDate ?? "",
+    tracklist: m.tracklist ?? [],
+    cover: m.cover ?? null,
   };
 }
 
-function rowToPodcast(row: Record<string, unknown>): Podcast {
+function rowToMix(row: Record<string, unknown>): Mix {
   return {
     id: row.id as string,
     title: row.title as string,
     artists: (row.artists as string) ?? "",
     publishedOn: (row.published_on as string) ?? "",
-    isVideo: row.is_video as boolean,
-    isLive: row.is_live as boolean,
-    format:
-      (row.format as Mix["format"]) ?? (row.is_live ? "live_set" : "dj_set"),
-    status: (row.status as Podcast["status"]) ?? "en_production",
+    format: (row.format as Mix["format"]) ?? "dj_set",
+    isVideo: Boolean(row.is_video),
+    status: (row.status as Mix["status"]) ?? "en_production",
     releaseDate: (row.release_date as string) ?? "",
-    tracklist: (row.tracklist as Podcast["tracklist"]) ?? [],
+    tracklist: (row.tracklist as Mix["tracklist"]) ?? [],
     cover: (row.cover as string) ?? undefined,
   };
 }
@@ -209,14 +207,14 @@ async function fetchPhonoData(): Promise<PhonoData> {
   const [t, a, p, s] = await Promise.all([
     supabase.from("user_phono_tracks").select("*").order("created_at", { ascending: false }),
     supabase.from("user_phono_albums").select("*").order("created_at", { ascending: false }),
-    supabase.from("user_phono_podcasts").select("*").order("created_at", { ascending: false }),
+    supabase.from("user_phono_mixes").select("*").order("created_at", { ascending: false }),
     supabase.from("user_phono_sessions").select("*").order("date", { ascending: false }),
   ]);
 
   return {
     tracks: t.error ? [] : (t.data ?? []).map(rowToTrack),
     albums: a.error ? [] : (a.data ?? []).map(rowToAlbum),
-    podcasts: p.error ? [] : (p.data ?? []).map(rowToPodcast),
+    mixes: p.error ? [] : (p.data ?? []).map(rowToMix),
     sessions: s.error ? [] : (s.data ?? []).map(rowToSession),
   };
 }
@@ -320,8 +318,8 @@ export function usePhonoData() {
     []
   );
 
-  const setPodcasts = useCallback(
-    makeOptimisticSetter<Podcast>("podcasts", "user_phono_podcasts", podcastToRow),
+  const setMixes = useCallback(
+    makeOptimisticSetter<Mix>("mixes", "user_phono_mixes", mixToRow),
     []
   );
 
@@ -335,8 +333,8 @@ export function usePhonoData() {
     setTracks,
     albums: allData.albums,
     setAlbums,
-    podcasts: allData.podcasts,
-    setPodcasts,
+    mixes: allData.mixes,
+    setMixes,
     sessions: allData.sessions,
     setSessions,
     loading: isLoading,

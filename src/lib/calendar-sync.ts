@@ -19,7 +19,7 @@ function parseSourceFromEventId(eventId: string): {
     "phono-session": "phono",
     "phono-album-release": "phono",
     "phono-track-release": "phono",
-    "phono-podcast-release": "phono",
+    "phono-mix-release": "phono",
     "task": "tasks",
     "marketing-event": "marketing",
     "admin-procedure": "admin",
