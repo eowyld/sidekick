@@ -497,6 +497,33 @@ calendrier est migré vers Supabase. Non traité, hors périmètre du jour.
 
 ---
 
+## ⚠️ L'export de métadonnées ne fonctionne pas en production
+
+`app/api/phono/apply-metadata/route.ts` appelle un binaire `ffmpeg` local
+(`FFMPEG_PATH`, défaut `/usr/local/bin/ffmpeg`). Il n'existe pas sur Vercel. La
+route est donc désactivée derrière `PHONO_METADATA_ENABLED` et répond 503 par
+défaut — le commentaire du fichier dit que la fonctionnalité « y est cassée
+depuis toujours ».
+
+La refonte du catalogue a rebranché tout l'export dessus : portée par version,
+par titre ou par album, source au choix entre le fichier hébergé et un dépôt
+ponctuel, et aperçu des tags avant écriture. Le dialog **affiche honnêtement**
+le 503 (« L'écriture des métadonnées n'est pas disponible sur cet
+environnement. ») et s'arrête au premier appel au lieu d'en enchaîner douze.
+En local, tout fonctionne avec `PHONO_METADATA_ENABLED=true`.
+
+Trois issues, à trancher :
+
+- [ ] **`ffmpeg-static`** en dépendance npm : le binaire est embarqué dans le
+      bundle serverless. Le plus simple, mais ajoute ~80 Mo et frôle la limite
+      de taille des fonctions Vercel.
+- [ ] **`@ffmpeg/ffmpeg` (WASM) côté navigateur** : plus de serveur du tout,
+      l'écriture se fait chez l'artiste. Le fichier n'a plus à transiter, mais
+      c'est lent sur un WAV et le travail de rebranchement est réel.
+- [ ] **Assumer que c'est une fonctionnalité locale** : documenter qu'elle ne
+      sert qu'en développement, et retirer les boutons en production plutôt que
+      d'afficher un message d'indisponibilité.
+
 ## ⚠️ Le bucket `drive` est public — à trancher avant d'héberger des masters
 
 Vérifié le 05/09 auprès de l'API Storage : le bucket `drive` a `public = true`.

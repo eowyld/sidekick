@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { DRIVE_BUCKET } from "@/lib/drive-db";
 
 export const runtime = "nodejs";
 
@@ -63,12 +64,48 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData();
   const file = form.get("file");
+  const audioPathRaw = form.get("audioPath");
   const metadataRaw = form.get("metadata");
   const coverFile = form.get("cover");
 
-  if (!(file instanceof File)) {
-    return new Response("Missing file", { status: 400 });
+  // Deux sources d'entrée, convergées ici vers un même `Blob` et un même nom :
+  // soit un fichier téléversé (`file`), soit un `audioPath` dans le bucket
+  // `drive` que le serveur télécharge lui-même — un album de WAV n'a alors pas
+  // à redescendre puis remonter par le navigateur.
+  let audioBlob: Blob;
+  let sourceName: string;
+
+  if (file instanceof File) {
+    audioBlob = file;
+    sourceName = file.name;
+  } else if (typeof audioPathRaw === "string" && audioPathRaw.length > 0) {
+    // Le premier segment du chemin est l'id du propriétaire. Le vérifier ici
+    // évite qu'un utilisateur tague le fichier d'un autre : `download` appelé
+    // côté serveur ne passe pas par les policies RLS.
+    if (audioPathRaw.split("/")[0] !== user.id) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const { data: blob, error } = await supabase.storage
+      .from(DRIVE_BUCKET)
+      .download(audioPathRaw);
+    if (error || !blob) {
+      return Response.json(
+        { error: "not_found", detail: "Fichier audio introuvable." },
+        { status: 404 }
+      );
+    }
+    audioBlob = blob;
+    sourceName = audioPathRaw.split("/").pop() || "audio";
+  } else {
+    return Response.json(
+      {
+        error: "missing_input",
+        detail: "Aucun fichier audio fourni : renseigne « file » ou « audioPath ».",
+      },
+      { status: 400 }
+    );
   }
+
   if (typeof metadataRaw !== "string") {
     return new Response("Missing metadata", { status: 400 });
   }
@@ -83,7 +120,9 @@ export async function POST(req: NextRequest) {
   const tmpDir = path.join(os.tmpdir(), "sidekick-phono");
   await fs.mkdir(tmpDir, { recursive: true });
 
-  const extMatch = /\.[^.]+$/.exec(file.name);
+  // L'extension vient de `file.name` ou, pour un `audioPath`, du chemin lui-même.
+  // Elle décide si la cover peut être embarquée et nomme le fichier temporaire.
+  const extMatch = /\.[^.]+$/.exec(sourceName);
   const ext = extMatch ? extMatch[0].toLowerCase() : "";
   const id = randomUUID();
   const inputPath = path.join(tmpDir, `${id}-input${ext || ".audio"}`);
@@ -91,7 +130,7 @@ export async function POST(req: NextRequest) {
   let coverPath: string | null = null;
 
   try {
-    const arrayBuf = await file.arrayBuffer();
+    const arrayBuf = await audioBlob.arrayBuffer();
     await fs.writeFile(inputPath, new Uint8Array(arrayBuf));
 
     const supportsCover = [".mp3", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".mp4"].includes(ext);
@@ -189,13 +228,13 @@ export async function POST(req: NextRequest) {
     const outBytes = await fs.readFile(outputPath);
     const outName =
       metadata.title?.trim() ||
-      file.name.replace(/\.[^.]+$/, "") ||
+      sourceName.replace(/\.[^.]+$/, "") ||
       `audio-${id.slice(0, 8)}`;
 
     return new Response(outBytes as unknown as BodyInit, {
       status: 200,
       headers: {
-        "Content-Type": file.type || "application/octet-stream",
+        "Content-Type": audioBlob.type || "application/octet-stream",
         "Content-Disposition": `attachment; filename="${outName}${ext || ""}"`,
       },
     });
