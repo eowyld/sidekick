@@ -507,9 +507,14 @@ export async function uploadDriveFileToPath(
     onProgress(100);
   }
 
-  // Le bucket est privé : une URL publique ne répond pas. Les consommateurs
-  // demandent une URL signée à /api/phono/signed-audio au moment de lire.
-  return { url: "", path };
+  // ATTENTION : le bucket `drive` est configuré `public = true` (vérifié côté
+  // Supabase). Cette URL fonctionne donc sans authentification, et quiconque la
+  // détient peut télécharger le fichier — y compris un master inédit. Le module
+  // Drive s'en sert comme lien d'ouverture, on la conserve pour ne pas le
+  // casser. Passer le bucket en privé et servir des URL signées partout est une
+  // décision d'infrastructure à prendre à part : voir ALPHA.md.
+  const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(path);
+  return { url: urlData.publicUrl, path };
 }
 
 export async function uploadDriveFile(
@@ -625,11 +630,12 @@ export async function listStorageContents(
     if (isPlaceholderFileName(name)) continue;
     const childPath = folderPath ? `${folderPath}/${name}` : name;
     if (hasFileSizeMetadata(item)) {
-      // Bucket privé : pas d'URL publique exploitable, on renvoie le path seul.
+      // Bucket public : cette URL est exploitable sans authentification.
+      // Voir l'avertissement de `uploadDriveFileToPath`.
       files.push({
         name,
         path: childPath,
-        url: "",
+        url: supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath).data.publicUrl,
         sizeBytes: Number(item.metadata?.size) || 0,
         updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
       });
@@ -647,11 +653,12 @@ export async function listStorageContents(
         createdAt: ("created_at" in item ? (item.created_at as string | null) : null) ?? null
       });
     } else {
-      // Bucket privé : pas d'URL publique exploitable, on renvoie le path seul.
+      // Bucket public : cette URL est exploitable sans authentification.
+      // Voir l'avertissement de `uploadDriveFileToPath`.
       files.push({
         name,
         path: childPath,
-        url: "",
+        url: supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath).data.publicUrl,
         sizeBytes: Number(item.metadata?.size) || 0,
         updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
       });

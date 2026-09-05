@@ -760,7 +760,18 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ## Task 6 : URL signées — corriger `getPublicUrl` et créer la route
 
-Le bucket `drive` est privé : ses policies RLS filtrent sur `auth.uid()` comparé au premier segment du chemin (`supabase/migrations/00000000000000_baseline.sql:2633`). `uploadDriveFileToPath` retourne pourtant un `getPublicUrl(path)`, URL qui ne répond pas. La feature liens d'écoute utilise déjà `createSignedUrl` (`app/api/listening/[slug]/audio/[itemId]/route.ts:51`) : le catalogue s'aligne.
+> **Correction du 05/09 — cette tâche partait d'une prémisse fausse.** J'avais
+> déduit des policies RLS que le bucket `drive` était privé. Vérification faite
+> auprès de l'API Storage, il a `public = true`. Les `getPublicUrl` que cette
+> tâche remplaçait par `""` fonctionnaient donc, et `DocumentsPage.tsx` s'en sert
+> comme lien d'ouverture de chaque fichier du Drive : le remplacement cassait le
+> module Drive, et **a été annulé**. Seule la création de la route d'URL signée
+> est conservée — c'est le bon mécanisme pour le lecteur du catalogue, et il ne
+> dépend pas de la publicité du bucket. La question de fond reste ouverte et est
+> documentée dans `ALPHA.md` : un bucket public sert les masters inédits sans
+> aucune authentification.
+
+Les 4 policies RLS du bucket `drive` filtrent sur `auth.uid()` comparé au premier segment du chemin (`supabase/migrations/00000000000000_baseline.sql:2633`). Elles protègent l'accès authentifié, mais pas la route publique du bucket. La feature liens d'écoute utilise déjà `createSignedUrl` (`app/api/listening/[slug]/audio/[itemId]/route.ts:51`) : le catalogue s'aligne.
 
 **Files:**
 - Create: `app/api/phono/signed-audio/route.ts`

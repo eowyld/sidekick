@@ -387,8 +387,12 @@ variables d'environnement : le jour du basculement, aucun redéploiement n'est
 nécessaire.
 
 - [ ] Souscrire **Supabase Pro** (~25 $/mois, 100 Go de stockage inclus).
-- [ ] Supabase → Settings → Storage : relever le plafond d'upload par fichier
-      à **200 Mo** (défaut Free : 50 Mo).
+- [ ] Relever le plafond du **bucket** `drive` lui-même, pas seulement celui du
+      projet. Vérifié le 05/09 : le bucket porte `file_size_limit = 52428800`
+      (50 Mo), posé par `supabase/scripts/setup_drive_bucket.sql`. Tant qu'il
+      n'est pas relevé, Supabase refuse le fichier **avant** que le code ne le
+      voie, et `NEXT_PUBLIC_MAX_AUDIO_MB` ne sert à rien :
+      `update storage.buckets set file_size_limit = 209715200 where id = 'drive';`
 - [ ] Vercel : `NEXT_PUBLIC_MAX_AUDIO_MB=200` et
       `NEXT_PUBLIC_STORAGE_QUOTA_GB=20`. Sans ces variables, l'app retombe sur
       les valeurs Free (50 Mo / 1 Go) et refuse les masters 24 bits avec un
@@ -492,6 +496,32 @@ cette machine uniquement. Sur une autre machine : refaire `supabase link`.
 calendrier est migré vers Supabase. Non traité, hors périmètre du jour.
 
 ---
+
+## ⚠️ Le bucket `drive` est public — à trancher avant d'héberger des masters
+
+Vérifié le 05/09 auprès de l'API Storage : le bucket `drive` a `public = true`.
+`supabase/scripts/setup_drive_bucket.sql` le crée ainsi et le README du dossier
+demande explicitement « Public bucket : ON ».
+
+Les 4 policies RLS sur `storage.objects` donnent une fausse impression de
+cloisonnement : elles protègent l'accès **authentifié**, pas la route publique
+`/storage/v1/object/public/drive/…`, qui sert les fichiers sans aucune
+vérification. Toute URL de fichier qui circule reste valable indéfiniment, et
+les chemins sont prévisibles (`{userId}/phono/audio/{nom du fichier}`).
+
+Ça concerne tout le bucket : documents d'administration, contrats signés,
+et désormais les masters audio du catalogue, que la feature « liens d'écoute »
+est précisément faite pour diffuser **de façon contrôlée**.
+
+Passer le bucket en privé n'est pas un changement anodin : le module Drive
+(`DocumentsPage.tsx`) ouvre chaque fichier via son URL publique, et il faudrait
+lui faire consommer des URL signées. Le catalogue Phono, lui, est déjà prêt —
+son lecteur passe par `/api/phono/signed-audio`, qui vérifie le propriétaire.
+
+- [ ] Décider : bucket privé + URL signées partout, ou statu quo assumé.
+- [ ] Si privé : `update storage.buckets set public = false where id = 'drive';`
+      puis basculer `DocumentsPage.tsx` sur des URL signées, et vérifier les
+      covers de presskit et les contrats signés, qui lisent aussi ce champ.
 
 ## Dette identifiée, non bloquante pour l'alpha
 
