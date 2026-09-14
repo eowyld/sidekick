@@ -117,9 +117,8 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
               Qu&apos;est-ce qui te concerne ?
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-[#f5f5f5]/60">
-              Coche tout ce qui s&apos;applique — la plupart des artistes sont
-              plusieurs à la fois. On masque le reste pour ne pas te noyer, et tu
-              peux tout réactiver quand tu veux depuis les réglages.
+              Choisis ce dont tu as besoin. Tu peux modifier tes préférences
+              quand tu veux depuis les paramètres.
             </p>
 
             <div className="mt-8 space-y-3">

@@ -498,7 +498,6 @@ export function ContactsPage() {
             title="Ton carnet d'adresses est vide"
             description="Tourneurs, labels, presse, partenaires : regroupe ici tous tes contacts pro."
             action={{ label: "Ajouter un contact", onClick: startCreate }}
-            secondaryAction={{ label: "Importer depuis un CSV", onClick: () => console.warn("Import CSV : fonctionnalité à venir") }}
           />
         ) : sortedContacts.length === 0 ? (
           <NoResult

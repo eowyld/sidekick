@@ -48,7 +48,9 @@ export function UpcomingBanner({ filteredEvents, onEventClick, onAddEvent }: Pro
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium text-[#F5F5F5]/70">Rien à l&apos;horizon.</p>
           <p className="mt-0.5 text-[12px] text-[#F5F5F5]/40">
-            Cale une date de scène, une session ou une sortie — ça apparaîtra ici.
+            Ce que tu rentres dans les autres modules s&apos;affichera ici
+            automatiquement. Tu peux aussi ajouter un événement personnalisé et
+            synchroniser avec ton téléphone via les boutons en haut à droite.
           </p>
         </div>
         <button
