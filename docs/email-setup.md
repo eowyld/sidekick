@@ -188,32 +188,25 @@ Sauvegarde → Supabase envoie un mail de test. Vérifie la réception.
 
 ### 6.3 Personnaliser les templates
 
-**Authentication → Email Templates**. Pour **Confirm signup** au minimum, colle
-un template brandé (dark, accent `#F0FF00`, logo hébergé sur ton domaine).
-Variables disponibles : `{{ .ConfirmationURL }}`, `{{ .SiteURL }}`,
-`{{ .Email }}`, `{{ .Token }}`, `{{ .TokenHash }}`.
+Les 4 templates brandés (carte sombre, accent `#F0FF00`, table-based +
+conditionnels MSO pour Outlook) sont dans **`docs/email-templates/`** :
 
-Squelette :
+| Fichier | Template Supabase | Variables clés |
+|---|---|---|
+| `confirm-signup.html` | Confirm signup | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
+| `reset-password.html` | Reset Password | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
+| `magic-link.html` | Magic Link | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
+| `change-email.html` | Change Email Address | `{{ .ConfirmationURL }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .Token }}` |
 
-```html
-<div style="background:#101010;color:#f5f5f5;font-family:system-ui,-apple-system,sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
-  <img src="https://tondomaine.com/images/sidekick-logo.png" alt="SIDEKICK" width="140" style="margin-bottom:24px" />
-  <h1 style="font-size:20px;margin:0 0 12px">Confirme ton adresse</h1>
-  <p style="color:rgba(245,245,245,.7);line-height:1.5;margin:0 0 24px">
-    Bienvenue sur SIDEKICK. Clique pour activer ton compte.
-  </p>
-  <a href="{{ .ConfirmationURL }}"
-     style="display:inline-block;background:#F0FF00;color:#101010;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px">
-    Activer mon compte
-  </a>
-  <p style="color:rgba(245,245,245,.4);font-size:12px;margin-top:24px">
-    Si tu n'es pas à l'origine de cette demande, ignore cet email.
-  </p>
-</div>
-```
+Pour chacun : **Authentication → Email Templates** → sélectionne le template →
+colle le contenu du fichier dans le champ *Message body* → renseigne l'objet
+(suggéré en commentaire en tête de fichier) → *Save*.
 
-Traite aussi **Reset password**, **Magic Link**, **Change email address** tant
-que tu y es.
+Le logo est un wordmark texte `SIDEKICK` (aucune image externe à charger, robuste
+tous clients). Pour un vrai logo image, remplacer le `<p>` du wordmark par la
+balise `<img>` indiquée en commentaire dans `confirm-signup.html` — mais l'URL
+`https://sidekickartists.com/images/sidekick-mail.png` ne répondra qu'une fois
+`claude-edits` mergée sur `main` (branche de prod Vercel).
 
 ### 6.4 Rate limits
 

@@ -3,7 +3,8 @@
 Document de reprise. À lire en premier pour reprendre le chantier de mise en
 vente. Mis à jour à chaque fin de journée.
 
-**Cible : ouverture de l'alpha le lundi 14/09/2026.**
+**Cible : ouverture de l'alpha le lundi 21/09/2026.**
+*(repoussée du 14/09 — semaine du 09 au 13/09 perdue, voir Avancement)*
 Alpha **gratuite et ouverte à tous** : inscription libre depuis la landing, sans
 carte bancaire ni engagement. Pas de paiement dans le périmètre — l'objectif de
 l'alpha est le volume de testeurs et le signal d'usage, pas le chiffre. La
@@ -243,42 +244,74 @@ l'entropie des jetons iCal n'a pas pu être vérifiée — le code qui les gén�
 n'a pas été retrouvé. Zod n'a pas été posé sur toutes les routes : les entrées
 qui comptaient sont validées à la main, le reste aurait été du volume.
 
-### ⬜ Reste — semaine 1 (31/08 → 04/09)
+### ✅ Lundi 07 et mardi 08/09 — Projets et Revenus
+
+**Non commité.** Ces deux journées, plus la refonte Phono du 04 au 06/09, vivent
+encore dans l'arbre de travail : 106 fichiers modifiés ou non suivis, dernier
+commit `9aba31a` du 06/09. `npx tsc --noEmit` est vert.
+
+- **Projets** — `useProjectsData` est passé sur `user_projects` (SWR + Supabase),
+  avec migration one-shot `migrateProjectsToSupabase()` appelée depuis
+  `ProjectsPage`. Le module lui-même ne lit plus localStorage.
+- **Revenus / facturation** — migration `20260908000000_facturation_supabase.sql` :
+  `invoice_template` et `invoice_footer_note` sur `user_preferences`,
+  `statut_juridique_id` sur `user_invoices`. Reprise par
+  `src/lib/migrate-facturation-to-supabase.ts`, idempotente et non destructrice.
+- **Légal, en avance** — `/confidentialite` et `/faq` écrites (non commitées).
+
+### ⛔ Mercredi 09 → dimanche 13/09 — semaine perdue
+
+Aucun travail. Trois jours ouvrés du planning sautent : Admin + légal (09/09),
+Édition / Calendrier (10/09), dette + Factur-X + Outlook (11/09), et la recette
+du samedi.
+
+**L'ouverture est repoussée au lundi 21/09.** Pas au vendredi 18 : ouvrir une
+alpha un vendredi soir fait tomber les premiers retours de testeurs pendant un
+week-end où personne ne répond.
+
+### ⬜ Reste — semaine 3 (14/09 → 18/09), ouverture le lundi 21/09
+
+Mêmes deux règles qu'avant : la donnée avant l'interface, et les blocages
+juridiques avant la recette. Le commit passe en tête — deux jours de travail sur
+un seul disque, c'est le vrai risque du moment, avant n'importe quelle
+fonctionnalité.
 
 | Jour | Chantier |
 |---|---|
-| Ven 04/09 | Rappels 2/2 : couverture par statut, opt-out, widget dashboard · **lien d'écoute Phono** · **point hebdo** |
+| Lun 14/09 | **Commit du chantier en cours** (106 fichiers, `tsc` vert) après vérification en dev · **Projets 2/2** : les 5 liens localStorage résiduels (voir ci-dessous) · **Phono** : trancher `ffmpeg`, trancher le bucket public, vérifier les liens d'écoute de bout en bout |
+| Mar 15/09 | **Admin** (gros) — simplification du module, statuts et démarches · **Édition catalogue** UI/UX |
+| Mer 16/09 | **Légal** — CGU, CGV, mentions légales (`/confidentialite` et `/faq` sont écrites, à relire + compléter le `sameAs` du JSON-LD) · bandeau cookies PostHog · PITR + DPA · **Calendrier** : vue semaine et densité |
+| Jeu 17/09 | `handleMutationError()` sur les 20 hooks (**0 occurrence dans le code aujourd'hui**) · Configuration de prod : variables Vercel, URL Configuration Supabase, **Supabase Pro** + plafond du bucket |
+| Ven 18/09 | **Recette de déploiement** (section dédiée) sur 2 comptes vierges dont un profil mono-secteur · correctifs |
+| Lun 21/09 | **Purge PostHog**, puis ouverture |
 
-### ⬜ Reste — semaine 2 (07/09 → 11/09)
-
-La sécurité API a été faite en avance le 04/09, ce qui libère le lundi. Les
-journées sont volontairement chargées : le rythme constaté est d'environ quatre
-fois ce qu'une estimation classique prévoit.
-
-**L'ordre suit deux règles** : la donnée avant l'interface (refondre l'UI d'un
-module dont les données bougeront ensuite, c'est le faire deux fois), et les
-blocages juridiques avant la recette.
-
-| Jour | Chantier |
-|---|---|
-| Lun 07/09 | **Projets** (gros) — migration des 5 liens localStorage → Supabase, **puis** finalisation UI. C'est le seul module ouvert dont la donnée est encore fragile : il passe en premier. |
-| Mar 08/09 | **Revenus** (gros) — allocation d'intermittence, UI facturation / royalties / droits d'auteur, vue d'ensemble |
-| Mer 09/09 | **Admin** (gros) — simplification du module, statuts et démarches · Légal : CGU, CGV, mentions, confidentialité (+ **FAQ `/faq`** à finaliser en même temps : contenu à relire, `sameAs` du JSON-LD à compléter), bandeau cookies PostHog, PITR + DPA |
-| Jeu 10/09 | **Phono** UI/UX · **Édition catalogue** UI/UX · **Calendrier** : vue semaine et densité d'affichage |
-| Ven 11/09 | `handleMutationError()` sur les 20 hooks · OAuth Outlook · **facturation électronique** |
-| Sam 12/09 | Recette de déploiement (voir la section dédiée) sur 2 comptes vierges dont un profil mono-secteur |
-| Lun 14/09 | **Purge PostHog** avant d'ouvrir (voir ci-dessous) |
-
-**Si quelque chose doit sauter**, ce sont Factur-X et OAuth Outlook — les deux
-sont annoncés sur la landing, et modifier deux phrases coûte dix minutes contre
-plusieurs heures de développement. Les finalisations de modules, elles, sont le
-produit que les testeurs vont juger.
+**Coupé du périmètre** : Factur-X et OAuth Outlook. C'était déjà le sacrifice
+prévu, la semaine perdue le rend effectif — reste à modifier les deux phrases de
+`ProductProof` sur la landing qui les annoncent, à faire le mercredi 16 avec le
+reste du texte.
 
 `handleMutationError()` est placé après les refontes UI volontairement : les
 composants auront bougé, autant poser les messages d'erreur une seule fois, à
 la fin.
 
-### ⬜ Purge des données PostHog — lundi 14/09, avant l'ouverture
+### ⬜ Projets — les 5 liens localStorage résiduels, lundi 14/09
+
+La donnée est migrée, mais cinq points lisent ou écrivent encore
+`data.projects.projects` dans le blob localStorage. Ils doivent passer par
+`useProjectsData`.
+
+| Fichier | Nature |
+|---|---|
+| `src/modules/phono/components/tracks/TracksTab.tsx:193` | **écriture** — rattache un titre créé au projet passé en paramètre. Écrit dans le vide : ce lien est perdu. Le plus urgent des cinq. |
+| `src/hooks/useIncomesOverview.ts:45` | lecture — table id → titre de projet |
+| `src/modules/dashboard/components/DashboardPage.tsx:326` | lecture — liste id/titre pour le contexte IA |
+| `src/modules/phono/components/CatalogPage.tsx:138` | lecture — projets passés au catalogue |
+| `src/modules/edition/components/WorksPage.tsx:1463` | lecture — projets liés à une œuvre |
+
+`ProjectsPage.tsx:27` lit aussi le blob, mais c'est la migration one-shot : à
+garder telle quelle.
+
+### ⬜ Purge des données PostHog — lundi 21/09, avant l'ouverture
 
 `instrumentation-client.ts` portait une initialisation PostHog **sans garde
 localhost**, et c'est elle qui l'emportait sur celle de `PostHogProvider`
@@ -294,12 +327,19 @@ avec la garde localhost, le masquage des champs de saisie et
 Reste à faire **le jour de l'ouverture**, pour que les métriques d'alpha partent
 d'une base propre :
 
-- Supprimer les événements antérieurs au 14/09 dans le projet PostHog EU.
+- Supprimer les événements antérieurs au 21/09 dans le projet PostHog EU.
 - Vérifier au passage que les enregistrements de session d'avant le 03/09 ne
   contiennent pas de contenu de champ non masqué — le masquage n'était pas
   appliqué avant le correctif. Les supprimer si c'est le cas.
 
-### ⬜ Lien d'écoute Phono — vendredi 04/09
+### 🟡 Lien d'écoute Phono — écrit le 03/09, à vérifier le lundi 14/09
+
+**Le code existe et n'a jamais été vérifié ni commité** : `app/ecoute/`,
+`app/api/listening/`, `app/(app)/phono/liens-ecoute/`, `src/lib/listening-*.ts`,
+`src/hooks/useListeningData.ts`, migration `20260903100000_listening_links.sql`.
+Recette de bout en bout à faire avant de le compter comme acquis — et la
+question du bucket public ci-dessous le concerne directement.
+
 
 Depuis le catalogue Phono, générer un **lien d'écoute partageable** portant
 toutes les informations du titre : audio, crédits, ISRC, artistes et rôles,
@@ -324,7 +364,7 @@ Décisions de conception à tenir :
 
 ---
 
-### ⬜ OAuth Outlook — jeudi 10/09
+### ✂️ OAuth Outlook — coupé du périmètre alpha (reporté après l'ouverture)
 
 Aujourd'hui seul Google OAuth est fonctionnel (connexion à l'appli + envoi des
 campagnes mailing depuis l'adresse de l'utilisateur). Ajouter le même flux pour
@@ -336,12 +376,13 @@ Google.
   est fait côté Gmail.
 - Bouton « Continuer avec Outlook » sur `/login` et `/inscription`, à côté de
   Google.
-- La landing (`ProductProof`) annonce déjà « Compte Google ou Outlook » — à
-  livrer avant l'ouverture pour que ce soit vrai.
+- ⚠️ La landing (`ProductProof`) annonce « Compte Google ou Outlook ». La
+  fonctionnalité étant coupée, **c'est la phrase qu'il faut corriger** avant
+  l'ouverture, le mercredi 16/09 : « Compte Google ».
 
 ---
 
-### ⬜ Facturation électronique — jeudi 10/09
+### ✂️ Facturation électronique — coupée du périmètre alpha (reportée après l'ouverture)
 
 La réforme française rend la facture électronique obligatoire pour les
 indépendants. Pour l'alpha, périmètre minimal : **générer une facture au format
@@ -356,8 +397,9 @@ actuel.
 - **Hors périmètre alpha** : transmission via une PDP / Chorus Pro, cycle de
   vie (statuts émise/reçue/encaissée normalisés), annuaire. À planifier
   après-alpha selon le calendrier officiel.
-- La landing (`ProductProof`) annonce déjà « Facturation électronique — format
-  Factur-X » — à livrer avant l'ouverture.
+- ⚠️ La landing (`ProductProof`) annonce « Facturation électronique — format
+  Factur-X ». La fonctionnalité étant coupée, **c'est la mention qu'il faut
+  retirer** avant l'ouverture, le mercredi 16/09.
 
 ---
 
