@@ -12,6 +12,10 @@ const withMDX = createMDX({
 const nextConfig = {
   pageExtensions: ["ts", "tsx", "mdx"],
   reactStrictMode: true,
+  // L'indicateur de dev (pastille « N » en bas à gauche) est déjà absent des
+  // builds de prod ; on le coupe aussi en dev pour qu'il ne pollue pas les
+  // captures produit générées par scripts/shots.mjs (qui tourne sur `next dev`).
+  devIndicators: false,
   // Les captures produit de la landing sont servies en quality 90 (ProductShot).
   images: { qualities: [75, 90] },
   turbopack: {
