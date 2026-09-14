@@ -3,7 +3,7 @@
 
 import { useMemo } from "react";
 import { useIncomesData, type Invoice } from "@/hooks/useIncomesData";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import type { RoyaltyEntry } from "@/modules/incomes/parsers/royalties-types";
 import {
   normalizeInvoices,
@@ -21,7 +21,7 @@ export function useIncomesOverview(): {
   error: unknown;
 } {
   const { imports, manualEntries, invoices, missions, loading, error } = useIncomesData();
-  const { data } = useSidekickData();
+  const { projects } = useProjectsData();
 
   const royaltyEntries: RoyaltyEntry[] = useMemo(() => {
     const fromImports = Object.values(imports)
@@ -42,9 +42,9 @@ export function useIncomesOverview(): {
 
   const projectNames: Record<string, string> = useMemo(() => {
     const map: Record<string, string> = {};
-    (data.projects?.projects ?? []).forEach((p) => { map[p.id] = p.title; });
+    projects.forEach((p) => { map[p.id] = p.title; });
     return map;
-  }, [data.projects]);
+  }, [projects]);
 
   return { revenues, invoices, projectNames, loading, error };
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { mutate } from "swr";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { useTasksData } from "@/hooks/useTasksData";
 import { useLiveData } from "@/hooks/useLiveData";
 import { useIncomesData } from "@/hooks/useIncomesData";
@@ -61,15 +61,12 @@ function getRibbonCta(
 export function DashboardPage() {
   const [selectedRibbonEvent, setSelectedRibbonEvent] = useState<RibbonEvent | null>(null);
   const [selectedRibbonEventAnchor, setSelectedRibbonEventAnchor] = useState<DOMRect | null>(null);
-  const { data, preferencesReady } = useSidekickData();
-  const enabled = data.preferences?.enabledModules ?? {
-    live: true, phono: true, admin: true, marketing: true, edition: true, revenus: true,
-  };
-
   const {
+    enabledModules: enabled,
     onboardingCompleted,
-    preferencesReady: prefsLoaded,
+    preferencesReady,
   } = usePreferencesData();
+  const { projects } = useProjectsData();
   // Fermé localement dès la validation, sans attendre le rechargement SWR.
   const [onboardingDone, setOnboardingDone] = useState(false);
 
@@ -323,7 +320,7 @@ export function DashboardPage() {
       });
     });
 
-    const projects = (data.projects?.projects ?? []).map((p) => ({ id: p.id, title: p.title }));
+    const heroProjects = projects.map((p) => ({ id: p.id, title: p.title }));
 
     const heroTasks = tasks
       .filter((t) => t.status !== "done")
@@ -335,8 +332,8 @@ export function DashboardPage() {
         deadline: t.deadline ?? null,
       }));
 
-    return { tasks: heroTasks, events, projects };
-  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, data.projects]);
+    return { tasks: heroTasks, events, projects: heroProjects };
+  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, projects]);
 
   const { phrase, accent, loading: heroLoading } = useDashboardHero(heroPayload);
 
@@ -355,7 +352,7 @@ export function DashboardPage() {
     />
   );
 
-  const showOnboarding = prefsLoaded && !onboardingCompleted && !onboardingDone;
+  const showOnboarding = preferencesReady && !onboardingCompleted && !onboardingDone;
 
   // Compte réellement vierge : aucune donnée dans les modules du tableau de
   // bord. Le seed de démonstration remplit ces tables, la carte disparaît donc

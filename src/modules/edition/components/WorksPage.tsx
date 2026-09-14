@@ -7,7 +7,8 @@ import { useEditionData } from "@/hooks/useEditionData";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
+import { usePhonoData } from "@/hooks/usePhonoData";
 import type { Work, Person, PersonRole, SplitEntry, SacemRepartition, EditionPublisher } from "@/lib/sidekick-store";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
@@ -1317,7 +1318,8 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
 export function WorksPage() {
   const posthog = usePostHog();
   const { works, setWorks, loading, error } = useEditionData();
-  const { data, setData } = useSidekickData();
+  const { projects, patchProjectLinks } = useProjectsData();
+  const { tracks } = usePhonoData();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
 
@@ -1356,16 +1358,12 @@ export function WorksPage() {
     const work: Work = { ...newWork, id: crypto.randomUUID() };
     setWorks((prev) => [...prev, work]);
     if (projectIdParam) {
-      setData((prev) => ({
-        ...prev,
-        projects: {
-          projects: prev.projects.projects.map((p) =>
-            p.id === projectIdParam
-              ? { ...p, linkedWorks: [...new Set([...p.linkedWorks, work.id])], updatedAt: new Date().toISOString() }
-              : p
-          ),
-        },
-      }));
+      const project = projects.find((p) => p.id === projectIdParam);
+      if (project) {
+        patchProjectLinks(projectIdParam, {
+          linkedWorks: [...new Set([...project.linkedWorks, work.id])],
+        });
+      }
     }
     setIsAddOpen(false);
     setNewWork(DEFAULT_WORK);
@@ -1460,7 +1458,7 @@ export function WorksPage() {
                     </div>
 
                     {(() => {
-                      const workProjects = (data.projects?.projects ?? []).filter(
+                      const workProjects = projects.filter(
                         (proj) => proj.linkedWorks.includes(work.id)
                       );
                       if (workProjects.length === 0) return null;
@@ -1481,13 +1479,13 @@ export function WorksPage() {
                     })()}
 
                     {work.linkedTrackIds && work.linkedTrackIds.length > 0 && (() => {
-                      const tracks = (data.phono?.tracks ?? []).filter((t) =>
+                      const linkedTracks = tracks.filter((t) =>
                         work.linkedTrackIds!.includes(t.id)
                       );
-                      if (tracks.length === 0) return null;
+                      if (linkedTracks.length === 0) return null;
                       return (
                         <p className="text-[10px] text-[#F0FF00]/50">
-                          ↔ {tracks.map((t) => t.title).join(", ")}
+                          ↔ {linkedTracks.map((t) => t.title).join(", ")}
                         </p>
                       );
                     })()}

@@ -294,22 +294,32 @@ reste du texte.
 composants auront bougé, autant poser les messages d'erreur une seule fois, à
 la fin.
 
-### ⬜ Projets — les 5 liens localStorage résiduels, lundi 14/09
+### 🟡 Projets — liens localStorage résiduels, lundi 14/09
 
-La donnée est migrée, mais cinq points lisent ou écrivent encore
-`data.projects.projects` dans le blob localStorage. Ils doivent passer par
-`useProjectsData`.
+La donnée est migrée ; restaient des points qui lisaient ou écrivaient encore
+`data.projects.projects` dans le blob localStorage. Il y en avait **six**, pas
+cinq — le recensement initial avait manqué une seconde écriture morte.
 
-| Fichier | Nature |
-|---|---|
-| `src/modules/phono/components/tracks/TracksTab.tsx:193` | **écriture** — rattache un titre créé au projet passé en paramètre. Écrit dans le vide : ce lien est perdu. Le plus urgent des cinq. |
-| `src/hooks/useIncomesOverview.ts:45` | lecture — table id → titre de projet |
-| `src/modules/dashboard/components/DashboardPage.tsx:326` | lecture — liste id/titre pour le contexte IA |
-| `src/modules/phono/components/CatalogPage.tsx:138` | lecture — projets passés au catalogue |
-| `src/modules/edition/components/WorksPage.tsx:1463` | lecture — projets liés à une œuvre |
+| Fichier | Nature | État |
+|---|---|---|
+| `src/hooks/useIncomesOverview.ts` | lecture — table id → titre de projet | ✅ `useProjectsData` |
+| `src/modules/dashboard/components/DashboardPage.tsx` | lecture — liste id/titre du contexte IA | ✅ `useProjectsData` |
+| `src/modules/edition/components/WorksPage.tsx` | lecture projets + **écriture morte** `linkedWorks` + lecture `data.phono.tracks` | ✅ `useProjectsData` / `patchProjectLinks` / `usePhonoData` |
+| `src/modules/phono/components/tracks/TracksTab.tsx:193` | **écriture morte** — le titre créé depuis un projet n'est jamais rattaché | ⬜ fichier en cours de modification |
+| `src/modules/phono/components/CatalogPage.tsx:138` | lecture — projets passés au catalogue | ⬜ fichier en cours de modification |
+
+Les deux derniers sont dans le chantier Phono en cours ; à faire en même temps
+que lui, avec `patchProjectLinks` (`useProjectLinks` fait déjà exactement ça
+pour les sections de Projets).
 
 `ProjectsPage.tsx:27` lit aussi le blob, mais c'est la migration one-shot : à
 garder telle quelle.
+
+**Trouvé au passage, corrigé** : `DashboardPage` lisait ses modules activés
+depuis `data.preferences.enabledModules` (localStorage) alors qu'il appelait
+déjà `usePreferencesData` pour l'onboarding. Les préférences étant en base
+depuis le 31/08, un module activé ou coupé dans les réglages ne changeait rien
+au tableau de bord.
 
 ### ⬜ Purge des données PostHog — lundi 21/09, avant l'ouverture
 
