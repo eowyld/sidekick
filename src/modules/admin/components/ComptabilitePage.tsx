@@ -33,10 +33,6 @@ export function ComptabilitePage() {
   const posthog = usePostHog();
   const { statuses, loading: adminLoading, error: adminError } = useAdminData();
   const { invoices, loading: invLoading, error: invError } = useIncomesData();
-  const [invoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
-    "incomes:invoice-status-scope-map",
-    {}
-  );
   const [selectedStatusId, setSelectedStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
     null
@@ -73,13 +69,8 @@ export function ComptabilitePage() {
 
   const scopedInvoices = useMemo(
     () =>
-      filterInvoicesForBillingStatus(
-        invoices,
-        effectiveStatusId,
-        invoiceStatusScopeMap,
-        statuses
-      ),
-    [effectiveStatusId, invoiceStatusScopeMap, invoices, statuses]
+      filterInvoicesForBillingStatus(invoices, effectiveStatusId, statuses),
+    [effectiveStatusId, invoices, statuses]
   );
 
   const snapshot = useMemo(() => {

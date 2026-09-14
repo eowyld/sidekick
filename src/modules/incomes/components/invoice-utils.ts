@@ -69,15 +69,16 @@ export function formatMoney(n: number): string {
 export function filterInvoicesForBillingStatus(
   invoices: Invoice[],
   statusId: string | null,
-  scopeMap: Record<string, string>,
   statuses: { id: string }[]
 ): Invoice[] {
   if (!statusId) return [];
-  const hasMultiple = statuses.length > 1;
   const single = statuses.length === 1 ? statuses[0] : null;
   const fallbackId = statuses[0]?.id ?? null;
   return invoices.filter((invoice) => {
-    const mapped = scopeMap[invoice.id];
+    // Le rattachement porté par la facture fait foi. Les deux replis couvrent
+    // les factures que le rattrapage de la page Facturation n'a pas encore
+    // écrites (chargement en cours, ou écriture Supabase en échec).
+    const mapped = invoice.statutJuridiqueId;
     if (mapped) return mapped === statusId;
     if (single) return single.id === statusId;
     if (fallbackId) return fallbackId === statusId;

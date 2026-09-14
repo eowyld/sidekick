@@ -8,6 +8,8 @@ import { useAdminData } from "@/hooks/useAdminData";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Briefcase } from "lucide-react";
 import { mutate } from "swr";
 import {
   Select,
@@ -195,11 +197,20 @@ export function IntermittencePage() {
       </header>
 
       {currentView === "dashboard" ? (
-        <IntermittenceDashboard
-          missions={filteredMissions}
-          onNavigate={handleNavigate}
-          onAddMission={handleAddMissionClick}
-        />
+        filteredMissions.length === 0 ? (
+          <EmptyState
+            icon={Briefcase}
+            title="Aucune mission déclarée"
+            description="Référence tes missions (concerts, sessions, captations) avec cachet, employeur et AEM : ton suivi d'heures et de cachets s'affichera ici."
+            action={{ label: "Ajouter une mission", onClick: handleAddMissionClick }}
+          />
+        ) : (
+          <IntermittenceDashboard
+            missions={filteredMissions}
+            onNavigate={handleNavigate}
+            onAddMission={handleAddMissionClick}
+          />
+        )
       ) : (
         <IntermittenceMissions
           intermittenceMissions={filteredMissions}

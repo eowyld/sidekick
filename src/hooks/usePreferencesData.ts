@@ -3,7 +3,11 @@
 import { useCallback, useMemo } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
-import { DEFAULT_SIDEKICK_DATA } from "@/lib/sidekick-store";
+import {
+  DEFAULT_INVOICE_TEMPLATE,
+  DEFAULT_SIDEKICK_DATA,
+  type InvoiceTemplate,
+} from "@/lib/sidekick-store";
 
 const KEY = "user_preferences";
 
@@ -33,6 +37,9 @@ type PreferencesRow = {
   onboarding_sectors: Sector[];
   demo_seed: DemoManifest | null;
   reminders_enabled: boolean;
+  /** NULL tant que l'utilisateur n'a pas touché aux réglages de facturation. */
+  invoice_template: InvoiceTemplate | null;
+  invoice_footer_note: string | null;
 };
 
 /**
@@ -52,20 +59,26 @@ const UNDEFINED_COLUMN = "42703";
 async function fetchPreferences(): Promise<PreferencesRow | null> {
   const supabase = createClient();
 
-  let { data, error } = await supabase
-    .from("user_preferences")
-    .select(`${BASE_COLUMNS}, demo_seed, reminders_enabled`)
-    .maybeSingle();
-
-  // Les colonnes demo_seed et reminders_enabled arrivent par migration. Tant
-  // qu'elles ne sont pas appliquées, on relit sans elles plutôt que de laisser
+  // Les colonnes hors socle arrivent par migration. Tant qu'elles ne sont pas
+  // appliquées, on relit avec une sélection plus courte plutôt que de laisser
   // tomber toutes les préférences — sinon la sidebar et les règles de tâches
   // perdent leur configuration.
-  if (error?.code === UNDEFINED_COLUMN) {
-    ({ data, error } = await supabase
-      .from("user_preferences")
-      .select(BASE_COLUMNS)
-      .maybeSingle());
+  //
+  // Le repli est progressif, de la sélection la plus riche à la plus pauvre :
+  // une base à jour sur les rappels mais pas encore sur la facturation doit
+  // continuer à servir `reminders_enabled` et `demo_seed`.
+  const SELECTS = [
+    `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note`,
+    `${BASE_COLUMNS}, demo_seed, reminders_enabled`,
+    BASE_COLUMNS,
+  ];
+
+  let data: Record<string, unknown> | null = null;
+  let error: { code?: string; message: string } | null = null;
+
+  for (const columns of SELECTS) {
+    ({ data, error } = await supabase.from("user_preferences").select(columns).maybeSingle());
+    if (error?.code !== UNDEFINED_COLUMN) break;
   }
 
   if (error) throw new Error(error.message);
@@ -77,6 +90,10 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
     demo_seed: (data.demo_seed as DemoManifest | null) ?? null,
     // Absence de valeur = rappels actifs, comme le défaut de la colonne.
     reminders_enabled: (data as { reminders_enabled?: boolean }).reminders_enabled !== false,
+    invoice_template:
+      ((data as { invoice_template?: InvoiceTemplate | null }).invoice_template) ?? null,
+    invoice_footer_note:
+      ((data as { invoice_footer_note?: string | null }).invoice_footer_note) ?? null,
   };
 }
 
@@ -95,9 +112,35 @@ export function usePreferencesData() {
   // relancerait le calcul des règles en boucle.
   const enabledModules = useMemo(() => mergeEnabled(row?.enabled_modules), [row]);
 
+  /**
+   * Toujours complet : le défaut comble les champs jamais renseignés. Mémoïsé
+   * pour la même raison qu'`enabledModules` — c'est une dépendance de useMemo
+   * dans l'éditeur de facture, qui recalcule l'aperçu PDF.
+   */
+  const invoiceTemplate = useMemo(
+    () => ({ ...DEFAULT_INVOICE_TEMPLATE, ...(row?.invoice_template ?? {}) }),
+    [row]
+  );
+
+  /**
+   * Applique un patch optimiste sur la ligne locale, puis l'upsert. `payload`
+   * ne porte que les colonnes réellement écrites ; `patch` est fusionné sur la
+   * ligne courante, de sorte qu'ajouter une colonne ne demande pas de repasser
+   * sur chaque setter.
+   */
   const persist = useCallback(
-    (nextRow: PreferencesRow, payload: Record<string, unknown>) => {
+    (patch: Partial<PreferencesRow>, payload: Record<string, unknown>) => {
       const snapshot = row ?? null;
+      const nextRow: PreferencesRow = {
+        enabled_modules: row?.enabled_modules ?? {},
+        onboarding_completed_at: row?.onboarding_completed_at ?? null,
+        onboarding_sectors: row?.onboarding_sectors ?? [],
+        demo_seed: row?.demo_seed ?? null,
+        reminders_enabled: row?.reminders_enabled ?? true,
+        invoice_template: row?.invoice_template ?? null,
+        invoice_footer_note: row?.invoice_footer_note ?? null,
+        ...patch,
+      };
       mutateLocal(nextRow, false);
 
       (async () => {
@@ -127,35 +170,38 @@ export function usePreferencesData() {
   const setEnabledModules = useCallback(
     (patch: Partial<EnabledModules>) => {
       const nextEnabled = { ...enabledModules, ...patch };
-      persist(
-        {
-          enabled_modules: nextEnabled,
-          onboarding_completed_at: row?.onboarding_completed_at ?? null,
-          onboarding_sectors: row?.onboarding_sectors ?? [],
-          demo_seed: row?.demo_seed ?? null,
-          reminders_enabled: row?.reminders_enabled ?? true,
-        },
-        { enabled_modules: nextEnabled }
-      );
+      persist({ enabled_modules: nextEnabled }, { enabled_modules: nextEnabled });
     },
-    [enabledModules, row, persist]
+    [enabledModules, persist]
   );
 
   /** Interrupteur des rappels de démarches envoyés par email. */
   const setRemindersEnabled = useCallback(
     (value: boolean) => {
-      persist(
-        {
-          enabled_modules: row?.enabled_modules ?? {},
-          onboarding_completed_at: row?.onboarding_completed_at ?? null,
-          onboarding_sectors: row?.onboarding_sectors ?? [],
-          demo_seed: row?.demo_seed ?? null,
-          reminders_enabled: value,
-        },
-        { reminders_enabled: value }
-      );
+      persist({ reminders_enabled: value }, { reminders_enabled: value });
+    },
+    [persist]
+  );
+
+  /** Modèle visuel des PDF de facture. Le patch est fusionné sur le défaut. */
+  const setInvoiceTemplate = useCallback(
+    (patch: Partial<InvoiceTemplate>) => {
+      const next: InvoiceTemplate = {
+        ...DEFAULT_INVOICE_TEMPLATE,
+        ...(row?.invoice_template ?? {}),
+        ...patch,
+      };
+      persist({ invoice_template: next }, { invoice_template: next });
     },
     [row, persist]
+  );
+
+  /** Pied de facture mémorisé, proposé par défaut aux factures suivantes. */
+  const setInvoiceFooterNote = useCallback(
+    (note: string) => {
+      persist({ invoice_footer_note: note }, { invoice_footer_note: note });
+    },
+    [persist]
   );
 
   /**
@@ -203,8 +249,6 @@ export function usePreferencesData() {
           enabled_modules: nextEnabled,
           onboarding_completed_at: completedAt,
           onboarding_sectors: sectors,
-          demo_seed: row?.demo_seed ?? null,
-          reminders_enabled: row?.reminders_enabled ?? true,
         },
         {
           enabled_modules: nextEnabled,
@@ -213,7 +257,7 @@ export function usePreferencesData() {
         }
       );
     },
-    [enabledModules, row, persist]
+    [enabledModules, persist]
   );
 
   return {
@@ -224,6 +268,10 @@ export function usePreferencesData() {
     demoSeed: row?.demo_seed ?? null,
     remindersEnabled: row?.reminders_enabled ?? true,
     setRemindersEnabled,
+    invoiceTemplate,
+    setInvoiceTemplate,
+    invoiceFooterNote: row?.invoice_footer_note ?? "",
+    setInvoiceFooterNote,
     onboardingCompleted: Boolean(row?.onboarding_completed_at),
     onboardingSectors: row?.onboarding_sectors ?? [],
     /** false tant que le chargement n'a pas eu lieu — évite le flash de sidebar. */

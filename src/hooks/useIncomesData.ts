@@ -45,6 +45,8 @@ export interface Invoice {
   lines?: InvoiceLine[];
   notes?: string;
   projectId?: string;   // → user_projects.id (phase 2+)
+  /** → user_admin_statuses.id. Entité juridique qui émet la facture. */
+  statutJuridiqueId?: string;
 }
 
 // ─── Row mappers ─────────────────────────────────────────────────────────────
@@ -121,6 +123,7 @@ function invoiceToRow(inv: Invoice, userId: string): Record<string, unknown> {
     lines: inv.lines ?? [],
     notes: inv.notes ?? null,
     project_id: inv.projectId ?? null,
+    statut_juridique_id: inv.statutJuridiqueId ?? null,
   };
 }
 
@@ -143,6 +146,7 @@ function rowToInvoice(row: Record<string, unknown>): Invoice {
     lines: (row.lines as InvoiceLine[]) ?? [],
     notes: (row.notes as string) ?? undefined,
     projectId: (row.project_id as string) ?? undefined,
+    statutJuridiqueId: (row.statut_juridique_id as string) ?? undefined,
   };
 }
 

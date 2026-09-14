@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { migratePreferencesToSupabase } from "@/lib/migrate-preferences-to-supabase";
+import { migrateFacturationToSupabase } from "@/lib/migrate-facturation-to-supabase";
 import type { ReactNode } from "react";
 
 /**
@@ -34,6 +35,11 @@ export function AuthGuard({ children }: { children: ReactNode }) {
           // quel qu'il soit : elles pilotent la sidebar de toute l'application.
           void migratePreferencesToSupabase().catch((e) =>
             console.error("[AuthGuard] Migration des préférences échouée:", e)
+          );
+          // Modèle de facture, pied de page, et rattachement des factures au
+          // statut juridique — la dernière donnée de facturation hors base.
+          void migrateFacturationToSupabase().catch((e) =>
+            console.error("[AuthGuard] Migration de la facturation échouée:", e)
           );
         }
 

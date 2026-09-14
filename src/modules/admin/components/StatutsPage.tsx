@@ -190,10 +190,6 @@ export function StatutsPage() {
   const { statuses, setStatuses, setProcedures, procedures, loading, error } = useAdminData();
   const { invoices, setInvoices } = useIncomesData();
   const { contracts } = useContractsData();
-  const [invoiceStatusScopeMap, setInvoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
-    "incomes:invoice-status-scope-map",
-    {}
-  );
   const [, setSelectedBillingStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
     null
@@ -244,7 +240,7 @@ export function StatutsPage() {
     const map = new Map<string, Invoice[]>();
     for (const inv of invoices) {
       if (inv.status !== "en_attente") continue;
-      const sid = invoiceStatusScopeMap[inv.id];
+      const sid = inv.statutJuridiqueId;
       if (!sid) continue;
       if (!map.has(sid)) map.set(sid, []);
       map.get(sid)!.push(inv);
@@ -255,7 +251,7 @@ export function StatutsPage() {
       );
     }
     return map;
-  }, [invoices, invoiceStatusScopeMap]);
+  }, [invoices]);
 
   /** Brouillon ou envoyé — pas encore signé (vue globale, pas de lien statut en base). */
   const inProgressContracts = useMemo(
@@ -305,21 +301,12 @@ export function StatutsPage() {
     const target = statuses.find((s) => s.id === id);
 
     const invoiceIdsToRemove = invoices
-      .filter((inv) => invoiceStatusScopeMap[inv.id] === id)
+      .filter((inv) => inv.statutJuridiqueId === id)
       .map((inv) => inv.id);
 
     if (invoiceIdsToRemove.length > 0) {
       setInvoices((prev) => prev.filter((inv) => !invoiceIdsToRemove.includes(inv.id)));
     }
-
-    setInvoiceStatusScopeMap((prev) => {
-      const next = { ...prev };
-      invoiceIdsToRemove.forEach((rid) => delete next[rid]);
-      Object.keys(next).forEach((key) => {
-        if (next[key] === id) delete next[key];
-      });
-      return next;
-    });
 
     const proceduresLinked = procedures.filter(
       (p) => (p as { statutJuridiqueId?: string }).statutJuridiqueId === id

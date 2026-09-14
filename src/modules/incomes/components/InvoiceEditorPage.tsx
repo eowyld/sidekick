@@ -18,9 +18,8 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useAdminData } from "@/hooks/useAdminData";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useIncomesData, type InvoiceLine } from "@/hooks/useIncomesData";
-import { DEFAULT_INVOICE_TEMPLATE } from "@/lib/sidekick-store";
 import { formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
 import { cn } from "@/lib/utils";
 import type { InvoiceDocumentData } from "./pdf/InvoiceDocument";
@@ -119,7 +118,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
   const searchParams = useSearchParams();
   const posthog = usePostHog();
   const { statuses, loading: adminLoading } = useAdminData();
-  const { data: sidekickData, setData: setSidekickData } = useSidekickData();
+  const { invoiceTemplate, invoiceFooterNote, setInvoiceFooterNote } = usePreferencesData();
   const { invoices, setInvoices, loading, error } = useIncomesData();
   const isEditMode = !!invoiceId;
   const currentInvoice = useMemo(
@@ -131,10 +130,6 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     makeEmptyForm(getNextInvoiceNumber(invoices))
   );
   const [savedClients, setSavedClients] = useLocalStorage<SavedInvoiceClient[]>("incomes:invoice-clients", []);
-  const [invoiceStatusScopeMap, setInvoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
-    "incomes:invoice-status-scope-map",
-    {}
-  );
   const [selectedBillingStatusId, setSelectedBillingStatusId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | undefined>(undefined);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
@@ -183,7 +178,6 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name, "fr"));
   }, [legacyClients, savedClients]);
 
-  const invoiceTemplate = sidekickData.preferences.invoiceTemplate ?? DEFAULT_INVOICE_TEMPLATE;
 
   const documentData = useMemo<InvoiceDocumentData>(() => {
     const status = statuses.find((st) => st.id === selectedBillingStatusId) ?? statuses[0];
@@ -226,7 +220,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
   const getInvoicesForBillingStatus = (statusId: string | null) => {
     if (!statusId) return invoices;
     return invoices.filter((invoice) => {
-      const mapped = invoiceStatusScopeMap[invoice.id];
+      const mapped = invoice.statutJuridiqueId;
       if (mapped) return mapped === statusId;
       if (singleStatus?.id) return singleStatus.id === statusId;
       if (fallbackStatusId) return fallbackStatusId === statusId;
@@ -237,7 +231,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
   useEffect(() => {
     if (isEditMode) {
       if (!currentInvoice) return;
-      const mappedStatusId = invoiceId ? invoiceStatusScopeMap[invoiceId] : null;
+      const mappedStatusId = currentInvoice.statutJuridiqueId ?? null;
       const fallbackStatusId = mappedStatusId ?? billingStatusFromQuery ?? statuses[0]?.id ?? null;
       setSelectedBillingStatusId(fallbackStatusId);
       setForm({
@@ -259,7 +253,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     }
     const defaultStatusId = billingStatusFromQuery ?? statuses[0]?.id ?? null;
     setSelectedBillingStatusId(defaultStatusId);
-    const savedFooter = sidekickData.preferences.invoiceFooterNote?.trim();
+    const savedFooter = invoiceFooterNote.trim();
     const scopedInvoices = getInvoicesForBillingStatus(defaultStatusId);
     setForm({
       ...makeEmptyForm(getNextInvoiceNumber(scopedInvoices)),
@@ -271,8 +265,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     invoiceId,
     invoices,
     isEditMode,
-    invoiceStatusScopeMap,
-    sidekickData.preferences.invoiceFooterNote,
+    invoiceFooterNote,
     statuses,
   ]);
 
@@ -286,7 +279,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
       }
       return prev;
     });
-  }, [invoiceStatusScopeMap, invoices, isEditMode, selectedBillingStatusId, singleStatus?.id, fallbackStatusId]);
+  }, [invoices, isEditMode, selectedBillingStatusId, singleStatus?.id, fallbackStatusId]);
 
   useEffect(() => {
     if (!form.client || !form.address || !form.siret) {
@@ -346,6 +339,9 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
       incomeType: form.incomeType,
       lines: lines.length > 0 ? lines : undefined,
       notes: form.notes.trim() || undefined,
+      // Le rattachement à l'entité émettrice fait partie de la facture : c'est
+      // lui qui décide de quel statut relèvent son numéro et ses totaux.
+      statutJuridiqueId: selectedBillingStatusId ?? undefined,
     };
 
     if (isEditMode && invoiceId) {
@@ -354,28 +350,17 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
           inv.id === invoiceId ? mergeEncaissementDate(inv, { ...inv, ...payload }) : inv
         )
       );
-      if (selectedBillingStatusId) {
-        setInvoiceStatusScopeMap((prev) => ({ ...prev, [invoiceId]: selectedBillingStatusId }));
-      }
     } else {
       const newInvoiceId = crypto.randomUUID();
       setInvoices((prev) => [
         ...prev,
         mergeEncaissementDate(undefined, { id: newInvoiceId, ...payload }),
       ]);
-      if (selectedBillingStatusId) {
-        setInvoiceStatusScopeMap((prev) => ({ ...prev, [newInvoiceId]: selectedBillingStatusId }));
-      }
       posthog?.capture("invoice_created", { module: "incomes" });
       posthog?.capture("item_created", { module: "incomes" });
 
       const footerNote = form.notes.trim();
-      if (footerNote) {
-        setSidekickData((prev) => ({
-          ...prev,
-          preferences: { ...prev.preferences, invoiceFooterNote: footerNote },
-        }));
-      }
+      if (footerNote) setInvoiceFooterNote(footerNote);
 
       setSavedInvoiceId(newInvoiceId);
       setConfirmDialogOpen(true);
@@ -383,15 +368,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     }
 
     const footerNote = form.notes.trim();
-    if (footerNote) {
-      setSidekickData((prev) => ({
-        ...prev,
-        preferences: {
-          ...prev.preferences,
-          invoiceFooterNote: footerNote,
-        },
-      }));
-    }
+    if (footerNote) setInvoiceFooterNote(footerNote);
 
     router.push("/incomes/facturation");
   };

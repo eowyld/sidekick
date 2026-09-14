@@ -144,10 +144,6 @@ export function StatutEditPage({ statusId }: StatutEditPageProps) {
 
   const { statuses, setStatuses, setProcedures, procedures, loading, error } = useAdminData();
   const { invoices, setInvoices, missions } = useIncomesData();
-  const [invoiceStatusScopeMap, setInvoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
-    "incomes:invoice-status-scope-map",
-    {}
-  );
   const [, setSelectedBillingStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
     null
@@ -437,21 +433,12 @@ export function StatutEditPage({ statusId }: StatutEditPageProps) {
   const handleConfirmDelete = async () => {
     if (!statusId || !existing) return;
     const invoiceIdsToRemove = invoices
-      .filter((inv) => invoiceStatusScopeMap[inv.id] === statusId)
+      .filter((inv) => inv.statutJuridiqueId === statusId)
       .map((inv) => inv.id);
 
     if (invoiceIdsToRemove.length > 0) {
       setInvoices((prev) => prev.filter((inv) => !invoiceIdsToRemove.includes(inv.id)));
     }
-
-    setInvoiceStatusScopeMap((prev) => {
-      const next = { ...prev };
-      invoiceIdsToRemove.forEach((rid) => delete next[rid]);
-      Object.keys(next).forEach((key) => {
-        if (next[key] === statusId) delete next[key];
-      });
-      return next;
-    });
 
     const proceduresLinked = procedures.filter(
       (p) => (p as { statutJuridiqueId?: string }).statutJuridiqueId === statusId

@@ -7,7 +7,6 @@ import { Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
-  MOCK_RELEVES,
   type CopyrightReleve,
   type PeriodFilter,
 } from "../parsers/copyright-types"
@@ -16,7 +15,7 @@ import { CopyrightHistorique } from "./CopyrightHistorique"
 
 export function CopyrightPage() {
   const posthog = usePostHog()
-  const [releves, setReleves] = useState<CopyrightReleve[]>(MOCK_RELEVES)
+  const [releves, setReleves] = useState<CopyrightReleve[]>([])
   const [filter, setFilter] = useState<PeriodFilter>({ mode: "global" })
   const fileInputRef = useRef<HTMLInputElement>(null)
 

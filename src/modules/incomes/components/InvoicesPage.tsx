@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
@@ -31,9 +31,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useIncomesData, type Invoice } from "@/hooks/useIncomesData";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useProjectsData } from "@/hooks/useProjectsData";
-import { DEFAULT_INVOICE_TEMPLATE } from "@/lib/sidekick-store";
 import { formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
 import { InvoiceDocument, type InvoiceDocumentData } from "./pdf/InvoiceDocument";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -49,12 +48,8 @@ export function InvoicesPage() {
   const { statuses, loading: adminLoading } = useAdminData();
   const { projects } = useProjectsData();
   const projectsMap = Object.fromEntries(projects.map((p) => [p.id, p]));
-  const { data: sidekickData } = useSidekickData();
+  const { invoiceTemplate } = usePreferencesData();
   const [savedClients] = useLocalStorage<{ id: string; name: string; address: string; siret: string; vatNumber?: string; email?: string; phone?: string; extraInfo?: string }[]>("incomes:invoice-clients", []);
-  const [invoiceStatusScopeMap, setInvoiceStatusScopeMap] = useLocalStorage<Record<string, string>>(
-    "incomes:invoice-status-scope-map",
-    {}
-  );
   const [selectedStatusId, setSelectedStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
     null
@@ -82,53 +77,49 @@ export function InvoicesPage() {
     }
   }, [effectiveStatusId, hasMultipleStatuses, selectedStatusId, setSelectedStatusId]);
 
-  // Toujours lier chaque facture à un statut Admin : avec un seul statut, on force la liaison
-  // pour que l’ajout ultérieur d’un 2e statut ne fasse pas « disparaître » l’historique.
+  // Toujours lier chaque facture à un statut Admin. Avec un seul statut on force
+  // la liaison, pour que l’ajout ultérieur d’un 2e statut ne fasse pas
+  // « disparaître » l’historique ; avec plusieurs, on rattache les factures
+  // orphelines au premier statut (tri nom Admin).
+  //
+  // Rattrapage ponctuel : une seule passe par montage. Sans ce garde-fou, un
+  // échec d’écriture Supabase déclencherait un rollback, qui relancerait l’effet,
+  // qui réécrirait — une boucle silencieuse contre la base.
+  const backfilledRef = useRef(false);
   useEffect(() => {
-    if (adminLoading || availableStatuses.length !== 1 || !singleStatus) return;
-    const onlyId = singleStatus.id;
-    setInvoiceStatusScopeMap((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const inv of invoices) {
-        if (next[inv.id] !== onlyId) {
-          next[inv.id] = onlyId;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [adminLoading, invoices, setInvoiceStatusScopeMap, singleStatus?.id]);
+    if (adminLoading || backfilledRef.current) return;
+    if (availableStatuses.length === 0) return;
 
-  // Plusieurs statuts : factures sans liaison (anciennes données) → rattacher au 1er statut (tri nom Admin).
-  useEffect(() => {
-    if (adminLoading || availableStatuses.length < 2) return;
-    const fallbackId = availableStatuses[0]?.id;
-    if (!fallbackId) return;
-    setInvoiceStatusScopeMap((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const inv of invoices) {
-        const cur = next[inv.id];
-        if (cur == null || cur === "") {
-          next[inv.id] = fallbackId;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [adminLoading, availableStatuses, invoices, setInvoiceStatusScopeMap]);
+    const onlyId = availableStatuses.length === 1 ? availableStatuses[0].id : null;
+    const fallbackId = availableStatuses[0].id;
 
-  const resolveInvoiceBillingStatusId = (invoiceId: string): string | null => {
-    const mapped = invoiceStatusScopeMap[invoiceId];
-    if (mapped) return mapped;
+    const needsWrite = invoices.some((inv) =>
+      onlyId ? inv.statutJuridiqueId !== onlyId : !inv.statutJuridiqueId
+    );
+    if (!needsWrite) return;
+
+    backfilledRef.current = true;
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (onlyId) {
+          return inv.statutJuridiqueId === onlyId ? inv : { ...inv, statutJuridiqueId: onlyId };
+        }
+        return inv.statutJuridiqueId ? inv : { ...inv, statutJuridiqueId: fallbackId };
+      })
+    );
+  }, [adminLoading, availableStatuses, invoices, setInvoices]);
+
+  const resolveInvoiceBillingStatusId = (invoice: Invoice): string | null => {
+    if (invoice.statutJuridiqueId) return invoice.statutJuridiqueId;
+    // Le rattrapage ci-dessus n'a pas encore écrit : avec un statut unique la
+    // réponse est certaine, on l'anticipe pour éviter un écran vide transitoire.
     if (availableStatuses.length === 1) return availableStatuses[0]?.id ?? null;
     return null;
   };
 
   const scopedInvoices = invoices.filter((invoice) => {
     if (!effectiveStatusId) return true;
-    const scopedStatusId = resolveInvoiceBillingStatusId(invoice.id);
+    const scopedStatusId = resolveInvoiceBillingStatusId(invoice);
     if (!scopedStatusId) return false;
     return scopedStatusId === effectiveStatusId;
   });
@@ -167,11 +158,6 @@ export function InvoicesPage() {
 
   const deleteInvoice = (id: string) => {
     setInvoices((prev) => prev.filter((i) => i.id !== id));
-    setInvoiceStatusScopeMap((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
     setDeleteConfirmId(null);
   };
 
@@ -187,10 +173,10 @@ export function InvoicesPage() {
     if (typeof window === "undefined") return;
     const { pdf } = await import("@react-pdf/renderer");
 
-    const statusId = resolveInvoiceBillingStatusId(inv.id);
+    const statusId = resolveInvoiceBillingStatusId(inv);
     const status = statuses.find((s) => s.id === statusId) ?? statuses[0];
     const profile = (status?.data?.profile ?? {}) as Record<string, string>;
-    const template = sidekickData.preferences.invoiceTemplate ?? DEFAULT_INVOICE_TEMPLATE;
+    const template = invoiceTemplate;
 
     const savedClient = savedClients.find(
       (c) => c.name === inv.client && c.address === (inv.address ?? "") && c.siret === (inv.siret ?? "")
@@ -464,7 +450,7 @@ export function InvoicesPage() {
                               size="sm"
                               title="Modifier"
                               onClick={() => {
-                                const scoped = invoiceStatusScopeMap[inv.id] ?? effectiveStatusId;
+                                const scoped = inv.statutJuridiqueId ?? effectiveStatusId;
                                 const query = scoped ? `?billingStatus=${scoped}` : "";
                                 router.push(`/incomes/facturation/${inv.id}${query}`);
                               }}
@@ -577,7 +563,7 @@ export function InvoicesPage() {
                               size="sm"
                               title="Modifier"
                               onClick={() => {
-                                const scoped = invoiceStatusScopeMap[inv.id] ?? effectiveStatusId;
+                                const scoped = inv.statutJuridiqueId ?? effectiveStatusId;
                                 const query = scoped ? `?billingStatus=${scoped}` : "";
                                 router.push(`/incomes/facturation/${inv.id}${query}`);
                               }}

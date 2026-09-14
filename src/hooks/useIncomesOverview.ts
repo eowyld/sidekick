@@ -4,7 +4,6 @@
 import { useMemo } from "react";
 import { useIncomesData, type Invoice } from "@/hooks/useIncomesData";
 import { useSidekickData } from "@/hooks/useSidekickData";
-import { MOCK_RELEVES } from "@/modules/incomes/parsers/copyright-types";
 import type { RoyaltyEntry } from "@/modules/incomes/parsers/royalties-types";
 import {
   normalizeInvoices,
@@ -35,7 +34,7 @@ export function useIncomesOverview(): {
     () => [
       ...normalizeInvoices(invoices),
       ...normalizeRoyalties(royaltyEntries),
-      ...normalizeSacem(MOCK_RELEVES),
+      ...normalizeSacem([]),
       ...normalizeIntermittence(missions),
     ],
     [invoices, royaltyEntries, missions]

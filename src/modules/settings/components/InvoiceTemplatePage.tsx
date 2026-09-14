@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSidekickData } from "@/hooks/useSidekickData";
-import { DEFAULT_INVOICE_TEMPLATE, DEFAULT_TERMS_AND_CONDITIONS, type InvoiceTemplate } from "@/lib/sidekick-store";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
+import { DEFAULT_TERMS_AND_CONDITIONS, type InvoiceTemplate } from "@/lib/sidekick-store";
 import { INVOICE_FONTS } from "@/modules/incomes/components/pdf/fonts";
 import type { InvoiceDocumentData } from "@/modules/incomes/components/pdf/InvoiceDocument";
 import { cn } from "@/lib/utils";
@@ -86,25 +86,9 @@ const SAMPLE_DATA = (template: InvoiceTemplate): InvoiceDocumentData => ({
 });
 
 export function InvoiceTemplatePage() {
-  const { data, setData } = useSidekickData();
+  const { invoiceTemplate: template, setInvoiceTemplate: update } = usePreferencesData();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoError, setLogoError] = useState("");
-
-  const template = data.preferences.invoiceTemplate ?? DEFAULT_INVOICE_TEMPLATE;
-
-  const update = (patch: Partial<InvoiceTemplate>) => {
-    setData((prev) => ({
-      ...prev,
-      preferences: {
-        ...prev.preferences,
-        invoiceTemplate: {
-          ...DEFAULT_INVOICE_TEMPLATE,
-          ...prev.preferences.invoiceTemplate,
-          ...patch,
-        },
-      },
-    }));
-  };
 
   const handleLogoFile = async (file: File | undefined) => {
     setLogoError("");
