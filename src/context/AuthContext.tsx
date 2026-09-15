@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase'
 import { User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === 'AbortError' || error.message.toLowerCase().includes('signal is aborted'))
+
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -25,10 +29,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initialize = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setSession(session)
+        setUser(session?.user ?? null)
+      } catch (error) {
+        if (!isAbortError(error)) console.error('[AuthProvider] Initialisation échouée:', error)
+      } finally {
+        setLoading(false)
+      }
     }
 
     initialize()

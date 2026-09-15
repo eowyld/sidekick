@@ -9,6 +9,10 @@ import {
   type SidekickData
 } from "@/lib/sidekick-store";
 
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === "AbortError" || error.message.toLowerCase().includes("signal is aborted"));
+
 function readStored(key: string): SidekickData {
   if (typeof window === "undefined") return DEFAULT_SIDEKICK_DATA;
   try {
@@ -45,9 +49,11 @@ export function useSidekickData() {
       setData(readStored(key));
       setPreferencesReady(true);
     };
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      applyUserPrefs(user?.id ?? null);
-    });
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => applyUserPrefs(user?.id ?? null))
+      .catch((error) => {
+        if (!isAbortError(error)) console.error("[useSidekickData] Auth échouée:", error);
+      });
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {

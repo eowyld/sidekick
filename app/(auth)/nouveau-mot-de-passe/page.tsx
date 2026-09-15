@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === "AbortError" || error.message.toLowerCase().includes("signal is aborted"));
 import { authErrorMessage } from "@/lib/auth-errors";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthMessage } from "@/components/auth/AuthMessage";
@@ -26,9 +30,11 @@ export default function NewPasswordPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setHasSession(Boolean(user));
-    });
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => setHasSession(Boolean(user)))
+      .catch((authError) => {
+        if (!isAbortError(authError)) console.error("[NewPasswordPage] Auth échouée:", authError);
+      });
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {

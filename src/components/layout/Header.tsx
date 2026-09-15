@@ -132,7 +132,8 @@ export function Header() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleLogout}
-              className="cursor-pointer flex items-center gap-2 text-rose-300 focus:text-rose-300"
+              variant="destructive"
+              className="cursor-pointer flex items-center gap-2"
             >
               <LogOut className="h-4 w-4" />
               <span>Se déconnecter</span>

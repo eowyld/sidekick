@@ -7,6 +7,10 @@ import { migratePreferencesToSupabase } from "@/lib/migrate-preferences-to-supab
 import { migrateFacturationToSupabase } from "@/lib/migrate-facturation-to-supabase";
 import type { ReactNode } from "react";
 
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === "AbortError" || error.message.toLowerCase().includes("signal is aborted"));
+
 /**
  * Redirige vers /login si l'utilisateur n'est pas connecté.
  * Chaque utilisateur a ses propres données ; nouvel user = données vides.
@@ -33,14 +37,14 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         } else {
           // Reprise des préférences localStorage au premier écran authentifié,
           // quel qu'il soit : elles pilotent la sidebar de toute l'application.
-          void migratePreferencesToSupabase().catch((e) =>
-            console.error("[AuthGuard] Migration des préférences échouée:", e)
-          );
+          void migratePreferencesToSupabase().catch((e) => {
+            if (!isAbortError(e)) console.error("[AuthGuard] Migration des préférences échouée:", e);
+          });
           // Modèle de facture, pied de page, et rattachement des factures au
           // statut juridique — la dernière donnée de facturation hors base.
-          void migrateFacturationToSupabase().catch((e) =>
-            console.error("[AuthGuard] Migration de la facturation échouée:", e)
-          );
+          void migrateFacturationToSupabase().catch((e) => {
+            if (!isAbortError(e)) console.error("[AuthGuard] Migration de la facturation échouée:", e);
+          });
         }
 
         const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -51,7 +55,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
         subscription = data?.subscription ?? null;
       } catch (e) {
-        console.error("[AuthGuard] Error while checking auth:", e);
+        if (!isAbortError(e)) console.error("[AuthGuard] Error while checking auth:", e);
       } finally {
         if (isMounted) {
           setChecked(true);
