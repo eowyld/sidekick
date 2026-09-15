@@ -22,14 +22,12 @@ import {
   Trash2,
   ClipboardList,
   Receipt,
-  FileSignature,
   Calendar,
   MapPin,
 } from "lucide-react";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useIncomesData } from "@/hooks/useIncomesData";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { useContractsData } from "@/hooks/useContractsData";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -104,8 +102,6 @@ const ACTIVITY_ACCENTS = {
     "border-l-[3px] border-l-sky-400/70 bg-sky-500/[0.07] hover:bg-sky-500/[0.11] border-[rgba(245,245,245,0.1)]",
   factures:
     "border-l-[3px] border-l-fuchsia-400/65 bg-fuchsia-500/[0.07] hover:bg-fuchsia-500/[0.11] border-[rgba(245,245,245,0.1)]",
-  contrats:
-    "border-l-[3px] border-l-emerald-400/65 bg-emerald-500/[0.07] hover:bg-emerald-500/[0.11] border-[rgba(245,245,245,0.1)]",
 } as const;
 
 function StatusActivityBlock({
@@ -189,14 +185,13 @@ export function StatutsPage() {
 
   const { statuses, setStatuses, setProcedures, procedures, loading, error } = useAdminData();
   const { invoices, setInvoices } = useIncomesData();
-  const { contracts } = useContractsData();
   const [, setSelectedBillingStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
     null
   );
   const [pendingDelete, setPendingDelete] = useState<{ id: string; nom: string } | null>(null);
 
-  // ── Aperçus démarches / factures par statut + contrats globaux ─────────────
+  // ── Aperçus démarches / factures par statut ─────────────────────────────────
 
   const proceduresPreviewByStatusId = useMemo(() => {
     const map = new Map<string, AdminProcedure[]>();
@@ -252,21 +247,6 @@ export function StatutsPage() {
     }
     return map;
   }, [invoices]);
-
-  /** Brouillon ou envoyé — pas encore signé (vue globale, pas de lien statut en base). */
-  const inProgressContracts = useMemo(
-    () => contracts.filter((c) => c.status === "draft" || c.status === "sent"),
-    [contracts]
-  );
-
-  const contractPreviewLines = useMemo(
-    () =>
-      inProgressContracts.map((c) => {
-        const t = c.title?.trim();
-        return t && t.length > 0 ? t : "Sans titre";
-      }),
-    [inProgressContracts]
-  );
 
   const sortedStatuses = useMemo(
     () =>
@@ -380,7 +360,6 @@ export function StatutsPage() {
             const invLines = invList.map(invoicePreviewLine);
             const procCount = procList.length;
             const invoiceCount = invList.length;
-            const contractCount = inProgressContracts.length;
             const hasAnyProfileData =
               hasAddress ||
               typeFieldsVisible.some((f) => (profileRaw[f.key] ?? "").trim() !== "");
@@ -475,32 +454,30 @@ export function StatutsPage() {
                       </div>
                     ) : null}
                     <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {typeFieldsVisible.map((f) => {
-                        const raw = profileRaw[f.key] ?? "";
-                        const shown = displayProfileValue(f, raw);
-                        const isEmpty = shown === "—";
-                        return (
-                          <div key={f.key} className="min-w-0">
-                            <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/40">
-                              {f.label}
-                              {f.advanced ? (
-                                <span className="ml-1 font-normal normal-case text-[#F5F5F5]/28">
-                                  (avancé)
-                                </span>
-                              ) : null}
-                            </dt>
-                            <dd
-                              className={cn(
-                                "mt-0.5 break-words text-[12px] font-medium leading-snug",
-                                isEmpty ? "text-[#F5F5F5]/32" : "text-[#F5F5F5]/88"
-                              )}
-                              title={!isEmpty && raw.trim() ? raw : undefined}
-                            >
-                              {shown}
-                            </dd>
-                          </div>
-                        );
-                      })}
+                      {typeFieldsVisible
+                        .filter((f) => (profileRaw[f.key] ?? "").trim() !== "")
+                        .map((f) => {
+                          const raw = profileRaw[f.key] ?? "";
+                          const shown = displayProfileValue(f, raw);
+                          return (
+                            <div key={f.key} className="min-w-0">
+                              <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/40">
+                                {f.label}
+                                {f.advanced ? (
+                                  <span className="ml-1 font-normal normal-case text-[#F5F5F5]/28">
+                                    (avancé)
+                                  </span>
+                                ) : null}
+                              </dt>
+                              <dd
+                                className="mt-0.5 break-words text-[12px] font-medium leading-snug text-[#F5F5F5]/88"
+                                title={raw}
+                              >
+                                {shown}
+                              </dd>
+                            </div>
+                          );
+                        })}
                     </dl>
                     {showCompleteHint ? (
                       <Link
@@ -512,12 +489,12 @@ export function StatutsPage() {
                     ) : null}
                   </div>
 
-                  {/* ── Démarches, factures, contrats (aperçu) ── */}
+                  {/* ── Démarches, factures (aperçu) ── */}
                   <div className="border-t border-[rgba(245,245,245,0.08)] px-5 py-3">
                     <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/38">
                       Activité liée
                     </p>
-                    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
                       <StatusActivityBlock
                         title="Démarches actives"
                         href={`/admin/demarches?statut=${encodeURIComponent(s.id)}`}
@@ -537,20 +514,6 @@ export function StatutsPage() {
                         emptyHint="Aucune facture en attente rattachée."
                         variant={invoiceCount > 0 ? "warn" : "default"}
                         accent="factures"
-                      />
-                      <StatusActivityBlock
-                        title="Contrats en cours"
-                        href="/admin/contrats"
-                        icon={FileSignature}
-                        lines={contractPreviewLines}
-                        total={contractCount}
-                        emptyHint="Aucun contrat brouillon ou en signature."
-                        footnote={
-                          contractCount > 0
-                            ? "Vue globale : les contrats ne sont pas encore filtrés par statut dans Sidekick."
-                            : undefined
-                        }
-                        accent="contrats"
                       />
                     </div>
                   </div>

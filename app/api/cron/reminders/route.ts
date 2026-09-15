@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { escapeHtml, sendEmail } from "@/lib/brevo";
+import type { AdminProcedure } from "@/lib/sidekick-store";
+import { applyAllRecurringRollovers } from "@/modules/admin/lib/procedure-recurrence";
 
 /** Une démarche est rappelée quand son échéance tombe dans cette fenêtre. */
 const HORIZON_DAYS = 14;
@@ -83,11 +85,57 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "read_failed" }, { status: 500 });
   }
 
+  const rows = (procedures ?? []) as ProcedureRow[];
+
+  // Fait avancer les échéances récurrentes avant de composer le digest — c'est
+  // la seule exécution fiable pour l'artiste qui n'ouvre jamais
+  // /admin/demarches : sans ce passage, ses rappels resteraient calés sur une
+  // échéance déjà passée. Idempotent, par utilisateur (les séries ne se
+  // mélangent pas entre comptes).
+  const rowsByUser = new Map<string, ProcedureRow[]>();
+  for (const row of rows) {
+    const list = rowsByUser.get(row.user_id) ?? [];
+    list.push(row);
+    rowsByUser.set(row.user_id, list);
+  }
+
+  const rolledDataById = new Map<string, Record<string, unknown>>();
+  for (const [, userRows] of rowsByUser) {
+    const asProcedures = userRows.map(
+      (row) => ({ id: row.id, label: row.label, ...(row.data ?? {}) }) as AdminProcedure
+    );
+    const rolled = applyAllRecurringRollovers(asProcedures);
+    if (rolled === asProcedures) continue;
+    rolled.forEach((p, i) => {
+      if (p === asProcedures[i]) return;
+      const { id, label: _label, ...rest } = p;
+      void _label;
+      rolledDataById.set(id, rest as Record<string, unknown>);
+    });
+  }
+
+  if (rolledDataById.size > 0) {
+    const updates = await Promise.all(
+      [...rolledDataById.entries()].map(([id, data]) =>
+        supabase.from("user_admin_procedures").update({ data }).eq("id", id)
+      )
+    );
+    const failed = updates.filter((u) => u.error);
+    if (failed.length > 0) {
+      console.error("[cron/reminders] report de", failed.length, "démarche(s) échoué");
+    }
+    // Répercuté en mémoire pour composer le digest avec les dates à jour.
+    for (const row of rows) {
+      const patch = rolledDataById.get(row.id);
+      if (patch) row.data = patch;
+    }
+  }
+
   // Regroupement par utilisateur : un seul email par personne, jamais un par
   // démarche — c'est la différence entre un rappel utile et du harcèlement.
   const byUser = new Map<string, DueProcedure[]>();
 
-  for (const row of (procedures ?? []) as ProcedureRow[]) {
+  for (const row of rows) {
     const data = row.data ?? {};
     if (String(data.status ?? "a_faire") === "termine") continue;
 

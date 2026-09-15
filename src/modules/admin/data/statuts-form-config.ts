@@ -245,7 +245,7 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
       placeholder:
         "Nom de l’entreprise individuelle ou prénom + nom tels qu’inscrits auprès de l’administration",
       identitySectionDescription:
-        "Identification administrative : les mêmes mentions qu’en déclaration (impôts, cotisations). Utilisées dans Sidekick et le dossier Documents Admin — pas un libellé de convenance.",
+        "Le nom exact que tu utilises pour tes déclarations aux impôts et à l’URSSAF. Il apparaît aussi dans Sidekick et ton dossier Documents.",
     };
   }
   if (type === "association_1901") {
@@ -253,7 +253,7 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
       label: "Nom de l’association",
       placeholder: "Nom officiel tel qu’il figure dans les statuts et en préfecture",
       identitySectionDescription:
-        "Nom officiel de l’association (statuts déposés en préfecture). Utilisé dans Sidekick et le dossier Documents Admin.",
+        "Le nom officiel de ton association, celui qui figure dans les statuts déposés en préfecture. Il apparaît aussi dans Sidekick et ton dossier Documents.",
     };
   }
   if (type === "intermittent") {
@@ -261,13 +261,13 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
       label: "Libellé de la carte",
       placeholder: "Ex. Intermittence — Annexe 10",
       identitySectionDescription:
-        "Nom d’affichage de ta situation d’intermittent dans Sidekick. Le suivi des heures et cachets se fait dans Revenus > Intermittence.",
+        "Comment tu veux appeler cette fiche dans Sidekick. Le suivi de tes heures et cachets se fait plutôt dans Revenus > Intermittence.",
     };
   }
   return {
     label: "Nom du statut",
     placeholder: "Ex. Mon association, Ma SASU, Carte intermittent…",
-    identitySectionDescription: "Nom affiché dans Sidekick et dossier Documents Admin.",
+    identitySectionDescription: "Le nom qui s’affichera dans Sidekick et ton dossier Documents.",
   };
 }
 
@@ -282,21 +282,21 @@ export function getAdvancedSectionMeta(type: AdminStatusType): { title: string; 
       title: "Informations bancaires",
       description:
         type === "sasu"
-          ? "IBAN, BIC et SWIFT, puis capital social."
+          ? "Ton IBAN, ton BIC, et le capital social de ta société."
           : type === "association_1901"
-          ? "Coordonnées bancaires de l'association (compte courant associatif). Aussi : Trésorier·e, licence spectacle."
-          : "Coordonnées bancaires liées à ce statut : IBAN, BIC et SWIFT (souvent le même code que le BIC).",
+          ? "Les coordonnées bancaires du compte de l’association, plus le ou la trésorière et vos licences de spectacle."
+          : "Tes coordonnées bancaires pour ce statut : IBAN, BIC et SWIFT (souvent le même code que le BIC).",
     };
   }
   if (type === "intermittent") {
     return {
       title: "Références complémentaires",
-      description: "Audiens, CMSA et AFDAS — facultatif, utile pour centraliser tes identifiants.",
+      description: "Tes identifiants Audiens, CMSA et AFDAS, si tu veux les avoir sous la main. Rien d’obligatoire.",
     };
   }
   return {
     title: "Détails complémentaires",
-    description: "Facultatif — références secondaires et informations annexes.",
+    description: "Des infos en plus, à remplir seulement si tu en as besoin.",
   };
 }
 

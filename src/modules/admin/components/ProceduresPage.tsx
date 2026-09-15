@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { usePostHog } from "posthog-js/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,256 +39,22 @@ import { isoToFr, toIsoDatePickerValue } from "@/lib/date-format";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { AdminProcedure } from "@/lib/sidekick-store";
 import type { ProcedureRecurrence } from "@/modules/admin/data/procedure-templates";
+import {
+  applyAllRecurringRollovers,
+  collapseRecurringForScope,
+  computeNextDueDateStatic,
+  parseDateLimite,
+  procedureSeriesKey,
+} from "@/modules/admin/lib/procedure-recurrence";
 import { cn } from "@/lib/utils";
 
-/** Parse une dateLimite stockée en ISO (YYYY-MM-DD) ou en français (DD/MM/YYYY). */
-function parseDateLimite(raw: string): Date {
-  let iso = raw;
-  if (raw.includes("/")) {
-    const [d, m, y] = raw.split("/");
-    iso = `${y}-${m}-${d}`;
-  }
-  return new Date(`${iso}T12:00:00`);
-}
-
 type ProcedureScope = "all" | "unlinked" | string;
-
-function startOfToday(): Date {
-  const t = new Date();
-  t.setHours(0, 0, 0, 0);
-  return t;
-}
-
-/** Identifiant de série pour regrouper les occurrences d'une même démarche récurrente. */
-function procedureSeriesKey(p: AdminProcedure): string | null {
-  const recurrence = (p.recurrence ?? "none") as ProcedureRecurrence;
-  if (recurrence === "none") return null;
-  const tk = (p as { templateKey?: string }).templateKey;
-  if (tk) return `t:${tk}`;
-  const sj = (p as { statutJuridiqueId?: string }).statutJuridiqueId ?? "";
-  return `m:${sj}:${p.label}:${recurrence}`;
-}
 
 function scopeMatchesProcedure(p: AdminProcedure, scope: ProcedureScope): boolean {
   const linked = (p as { statutJuridiqueId?: string }).statutJuridiqueId ?? "";
   if (scope === "all") return true;
   if (scope === "unlinked") return !linked;
   return linked === scope;
-}
-
-/** Occurrences de la même série dans le périmètre d’onglet courant (pour l’historique). */
-function getPeersForVisible(full: AdminProcedure[], visible: AdminProcedure, scope: ProcedureScope): AdminProcedure[] {
-  const key = procedureSeriesKey(visible);
-  if (!key) return [visible];
-  return full.filter((p) => procedureSeriesKey(p) === key && scopeMatchesProcedure(p, scope));
-}
-
-function computeNextDueDateStatic(
-  currentDate: string,
-  recurrence: ProcedureRecurrence
-): string | undefined {
-  if (!currentDate || recurrence === "none") return undefined;
-  const iso = toIsoDatePickerValue(currentDate);
-  if (!iso) return undefined;
-  const base = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(base.getTime())) return undefined;
-  if (recurrence === "monthly") base.setMonth(base.getMonth() + 1);
-  if (recurrence === "quarterly") base.setMonth(base.getMonth() + 3);
-  if (recurrence === "semi_annual") base.setMonth(base.getMonth() + 6);
-  if (recurrence === "annual") base.setFullYear(base.getFullYear() + 1);
-  return base.toISOString().slice(0, 10);
-}
-
-function computePrevDueDateStatic(
-  currentDate: string,
-  recurrence: ProcedureRecurrence
-): string | undefined {
-  if (!currentDate || recurrence === "none") return undefined;
-  const iso = toIsoDatePickerValue(currentDate);
-  if (!iso) return undefined;
-  const base = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(base.getTime())) return undefined;
-  if (recurrence === "monthly") base.setMonth(base.getMonth() - 1);
-  if (recurrence === "quarterly") base.setMonth(base.getMonth() - 3);
-  if (recurrence === "semi_annual") base.setMonth(base.getMonth() - 6);
-  if (recurrence === "annual") base.setFullYear(base.getFullYear() - 1);
-  return base.toISOString().slice(0, 10);
-}
-
-/**
- * Si toute la série est au statut terminé et que la prochaine période est déjà passée,
- * rouvre la ligne la plus récemment terminée en « à faire » avec la première échéance manquée.
- */
-function applyTermineSeriesRollover(
-  anchor: AdminProcedure,
-  recurrence: ProcedureRecurrence
-): AdminProcedure | undefined {
-  const dl = (anchor as { dateLimite?: string }).dateLimite;
-  if (!dl) return undefined;
-  let cursorIso = toIsoDatePickerValue(dl);
-  if (!cursorIso) return undefined;
-  let nextIso = computeNextDueDateStatic(cursorIso, recurrence);
-  if (!nextIso) return undefined;
-  const today = startOfToday();
-  const nextDate = parseDateLimite(nextIso.includes("-") ? nextIso : "");
-  if (Number.isNaN(nextDate.getTime()) || nextDate >= today) return undefined;
-
-  let missedIso = nextIso;
-  let following = computeNextDueDateStatic(missedIso, recurrence);
-  while (following) {
-    const fd = parseDateLimite(following.includes("-") ? following : "");
-    if (Number.isNaN(fd.getTime()) || fd >= today) break;
-    missedIso = following;
-    following = computeNextDueDateStatic(missedIso, recurrence);
-  }
-
-  return {
-    ...anchor,
-    status: "a_faire" as const,
-    dateLimite: missedIso,
-  };
-}
-
-function applyAllRecurringRollovers(prev: AdminProcedure[]): AdminProcedure[] {
-  const byKey = new Map<string, AdminProcedure[]>();
-  for (const p of prev) {
-    const key = procedureSeriesKey(p);
-    if (!key) continue;
-    const arr = byKey.get(key) ?? [];
-    arr.push(p);
-    byKey.set(key, arr);
-  }
-
-  const replacements = new Map<string, AdminProcedure>();
-
-  for (const [, peers] of byKey) {
-    if (peers.some((p) => ((p as { status?: string }).status ?? "a_faire") !== "termine")) continue;
-    const dated = peers.filter((p) => (p as { dateLimite?: string }).dateLimite);
-    if (dated.length === 0) continue;
-    const anchor = dated.reduce((best, p) => {
-      const b = (best as { dateLimite?: string }).dateLimite!;
-      const c = (p as { dateLimite?: string }).dateLimite!;
-      const ib = toIsoDatePickerValue(b);
-      const ic = toIsoDatePickerValue(c);
-      if (!ib) return p;
-      if (!ic) return best;
-      return ic.localeCompare(ib) > 0 ? p : best;
-    });
-    const recurrence = ((anchor as { recurrence?: ProcedureRecurrence }).recurrence ?? "none") as ProcedureRecurrence;
-    const rolled = applyTermineSeriesRollover(anchor, recurrence);
-    if (rolled) replacements.set(anchor.id, rolled);
-  }
-
-  if (replacements.size === 0) return prev;
-  return prev.map((p) => replacements.get(p.id) ?? p);
-}
-
-/** Une carte visible par série récurrente + les ponctuelles. */
-function collapseRecurringForScope(list: AdminProcedure[]): AdminProcedure[] {
-  const byKey = new Map<string, AdminProcedure[]>();
-  const singles: AdminProcedure[] = [];
-  for (const p of list) {
-    const key = procedureSeriesKey(p);
-    if (!key) {
-      singles.push(p);
-      continue;
-    }
-    const arr = byKey.get(key) ?? [];
-    arr.push(p);
-    byKey.set(key, arr);
-  }
-  const merged: AdminProcedure[] = [...singles];
-  for (const [, peers] of byKey) {
-    const active = peers.filter((p) => ((p as { status?: string }).status ?? "a_faire") !== "termine");
-    let visible: AdminProcedure;
-    if (active.length > 0) {
-      visible = active.slice().sort((a, b) => {
-        const ia = toIsoDatePickerValue((a as { dateLimite?: string }).dateLimite ?? "");
-        const ib = toIsoDatePickerValue((b as { dateLimite?: string }).dateLimite ?? "");
-        if (!ia) return 1;
-        if (!ib) return -1;
-        return ia.localeCompare(ib);
-      })[0]!;
-    } else {
-      visible = peers.reduce((best, p) => {
-        const b = (best as { dateLimite?: string }).dateLimite;
-        const c = (p as { dateLimite?: string }).dateLimite;
-        if (!b) return p;
-        if (!c) return best;
-        const ib = toIsoDatePickerValue(b);
-        const ic = toIsoDatePickerValue(c);
-        if (!ib) return p;
-        if (!ic) return best;
-        return ic.localeCompare(ib) > 0 ? p : best;
-      });
-    }
-    merged.push(visible);
-  }
-  return merged;
-}
-
-/** Trois dates pour la liste sous « Échéance » : passée (barrée), prochaine, suivante. */
-type RecurrenceEcheanceRow = { iso: string; role: "past" | "next" | "following" };
-
-function buildRecurrenceEcheanceRows(
-  visible: AdminProcedure,
-  peers: AdminProcedure[]
-): RecurrenceEcheanceRow[] | null {
-  const recurrence = (visible.recurrence ?? "none") as ProcedureRecurrence;
-  if (recurrence === "none") return null;
-
-  const completedPeers = peers.filter((p) => ((p as { status?: string }).status ?? "a_faire") === "termine");
-  let lastDoneIso: string | undefined;
-  for (const tp of completedPeers) {
-    const raw = (tp as { dateLimite?: string }).dateLimite;
-    const iso = raw ? toIsoDatePickerValue(raw) : "";
-    if (!iso) continue;
-    if (!lastDoneIso || iso.localeCompare(lastDoneIso) > 0) lastDoneIso = iso;
-  }
-
-  const workflow = (visible as { status?: string }).status ?? "a_faire";
-  const today = startOfToday();
-
-  if (workflow === "termine") {
-    const raw = (visible as { dateLimite?: string }).dateLimite;
-    const d1 = raw ? toIsoDatePickerValue(raw) : undefined;
-    if (!d1) return null;
-    const d2 = computeNextDueDateStatic(d1, recurrence);
-    const d3 = d2 ? computeNextDueDateStatic(d2, recurrence) : undefined;
-    const rows: RecurrenceEcheanceRow[] = [{ iso: d1, role: "past" }];
-    if (d2) rows.push({ iso: d2, role: "next" });
-    if (d3) rows.push({ iso: d3, role: "following" });
-    return rows;
-  }
-
-  const raw = (visible as { dateLimite?: string }).dateLimite;
-  const d2 = raw ? toIsoDatePickerValue(raw) : undefined;
-  if (!d2) return null;
-  const d3 = computeNextDueDateStatic(d2, recurrence);
-
-  let d1 = lastDoneIso;
-  if (!d1 || d1.localeCompare(d2) >= 0) {
-    d1 = computePrevDueDateStatic(d2, recurrence);
-  }
-
-  const rows: RecurrenceEcheanceRow[] = [];
-  if (d1) {
-    const d1Date = parseDateLimite(d1.includes("-") ? d1 : "");
-    const isPast =
-      !Number.isNaN(d1Date.getTime()) && d1Date < today
-        ? true
-        : !!(lastDoneIso && d1 === lastDoneIso);
-    if (isPast) rows.push({ iso: d1, role: "past" });
-  }
-  rows.push({ iso: d2, role: "next" });
-  if (d3) rows.push({ iso: d3, role: "following" });
-  return rows;
-}
-
-function shortFrDateFromIso(iso: string): string {
-  const d = parseDateLimite(iso.includes("-") ? iso : "");
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" }).format(d);
 }
 
 const PROCEDURE_STATUS = [
@@ -310,14 +76,16 @@ export function ProceduresPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { procedures, setProcedures, statuses, loading, error } = useAdminData();
+  const { procedures: storedProcedures, setProcedures, statuses, loading, error } = useAdminData();
 
-  useEffect(() => {
-    setProcedures((prev) => {
-      const next = applyAllRecurringRollovers(prev);
-      return next === prev ? prev : next;
-    });
-  }, [procedures, setProcedures]);
+  // Le report des échéances récurrentes est fait par le cron quotidien
+  // (app/api/cron/reminders) — c'est ce qui le rend fiable pour l'artiste qui
+  // n'ouvre jamais cette page. Ici, on ne fait que l'appliquer à l'affichage,
+  // pour ne pas montrer une date déjà périmée entre deux passages du cron.
+  const procedures = useMemo(
+    () => applyAllRecurringRollovers(storedProcedures),
+    [storedProcedures]
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -925,69 +693,6 @@ export function ProceduresPage() {
                                     </dt>
                                     <dd className="mt-0.5">
                                       {(() => {
-                                        const peers = getPeersForVisible(procedures, p, scope);
-                                        const recurrenceRows = buildRecurrenceEcheanceRows(p, peers);
-                                        if (recurrenceRows && recurrenceRows.length > 0) {
-                                          return (
-                                            <div
-                                              className="mt-2 overflow-x-auto rounded-lg border border-[rgba(245,245,245,0.14)] bg-[rgba(0,0,0,0.42)] px-3 py-3.5 sm:px-4"
-                                              role="group"
-                                              aria-label="Frise des échéances récurrentes"
-                                            >
-                                              <div className="flex min-w-[min(100%,16rem)] items-start justify-center gap-0">
-                                                {recurrenceRows.map((row, idx) => (
-                                                  <Fragment key={`${row.role}-${row.iso}`}>
-                                                    <div className="flex min-w-0 flex-1 flex-col items-center gap-2.5 text-center">
-                                                      <div
-                                                        className={cn(
-                                                          "h-3.5 w-3.5 shrink-0 rounded-full border-2 transition-colors",
-                                                          row.role === "past" &&
-                                                            "border-[#8b8b92] bg-[#3a3a3e] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-                                                          row.role === "next" &&
-                                                            "border-[#b8cf00] bg-[#F0FF00] shadow-[0_0_12px_rgba(240,255,0,0.5)]",
-                                                          row.role === "following" &&
-                                                            "border-[#7dd3fc] bg-[rgba(56,189,248,0.35)] shadow-[0_0_10px_rgba(56,189,248,0.4)]"
-                                                        )}
-                                                        aria-hidden
-                                                      />
-                                                      <span
-                                                        className={cn(
-                                                          "max-w-[6rem] text-[11px] font-semibold leading-snug tracking-tight sm:text-xs",
-                                                          row.role === "past" &&
-                                                            "text-[#9ca3af] line-through decoration-2 decoration-[#6b7280] [text-decoration-thickness:2px]",
-                                                          row.role === "next" &&
-                                                            "text-[#F0FF00] drop-shadow-[0_0_6px_rgba(240,255,0,0.25)]",
-                                                          row.role === "following" &&
-                                                            "font-medium text-sky-300 drop-shadow-[0_0_4px_rgba(125,211,252,0.2)]"
-                                                        )}
-                                                      >
-                                                        <span className="sr-only">
-                                                          {row.role === "past"
-                                                            ? "Échéance passée : "
-                                                            : row.role === "next"
-                                                              ? "Prochaine échéance : "
-                                                              : "Échéance suivante : "}
-                                                        </span>
-                                                        {shortFrDateFromIso(row.iso)}
-                                                      </span>
-                                                    </div>
-                                                    {idx < recurrenceRows.length - 1 ? (
-                                                      <div
-                                                        className={cn(
-                                                          "mx-0.5 mt-1.5 h-[3px] min-w-[0.75rem] flex-1 max-w-[4rem] shrink rounded-full sm:mx-1 sm:min-w-[1.25rem]",
-                                                          idx === 0
-                                                            ? "bg-gradient-to-r from-[#6b7280] via-[#9ca3af]/80 to-[#d4e800]"
-                                                            : "bg-gradient-to-r from-[#F0FF00] via-[#c4f000] to-[#38bdf8]"
-                                                        )}
-                                                        aria-hidden
-                                                      />
-                                                    ) : null}
-                                                  </Fragment>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          );
-                                        }
                                         const d = parseDateLimite(rawDate);
                                         const longLabel =
                                           workflow !== "termine" && !Number.isNaN(d.getTime())
