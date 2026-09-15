@@ -57,16 +57,16 @@ export function BacklogPanel({
         </span>
       </div>
 
-      <div className="mb-4">
-        <AiSuggestions
-          userId={userId}
-          tasks={tasks}
-          calendarEvents={calendarEvents}
-          enabledModules={enabledModules}
-          ruleSuggestions={ruleSuggestions}
-          onAdd={onAddSuggestion}
-        />
-      </div>
+      {/* Suggestions IA en pause avant la bêta — le composant reste monté mais
+          ne rend rien tant que AI_SUGGESTIONS_ENABLED est à false. */}
+      <AiSuggestions
+        userId={userId}
+        tasks={tasks}
+        calendarEvents={calendarEvents}
+        enabledModules={enabledModules}
+        ruleSuggestions={ruleSuggestions}
+        onAdd={onAddSuggestion}
+      />
 
       {tasks.length === 0 ? (
         <EmptyState

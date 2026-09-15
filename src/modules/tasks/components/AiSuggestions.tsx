@@ -9,6 +9,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { Todo } from "@/lib/sidekick-store";
 import type { RuleSuggestion } from "../rules/types";
 
+/**
+ * Suggestions IA des Tâches — mises en pause avant la bêta.
+ * Le composant et la route `/api/tasks/ai-suggestions` restent en place mais
+ * ne sont ni rendus ni appelés tant que ce drapeau est à `false`.
+ * Pour réactiver : repasser à `true` et restaurer l'appel Anthropic dans la route.
+ */
+const AI_SUGGESTIONS_ENABLED = false;
+
 interface Suggestion {
   title: string;
   sector: string;
@@ -39,6 +47,7 @@ export function AiSuggestions({
   const [added, setAdded] = useState<Set<string>>(new Set());
 
   const fetchSuggestions = async (force = false) => {
+    if (!AI_SUGGESTIONS_ENABLED) return;
     if (!userId) return;
     setLoading(true);
     setError(null);
@@ -106,6 +115,8 @@ export function AiSuggestions({
   }));
 
   const allSuggestions: Suggestion[] = [...algoAsSuggestions, ...suggestions];
+
+  if (!AI_SUGGESTIONS_ENABLED) return null;
 
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 p-3">

@@ -167,6 +167,17 @@ function InscriptionPageContent() {
 
   return (
     <AuthShell>
+      <p className="-mt-8 mb-8 text-xs leading-relaxed text-[#f5f5f5]/55">
+        Construit par un artiste indépendant, pour des artistes
+        indépendants.{" "}
+        <Link
+          href="/#inscription"
+          className="text-[#f5f5f5]/75 underline decoration-[rgba(245,245,245,0.3)] underline-offset-4 transition-colors hover:text-[#F0FF00] hover:decoration-[#F0FF00]"
+        >
+          Lire pourquoi
+        </Link>
+      </p>
+
       <div className="space-y-8">
         <h1 className="font-display text-2xl uppercase leading-none">
           Inscription
