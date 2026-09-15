@@ -1556,35 +1556,23 @@ export function GlobalCalendarPage() {
                                       }}
                                       className={cn(
                                         "flex min-h-0 w-full flex-1 items-start gap-1 border-l-2 py-[3px] pl-1.5 pr-1 text-left transition-colors duration-150",
-                                        "bg-[rgba(245,245,245,0.04)] hover:bg-[rgba(245,245,245,0.09)]",
-                                        tier === 1 && "border-l-[3px]",
+                                        "bg-[rgba(245,245,245,0.07)] hover:bg-[rgba(245,245,245,0.13)]",
                                         borderClass,
                                         ev.isPast && "opacity-45"
                                       )}
                                     >
-                                      {glyph.kind === "icon" ? (
-                                        (() => {
-                                          const LeadingIcon = glyph.Icon;
-                                          return (
-                                            <LeadingIcon
-                                              className={cn(
-                                                "mt-[2px] h-2.5 w-2.5 shrink-0",
-                                                glyph.className,
-                                              )}
-                                            />
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="mt-[4px] h-1 w-1 shrink-0 rounded-full bg-[rgba(245,245,245,0.25)]" />
-                                      )}
+                                      {glyph ? (
+                                        <glyph.Icon
+                                          className={cn(
+                                            "mt-[2px] h-2.5 w-2.5 shrink-0",
+                                            glyph.className,
+                                          )}
+                                        />
+                                      ) : null}
                                       <span
                                         className={cn(
-                                          "line-clamp-3 break-words leading-[1.3] text-[#F5F5F5]/80",
-                                          tier === 1
-                                            ? "text-[10.5px] font-semibold"
-                                            : tier === 2
-                                              ? "text-[10px] font-medium"
-                                              : "text-[9.5px] font-normal"
+                                          "line-clamp-3 break-words text-[10px] leading-[1.3] text-[#F5F5F5]/80",
+                                          tier === 1 && "font-semibold"
                                         )}
                                       >
                                         {ev.label}

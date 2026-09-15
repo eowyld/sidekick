@@ -19,7 +19,16 @@ import type { CalendarEvent } from "@/modules/calendar/calendar-event-model";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-const MIN_BLOCK_PX = 12;
+const MIN_BLOCK_PX = 16;
+
+/** En dessous, la ligne d’horaire mangerait la place du libellé. */
+const TIME_LINE_MIN_PX = 34;
+
+const LINE_CLAMP_CLASS: Record<number, string> = {
+  1: "line-clamp-1",
+  2: "line-clamp-2",
+  3: "line-clamp-3",
+};
 
 /** Largeur colonne axe horaire + en-têtes « journée » */
 const TIME_GUTTER_W = "w-[58px]";
@@ -96,6 +105,8 @@ export function WeekScheduleGrid({
     return { allDay, timed };
   }, [events, weekMondayKey]);
 
+  const hasAllDayEvents = dayBuckets.allDay.some((day) => day.length > 0);
+
   useEffect(() => {
     const idx = dateKeys.indexOf(todayKey);
     const col = columnRefs.current[idx];
@@ -133,16 +144,18 @@ export function WeekScheduleGrid({
           )}
         >
           <div className={cn(HEADER_CELL_CLASS, "border-b-0")} />
-          <div
-            className={cn(
-              "flex flex-1 flex-col justify-center border-t border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)] px-1 py-2",
-              ALL_DAY_ROW_MIN_CLASS,
-            )}
-          >
-            <span className="text-center text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#F5F5F5]/45">
-              Toute la journée
-            </span>
-          </div>
+          {hasAllDayEvents ? (
+            <div
+              className={cn(
+                "flex flex-1 flex-col justify-center border-t border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)] px-1 py-2",
+                ALL_DAY_ROW_MIN_CLASS,
+              )}
+            >
+              <span className="text-center text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-[#F5F5F5]/45">
+                Toute la journée
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="flex min-w-0 flex-1">
           {dateKeys.map((dateKey, dayIndex) => {
@@ -181,18 +194,14 @@ export function WeekScheduleGrid({
                     </span>
                   </div>
                 </div>
-                <div
-                  className={cn(
-                    "flex flex-1 flex-col bg-[rgba(245,245,245,0.02)] px-1.5 py-2",
-                    ALL_DAY_ROW_MIN_CLASS,
-                  )}
-                >
-                  {dayBuckets.allDay[dayIndex].length === 0 ? (
-                    <div className="flex flex-1 items-center justify-center text-[10px] text-[#F5F5F5]/25">
-                      —
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
+                {hasAllDayEvents ? (
+                  <div
+                    className={cn(
+                      "flex flex-1 flex-col bg-[rgba(245,245,245,0.02)] px-1.5 py-2",
+                      ALL_DAY_ROW_MIN_CLASS,
+                    )}
+                  >
+                    <div className="flex flex-col gap-1">
                       {dayBuckets.allDay[dayIndex].map((ev) => (
                         <DayBandChip
                           key={ev.id}
@@ -201,8 +210,8 @@ export function WeekScheduleGrid({
                         />
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -277,7 +286,12 @@ function TimeAxisLabels({
           className="pointer-events-none absolute left-0 right-0 border-t border-[rgba(245,245,245,0.1)]"
           style={{ top: tick.y }}
         >
-          <span className="absolute left-0 top-0 max-w-[52px] -translate-y-1/2 truncate bg-[#101010] pr-0.5 text-[9px] tabular-nums leading-none text-[#F5F5F5]/45">
+          <span
+            className={cn(
+              "absolute left-0 top-0 max-w-[52px] truncate bg-[#101010] pr-0.5 text-[9px] tabular-nums leading-none text-[#F5F5F5]/45",
+              i === 0 ? "pt-0.5" : "-translate-y-1/2",
+            )}
+          >
             {tick.label}
           </span>
         </div>
@@ -332,31 +346,20 @@ function DayBandChip({
         onClick(e.currentTarget.getBoundingClientRect());
       }}
       className={cn(
-        "flex w-full items-start gap-1.5 border-l-[3px] px-2 py-1.5 text-left transition-colors",
-        "bg-[rgba(245,245,245,0.06)] hover:bg-[rgba(245,245,245,0.1)]",
+        "flex w-full items-start gap-1.5 border-l-2 px-1.5 py-1 text-left transition-colors",
+        "bg-[rgba(245,245,245,0.07)] hover:bg-[rgba(245,245,245,0.13)]",
         borderClass,
-        tier === 1 && "border-l-[3px]",
         ev.isPast && "opacity-45",
       )}
     >
-      {glyph.kind === "icon" ? (
-        (() => {
-          const LeadingIcon = glyph.Icon;
-          return (
-            <LeadingIcon
-              className={cn(
-                "mt-[2px] h-3 w-3 shrink-0",
-                glyph.className,
-              )}
-            />
-          );
-        })()
-      ) : (
-        <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[rgba(245,245,245,0.25)]" />
-      )}
+      {glyph ? (
+        <glyph.Icon
+          className={cn("mt-[2px] h-2.5 w-2.5 shrink-0", glyph.className)}
+        />
+      ) : null}
       <span
         className={cn(
-          "line-clamp-4 text-[11px] leading-snug text-[#F5F5F5]/85",
+          "line-clamp-3 text-[10px] leading-snug text-[#F5F5F5]/85",
           tier === 1 && "font-semibold",
         )}
       >
@@ -413,6 +416,8 @@ function renderTimedColumn(
         const timeLabel =
           ev.time &&
           `${formatTimeForDisplay(ev.time)}${ev.endTime ? ` – ${formatTimeForDisplay(ev.endTime)}` : ""}`;
+        const labelLines = h >= 64 ? 3 : h >= 36 ? 2 : 1;
+        const showTime = h >= TIME_LINE_MIN_PX;
 
         return (
           <button
@@ -423,8 +428,8 @@ function renderTimedColumn(
               onEventClick(ev, e.currentTarget.getBoundingClientRect());
             }}
             className={cn(
-              "absolute z-[2] flex flex-col gap-0.5 overflow-hidden border-l-[3px] px-1 py-0.5 text-left shadow-sm transition-colors",
-              "border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.92)] hover:bg-[rgba(55,55,58,0.95)]",
+              "absolute z-[2] flex flex-col overflow-hidden border-l-2 px-1.5 py-[3px] text-left transition-colors",
+              "bg-[rgba(245,245,245,0.07)] hover:bg-[rgba(245,245,245,0.13)]",
               borderClass,
               ev.isPast && "opacity-45",
             )}
@@ -435,32 +440,26 @@ function renderTimedColumn(
               width: `calc(${wPct}% - 4px)`,
             }}
           >
-            <span className="flex min-h-0 items-center gap-1">
-              {glyph.kind === "icon" ? (
-                (() => {
-                  const LeadingIcon = glyph.Icon;
-                  return (
-                    <LeadingIcon
-                      className={cn(
-                        "h-2.5 w-2.5 shrink-0",
-                        glyph.className,
-                      )}
-                    />
-                  );
-                })()
-              ) : (
-                <span className="h-1 w-1 shrink-0 rounded-full bg-[rgba(245,245,245,0.25)]" />
-              )}
+            <span className="flex min-h-0 items-baseline gap-1">
+              {glyph ? (
+                <glyph.Icon
+                  className={cn(
+                    "h-2.5 w-2.5 shrink-0 self-start",
+                    glyph.className,
+                  )}
+                />
+              ) : null}
               <span
                 className={cn(
-                  "line-clamp-3 text-[10px] leading-tight text-[#F5F5F5]/90",
+                  "text-[10px] leading-tight text-[#F5F5F5]/90",
+                  LINE_CLAMP_CLASS[labelLines],
                   tier === 1 && "font-semibold",
                 )}
               >
                 {ev.label}
               </span>
             </span>
-            {timeLabel ? (
+            {timeLabel && showTime ? (
               <span className="truncate text-[9px] tabular-nums text-[#F5F5F5]/45">
                 {timeLabel}
               </span>

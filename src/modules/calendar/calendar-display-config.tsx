@@ -119,33 +119,30 @@ export const EVENT_TIER: Record<CalendarEventType, 1 | 2 | 3> = {
   admin_status_end: 2,
 };
 
-/** Glyphe à gauche du libellé (mois / semaine) : point pour tier 3 sauf tâches → CheckSquare (sidebar). */
-export type CalendarLeadingGlyph =
-  | { kind: "icon"; Icon: LucideIcon; className: string }
-  | { kind: "dot" };
+/**
+ * Glyphe à gauche du libellé (mois / semaine). Réservé à ce qui se repère d’un
+ * coup d’œil : les temps forts (tier 1) et les tâches. Pour tout le reste, la
+ * barre de couleur du secteur suffit — un glyphe de plus alourdit la cellule
+ * sans rien ajouter.
+ */
+export type CalendarLeadingGlyph = {
+  Icon: LucideIcon;
+  className: string;
+};
 
 export function resolveCalendarEventLeadingGlyph(ev: {
   type: CalendarEventType;
   sector: CalendarSector;
-}): CalendarLeadingGlyph {
-  const tier = EVENT_TIER[ev.type];
+}): CalendarLeadingGlyph | null {
   const sc = SECTOR_CONFIG[ev.sector];
 
   if (ev.type === "task_deadline") {
-    return {
-      kind: "icon",
-      Icon: CheckSquare,
-      className: sc.iconColor,
-    };
+    return { Icon: CheckSquare, className: sc.iconColor };
   }
 
-  if (tier <= 2) {
-    return {
-      kind: "icon",
-      Icon: sc.Icon,
-      className: tier === 1 ? sc.iconColor : "text-[#F5F5F5]/35",
-    };
+  if (EVENT_TIER[ev.type] === 1) {
+    return { Icon: sc.Icon, className: sc.iconColor };
   }
 
-  return { kind: "dot" };
+  return null;
 }

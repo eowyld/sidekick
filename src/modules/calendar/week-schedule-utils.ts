@@ -79,8 +79,15 @@ export function eventAbsoluteInterval(
 /** Hauteur d’une heure « occupée » (au moins un événement ce jour-là cette heure-là, quelque jour que ce soit de la semaine). */
 export const OCCUPIED_HOUR_PX = 52;
 
-/** Facteur de compression pour une heure calendaire sans aucun événement sur les 7 jours. */
-export const EMPTY_HOUR_COMPRESSION = 4;
+/** Heure sans aucun événement sur les 7 jours, mais à l’intérieur de la plage affichée. */
+export const EMPTY_HOUR_PX = 24;
+
+/** Journée « type », affichée telle quelle quand la semaine n’a aucun horaire. */
+export const BASE_RANGE_START_HOUR = 8;
+export const BASE_RANGE_END_HOUR = 20;
+
+/** Amplitude minimale de la grille : en dessous, elle ne se lit plus comme une journée. */
+export const MIN_RANGE_HOURS = 8;
 
 export type HourTick = {
   y: number;
@@ -109,9 +116,49 @@ export function computeHourOccupancyAcrossWeek(
   return globalBusyHour;
 }
 
-function hourHeightPx(globalBusyHour: boolean[]): number[] {
-  const dense = OCCUPIED_HOUR_PX / EMPTY_HOUR_COMPRESSION;
-  return globalBusyHour.map((busy) => (busy ? OCCUPIED_HOUR_PX : dense));
+/**
+ * Plage horaire réellement rendue : la journée type, étendue d’une heure de
+ * marge autour des événements qui en sortent. `endHour` est exclusive.
+ */
+export function computeDisplayedHourRange(globalBusyHour: boolean[]): {
+  startHour: number;
+  endHour: number;
+} {
+  let firstBusy = -1;
+  let lastBusy = -1;
+  for (let h = 0; h < 24; h++) {
+    if (!globalBusyHour[h]) continue;
+    if (firstBusy === -1) firstBusy = h;
+    lastBusy = h;
+  }
+  if (firstBusy === -1) {
+    return { startHour: BASE_RANGE_START_HOUR, endHour: BASE_RANGE_END_HOUR };
+  }
+
+  let startHour = Math.max(0, firstBusy - 1);
+  let endHour = Math.min(24, lastBusy + 2);
+
+  // On étire vers la journée type avant d’empiéter sur la nuit : une heure de
+  // bureau vide informe davantage qu’une heure de nuit vide.
+  while (endHour - startHour < MIN_RANGE_HOURS) {
+    if (startHour > BASE_RANGE_START_HOUR) startHour -= 1;
+    else if (endHour < BASE_RANGE_END_HOUR) endHour += 1;
+    else if (startHour > 0) startHour -= 1;
+    else if (endHour < 24) endHour += 1;
+    else break;
+  }
+
+  return { startHour, endHour };
+}
+
+function hourHeightPx(
+  globalBusyHour: boolean[],
+  range: { startHour: number; endHour: number }
+): number[] {
+  return globalBusyHour.map((busy, h) => {
+    if (h < range.startHour || h >= range.endHour) return 0;
+    return busy ? OCCUPIED_HOUR_PX : EMPTY_HOUR_PX;
+  });
 }
 
 /**
@@ -134,16 +181,16 @@ export function buildWeekHourTimeline(intervals: {
   hourTicks: HourTick[];
 } {
   const globalBusyHour = computeHourOccupancyAcrossWeek(intervals);
-  const hPx = hourHeightPx(globalBusyHour);
+  const range = computeDisplayedHourRange(globalBusyHour);
+  const hPx = hourHeightPx(globalBusyHour, range);
   const totalHeight = hPx.reduce((a, b) => a + b, 0);
 
   const hourTicks: HourTick[] = [];
   let yCursor = 0;
   for (let h = 0; h < 24; h++) {
-    hourTicks.push({
-      y: yCursor,
-      label: `${h}h`,
-    });
+    if (h >= range.startHour && h < range.endHour) {
+      hourTicks.push({ y: yCursor, label: `${h}h` });
+    }
     yCursor += hPx[h];
   }
 
