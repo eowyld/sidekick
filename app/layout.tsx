@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { Archivo } from "next/font/google";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { CookieBanner } from "@/components/analytics/CookieBanner";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import { Toaster } from "sonner";
 import { SITE_URL } from "@/lib/site";
@@ -150,6 +151,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <PostHogPageView />
           </Suspense>
           {children}
+          <CookieBanner />
           <Toaster theme="dark" richColors position="bottom-right" />
         </PostHogProvider>
       </body>

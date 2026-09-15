@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SidekickLogo } from "@/components/branding/SidekickLogo";
+import { CookieSettingsButton } from "@/components/analytics/CookieSettingsButton";
 import { cn, focusRing } from "@/lib/utils";
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
@@ -87,7 +88,13 @@ export function LandingFooter() {
             </Link>
           </p>
           <p className="text-xs text-[#f5f5f5]/30">
-            © {new Date().getFullYear()} SIDEKICK. Alpha ouverte.
+            © {new Date().getFullYear()} SIDEKICK. Alpha ouverte.{" "}
+            <CookieSettingsButton
+              className={cn(
+                "rounded-sm underline decoration-[rgba(245,245,245,0.2)] underline-offset-2 transition-colors hover:text-[#F0FF00]",
+                focusRing
+              )}
+            />
           </p>
         </div>
       </div>

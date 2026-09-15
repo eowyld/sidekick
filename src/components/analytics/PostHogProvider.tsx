@@ -5,6 +5,7 @@ import { PostHogProvider as PHProvider } from "posthog-js/react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
+import { CONSENT_GRANTED_EVENT } from "@/lib/analytics-consent";
 
 /**
  * Rattache la session PostHog à l'utilisateur Supabase, et marque l'ouverture
@@ -22,7 +23,9 @@ function useIdentifyUser() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    // Avant l'accord, `identify` et `capture` sont ignorés : on recommence
+    // quand l'utilisateur accepte en cours de session.
+    const identify = async () => {
       try {
         const supabase = createClient();
         const {
@@ -44,10 +47,14 @@ function useIdentifyUser() {
       } catch {
         /* analytics : jamais bloquant */
       }
-    })();
+    };
+
+    void identify();
+    window.addEventListener(CONSENT_GRANTED_EVENT, identify);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(CONSENT_GRANTED_EVENT, identify);
     };
   }, []);
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SidekickLogo } from "@/components/branding/SidekickLogo";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { CookieSettingsButton } from "@/components/analytics/CookieSettingsButton";
 import { cn, focusRing } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -20,14 +21,16 @@ export const metadata: Metadata = {
 const LAST_UPDATED = "à compléter";
 
 function Section({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="scroll-mt-24 space-y-3">
       <h2 className="font-display text-xl sm:text-2xl">{title}</h2>
       <div className="space-y-3 text-sm leading-relaxed text-[#f5f5f5]/70">
         {children}
@@ -233,13 +236,24 @@ export default function ConfidentialitePage() {
             </p>
           </Section>
 
-          <Section title="7. Cookies et mesure d'audience">
+          <Section id="cookies" title="7. Cookies et mesure d'audience">
             <p>
-              Nous utilisons un cookie de session pour te garder connecté et un
-              outil de mesure d&apos;audience (PostHog) pour comprendre comment
-              le produit est utilisé. [à compléter : préciser si la mesure
-              d&apos;audience est exemptée de consentement ou soumise à une
-              bannière.]
+              Nous utilisons un cookie de session, indispensable, pour te
+              garder connecté. Il ne demande pas ton accord.
+            </p>
+            <p>
+              La mesure d&apos;audience (PostHog) est soumise à ton accord, via
+              le bandeau affiché à ta première visite. Tant que tu n&apos;as pas
+              accepté, aucun cookie de mesure n&apos;est déposé et aucune
+              donnée d&apos;usage n&apos;est envoyée. Si tu acceptes, nous
+              collectons les pages vues, les clics et des enregistrements de
+              session dans lesquels le contenu des champs de saisie est
+              systématiquement masqué.
+            </p>
+            <p>
+              Tu peux retirer ou donner ton accord à tout moment :{" "}
+              <CookieSettingsButton className="text-[#F0FF00] underline underline-offset-2" />
+              .
             </p>
           </Section>
 
