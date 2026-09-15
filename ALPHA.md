@@ -269,6 +269,54 @@ du samedi.
 alpha un vendredi soir fait tomber les premiers retours de testeurs pendant un
 week-end où personne ne répond.
 
+### ✅ Mardi 15/09 — Admin (statuts & démarches), simplifié
+
+Formulaire de statut recentré sur ce qui sert vraiment, plus un bug de fond sur
+les rappels de démarches — l'argument de rétention de l'alpha.
+
+- **Catalogue déclaratif** — `src/modules/admin/data/procedure-templates.ts`
+  décrit maintenant les 11 démarches types (libellé, organisme, récurrence,
+  première échéance, cochée par défaut ou non) pour AE, association 1901 et
+  intermittent. Les trois libs `ae-demarches.ts` (conservée, encore utilisée
+  par `ae-compta.ts` sous `/admin/comptabilite`, fermé pour l'alpha),
+  `association-demarches.ts` et `intermittent-demarches.ts` (supprimées, plus
+  aucun appelant) sont remplacées par
+  `src/modules/admin/lib/procedure-builder.ts` : construction à la création,
+  synchronisation à l'édition, et lecture rétrocompatible des statuts déjà
+  enregistrés (`readDemarchesSelection`) — aucune migration SQL nécessaire.
+- **Formulaire de statut** (`StatutEditPage.tsx`, 1 564 → ~940 lignes) — les
+  trois panneaux « Personnalisation des démarches » (heuristique BIC/BNC
+  déduite de l'APE, plafonds micro, exonération CFE, jauge 507 h dupliquée de
+  Revenus > Intermittence…) sont remplacés par une seule section « Démarches
+  à suivre » : une liste de cases à cocher en langage clair, plus une seule
+  vraie question (la cadence de déclaration AE). La date anniversaire
+  intermittent devient facultative — elle n'active que la case « Vérifier les
+  507 h », elle ne bloque plus la création de la fiche.
+- **Bug corrigé — rappels par mail faux pour qui n'ouvre jamais l'app.** Le
+  report des échéances récurrentes (`applyAllRecurringRollovers`) ne
+  s'exécutait qu'au montage de `/admin/demarches`, côté client. Extrait sans
+  React dans `src/modules/admin/lib/procedure-recurrence.ts` et appelé
+  depuis `app/api/cron/reminders/route.ts` avant la composition du digest :
+  les dates avancent maintenant même pour l'artiste qui n'ouvre jamais la
+  page. La page n'applique plus le rollover qu'à l'affichage (`useMemo`),
+  jamais en écriture.
+- **Deux bugs silencieux corrigés au passage** : la récurrence `biannual`
+  (visite médicale CMB) n'avait pas de branche dans le calcul de date et ne
+  roulait donc jamais ; la clé de série ignorait l'identifiant du statut, donc
+  deux statuts du même type fusionnaient leurs séries de démarches.
+- **`StatutsPage.tsx`** — retrait du bloc « Contrats en cours », qui pointait
+  vers `/admin/contrats`, fermé pour l'alpha (`coming-soon.ts`).
+
+Vérifié en dev : création d'un statut de chaque type, cases par défaut
+conformes au catalogue, cadence AE qui se répercute sur les libellés,
+ouverture d'un statut créé avant la refonte (cases reconstituées depuis les
+anciens blobs). `npx tsc --noEmit` et `npm run build` verts.
+
+**Non vérifié** : le cron en conditions réelles (Vercel ne le déclenche qu'en
+production) — testé en local via un appel direct à la route avec
+`CRON_SECRET`. Édition catalogue UI/UX, prévue le même jour, non traitée :
+reste à faire.
+
 ### ⬜ Reste — semaine 3 (14/09 → 18/09), ouverture le lundi 21/09
 
 Mêmes deux règles qu'avant : la donnée avant l'interface, et les blocages
@@ -279,11 +327,17 @@ fonctionnalité.
 | Jour | Chantier |
 |---|---|
 | Lun 14/09 | **Commit du chantier en cours** (106 fichiers, `tsc` vert) après vérification en dev · **Projets 2/2** : les 5 liens localStorage résiduels (voir ci-dessous) · **Phono** : trancher `ffmpeg`, trancher le bucket public, vérifier les liens d'écoute de bout en bout |
-| Mar 15/09 | **Admin** (gros) — simplification du module, statuts et démarches · **Édition catalogue** UI/UX |
+| Mar 15/09 | ~~**Admin** (gros) — simplification du module, statuts et démarches~~ fait (voir Avancement) · **Édition catalogue** UI/UX — reste à faire |
 | Mer 16/09 | **Légal** — CGU, CGV, mentions légales (`/confidentialite` et `/faq` sont écrites, à relire + compléter le `sameAs` du JSON-LD) · bandeau cookies PostHog · PITR + DPA · **Calendrier** : vue semaine et densité |
 | Jeu 17/09 | `handleMutationError()` sur les 20 hooks (**0 occurrence dans le code aujourd'hui**) · Configuration de prod : variables Vercel, URL Configuration Supabase, **Supabase Pro** + plafond du bucket |
 | Ven 18/09 | **Recette de déploiement** (section dédiée) sur 2 comptes vierges dont un profil mono-secteur · correctifs |
 | Lun 21/09 | **Purge PostHog**, puis ouverture |
+
+**Ajouté le 15/09** : mettre en place un premier service client, et une procédure
+d'aide pour l'utilisateur qui perd l'accès à son compte (plus accès à sa boîte
+mail, donc pas de lien de récupération possible). À caler dans la semaine 3,
+avant l'ouverture à tous le 21/09 — c'est le jour où ce cas commence à pouvoir
+arriver.
 
 **Coupé du périmètre** : Factur-X et OAuth Outlook. C'était déjà le sacrifice
 prévu, la semaine perdue le rend effectif — reste à modifier les deux phrases de
