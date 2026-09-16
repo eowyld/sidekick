@@ -169,6 +169,18 @@ export default function CguPage() {
           l&apos;image, accord des coauteurs le cas échéant) et que ces Contenus
           ne sont pas illicites.
         </p>
+        <p>
+          Vous garantissez l&apos;Éditeur contre toute réclamation, action ou
+          revendication d&apos;un tiers fondée sur les Contenus que vous déposez
+          ou diffusez, notamment au titre du droit d&apos;auteur, des droits
+          voisins ou du droit à l&apos;image. Vous prenez à votre charge les
+          conséquences financières d&apos;une telle réclamation, frais de
+          défense et condamnations éventuelles compris. L&apos;Éditeur
+          s&apos;engage en contrepartie à vous informer sans délai de toute
+          réclamation de cette nature, à vous communiquer les éléments en sa
+          possession et à vous associer à sa défense ; il ne peut transiger sans
+          votre accord.
+        </p>
       </LegalSection>
 
       <LegalSection title="6. Liens d'écoute">

@@ -98,6 +98,35 @@ Reste à faire avant l'ouverture :
 Le cron de suppression des comptes inactifs n'est **pas** un sujet d'alpha : le
 premier cas réel tombe le 21/09/2029. Voir `docs/legal/echeances.md`.
 
+### Contenus des utilisateurs et liens d'écoute — traité le 16/09
+
+Question posée : que risque SIDEKICK si un utilisateur diffuse par lien
+d'écoute une œuvre dont il n'a pas les droits ?
+
+**Rien, tant que le statut d'hébergeur est préservé** (LCEN art. 6-I-2, DSA
+art. 6) : pas de responsabilité pour un contenu déposé par un utilisateur si on
+agit promptement une fois informé. L'article 17 de la directive 2019/790
+(art. L137-1 CPI), qui ferait sauter cette protection, ne s'applique pas : il
+vise les services donnant accès **au public** à une **quantité importante**
+d'œuvres qu'ils **organisent et promeuvent**. Des liens privés n'en cochent
+aucun.
+
+- [x] Clause de garantie contre les recours de tiers ajoutée aux CGU (art. 5).
+      Il n'y avait qu'une déclaration de détention des droits, sans transfert
+      de charge : un litige restait à la charge de l'Éditeur. La clause est
+      volontairement équilibrée (information sans délai, association à la
+      défense, pas de transaction sans accord), une garantie unilatérale étant
+      attaquable comme abusive si l'utilisateur agit en consommateur.
+- [x] **Procédure 6 du registre** écrite : réception, accusé sous 24 h,
+      identification du lien, désactivation (`is_active = false`), décision
+      motivée aux deux parties (DSA art. 17), consignation. L'article 9 des CGU
+      promettait ce traitement sans qu'aucune procédure ne le décrive.
+
+⚠️ **Ce qui ferait basculer le régime** : SIDEKICK est hébergeur parce qu'il est
+passif. Mettre en avant, recommander ou classer des contenus d'utilisateurs le
+rendrait éditeur, avec la responsabilité qui va avec. À rouvrir si le presskit
+public revient ou si une fonctionnalité de découverte apparaît.
+
 ### Important, dans la première semaine
 
 - [ ] Signer / archiver les DPA (Supabase, PostHog, Vercel, Brevo), voir le

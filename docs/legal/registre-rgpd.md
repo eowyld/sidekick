@@ -249,7 +249,63 @@ le bloc légal peut être déployé sans rendre la section 6 fausse.
 Toute future fonctionnalité qui expose un fichier doit passer par une URL
 signée, jamais `getPublicUrl`.
 
-## 6. Compte utilisateur sans accès à sa boîte mail
+## 6. Procédure : signalement d'un contenu illicite
+
+Engagée publiquement par l'article 9 des CGU, et c'est elle qui fait tenir tout
+le reste : SIDEKICK est **hébergeur** (LCEN art. 6-I-2, DSA art. 6), donc non
+responsable d'un contenu illicite déposé par un utilisateur **tant qu'il agit
+promptement une fois informé**. Ne pas traiter un signalement est exactement ce
+qui fait perdre cette protection. Le cas type : un lien d'écoute diffusant un
+enregistrement dont l'utilisateur n'a pas les droits.
+
+**Délai interne visé : accusé de réception sous 24 h, décision sous 72 h.** Le
+DSA parle de « sans retard injustifié » (art. 16.6), sans chiffre ; se donner
+une cible évite d'en discuter après coup.
+
+1. **Réception** sur hello@. Un signalement recevable au sens du DSA (art. 16.2)
+   comporte l'identité du signalant, la localisation précise du contenu
+   (l'URL `/ecoute/{slug}`) et les motifs. S'il en manque, demander le
+   complément, l'horloge repart à la réponse.
+2. **Accuser réception** sans délai.
+3. **Identifier** le lien et son propriétaire :
+
+   ```sql
+   select l.id, l.slug, l.title, l.is_active, l.user_id, u.email
+   from public.user_listening_links l
+   join auth.users u on u.id = l.user_id
+   where l.slug = '<slug>';
+   ```
+
+4. **Décider.** En cas de doute sérieux sur les droits, désactiver d'abord et
+   discuter ensuite : le risque d'un lien coupé à tort est faible et réversible,
+   celui d'un contenu contrefaisant laissé en ligne après notification ne l'est
+   pas.
+
+   ```sql
+   update public.user_listening_links set is_active = false where slug = '<slug>';
+   ```
+
+   Le lien cesse immédiatement de servir l'audio. ⚠️ Cela n'efface pas le
+   fichier du bucket et n'empêche pas un destinataire de conserver ce qu'il a
+   déjà téléchargé : l'article 6 des CGU le dit aux utilisateurs, le redire au
+   signalant s'il demande davantage.
+5. **Motiver, aux deux parties** (DSA art. 17) : informer le signalant et
+   l'utilisateur de la décision **et de ses motifs**, en indiquant à
+   l'utilisateur qu'il peut la contester en répondant, pièces à l'appui.
+6. **Consigner** dans le tableau de suivi : date, signalant, contenu visé,
+   décision, date de décision. C'est la preuve d'avoir agi promptement, et elle
+   ne vaut que si elle est tenue au fil de l'eau.
+
+**Ce qui ferait basculer le régime** : SIDEKICK est hébergeur parce qu'il est
+passif. Le jour où le Service met en avant, recommande ou classe des contenus
+d'utilisateurs, la qualification devient éditoriale et la responsabilité avec.
+À rouvrir si le presskit public revient ou si une fonctionnalité de découverte
+apparaît. L'article 17 de la directive 2019/790 (art. L137-1 CPI), lui, ne
+s'applique pas : il vise les services dont l'objet principal est de donner
+accès **au public** à une **quantité importante** d'œuvres qu'ils **organisent
+et promeuvent**. Aucun des trois critères n'est rempli par des liens privés.
+
+## 7. Compte utilisateur sans accès à sa boîte mail
 
 Cas prévu au 15/09 dans `ALPHA.md`. Ne jamais changer l'email d'un compte sur
 simple demande : c'est la voie classique de prise de contrôle. Exiger au moins
