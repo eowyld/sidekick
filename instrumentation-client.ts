@@ -58,6 +58,11 @@ if (token && (!isLocalhost || enableInDev)) {
     opt_out_capturing_by_default: true,
     opt_out_persistence_by_default: true,
     loaded: notifyAnalyticsConsentChange,
+    // Section 5 de la politique de confidentialité : « cookie valable 13 mois
+    // au plus ». 365 jours est déjà le défaut de posthog-js, mais un défaut ne
+    // tient pas un engagement public : figé ici pour qu'une montée de version
+    // ne puisse pas le repousser au-delà de 13 mois sans qu'on le voie.
+    cookie_expiration: 365,
     // `PostHogPageView` capture `$pageview` à la main sur changement de route.
     // Sans ce `false`, chaque vue serait comptée deux fois.
     capture_pageview: false,

@@ -25,7 +25,6 @@ tarification (à partir de 8 €/mois) est annoncée sur la landing comme
 - **Revenus** — vue d'ensemble, facturation, royalties, droits d'auteur, intermittence
 - **Projets** + les trois secteurs artistiques (live, phono, édition)
 - **Admin** — gestion des statuts et des démarches **uniquement**
-- **Facturation électronique** — export Factur-X des factures (réintégré le 15/09, voir section dédiée)
 
 ### Fermé
 
@@ -36,6 +35,7 @@ tarification (à partir de 8 €/mois) est annoncée sur la landing comme
 | Comptabilité (`/admin/comptabilite`) | cadenas « Bientôt » |
 | Contrats (`/admin/contrats`) | cadenas « Bientôt » |
 | Presskit public (`/presskit/*`) | redirigé vers l'accueil par `proxy.ts` |
+| Facturation électronique (Factur-X) | pas de code, rien à cadenasser : reporté à la bêta le 16/09 |
 
 Un seul mécanisme, `src/lib/coming-soon.ts` : décision produit, fermée pour tous
 les comptes. À ne pas confondre avec les préférences de modules
@@ -333,20 +333,24 @@ Tout est dans `docs/legal/README.md` (checklist d'ouverture incluse).
   `/login` ; version des CGU stockée dans les métadonnées du compte (email).
 - FAQ corrigée (presskit fermé, import de fiches de paie inexistant,
   artiste-auteur non sélectionnable, TVA absente des démarches) + 4 questions.
-- Landing : Factur-X retiré de `ProductProof`, puis **remis le même jour** après
-  réintégration de Factur-X au périmètre.
+- Landing : Factur-X retiré de `ProductProof`, remis le même jour après
+  réintégration au périmètre, puis **retiré définitivement le 16/09** au profit
+  des clés de répartition SACEM (voir la section « Facturation électronique »).
 - Adresse de contact `contact@` (inexistante) remplacée par `hello@`.
 - Page d'écoute : lien vers l'information des visiteurs.
 - PostHog : plus d'écriture sessionStorage avant consentement.
-- Migration `20260915120000_user_fk_cascade.sql` **écrite, non appliquée** :
-  sans elle, supprimer un compte échoue (≈20 clés sans ON DELETE).
+- Migration `20260915120000_user_fk_cascade.sql` **appliquée en production**
+  (vérifié le 16/09) : supprimer un compte efface enfin ses données par cascade.
 - Registre RGPD et procédures : `docs/legal/registre-rgpd.md`. CGV en brouillon
   non publié : `docs/legal/CGV-brouillon.md`.
+- **Durées de conservation tranchées le 16/09** : une seule règle, les données
+  vivent ce que vit le compte, suppression après 3 ans d'inactivité. Quatre
+  exceptions subies (journaux, audience, emails de support, délai de 30 jours).
+  Décision et reste à faire dans `docs/legal/passation-durees-conservation.md`.
+  📅 **Les échéances datées sont dans `docs/legal/echeances.md`** — dont le
+  premier checkup des comptes inactifs, **septembre 2029**. Rien à coder avant.
 
-**Bloquant avant ouverture** : `TODO_` de `src/lib/legal.ts` (données Kbis),
-adhésion médiateur, application de la migration
-(`npx supabase db push --linked --dry-run` vérifié le 15/09 : seule
-`20260915120000_user_fk_cascade.sql` est en attente).
+**Bloquant avant ouverture** : `TODO_` de `src/lib/legal.ts` (données Kbis).
 
 ### ⬜ Reste — semaine 3 (14/09 → 18/09), ouverture le lundi 21/09
 
@@ -370,14 +374,18 @@ mail, donc pas de lien de récupération possible). À caler dans la semaine 3,
 avant l'ouverture à tous le 21/09 — c'est le jour où ce cas commence à pouvoir
 arriver.
 
-**Coupé du périmètre** : OAuth Outlook.
+**Coupé du périmètre : OAuth Outlook, et Factur-X.**
 
-**Réintégré le 15/09 : Factur-X.** Décision de le livrer pour l'ouverture malgré
-la semaine perdue. Le planning est déjà plein : à caser sur mer 16 et jeu 17,
-quitte à repousser `handleMutationError()` après l'ouverture. La carte Factur-X
-de `ProductProof` est remise sur la landing : **si l'export n'est pas en
-production le 21/09, la retirer avant d'ouvrir** (annoncer une fonctionnalité
-absente est une pratique commerciale trompeuse, art. L121-2 C. conso).
+Factur-X avait été réintégré le 15/09, pour livraison les 16 et 17. Ressorti le
+16/09 : rien n'était écrit, le planning de la semaine était déjà pris par le
+légal, et l'obligation d'émission pour les TPE et PME ne tombe qu'au 1er
+septembre 2027. Aucun utilisateur n'en a besoin pour l'alpha. Le chantier part
+à la bêta (`BETA.md`, chantier 2, avec Iopole).
+
+La carte `ProductProof` qui l'annonçait est remplacée par les clés de
+répartition SACEM, qui existent vraiment. C'était le seul endroit du produit à
+promettre Factur-X, et le laisser aurait été une pratique commerciale trompeuse
+(art. L121-2 C. conso).
 
 `handleMutationError()` est placé après les refontes UI volontairement : les
 composants auront bougé, autant poser les messages d'erreur une seule fois, à
@@ -431,6 +439,15 @@ d'une base propre :
   contiennent pas de contenu de champ non masqué — le masquage n'était pas
   appliqué avant le correctif. Les supprimer si c'est le cas.
 
+**Durées de conservation, vérifiées le 16/09** : les trois durées annoncées en
+section 5 de la politique sont tenues. Cookie figé à 365 jours dans
+`instrumentation-client.ts` ; événements à 1 an et replays à 30 jours, imposés
+par le plan gratuit, tous deux sous les plafonds annoncés.
+🔴 **Piège** : la rétention des événements n'est pas réglable à la baisse chez
+PostHog. Elle passe à **7 ans dès le premier euro de plan payant**, ce qui
+rendrait la section 5 fausse sans qu'aucun écran permette de la corriger. Voir
+`docs/legal/echeances.md`.
+
 ### 🟡 Lien d'écoute Phono — écrit le 03/09, à vérifier le lundi 14/09
 
 **Le code existe et n'a jamais été vérifié ni commité** : `app/ecoute/`,
@@ -481,24 +498,34 @@ Google.
 
 ---
 
-### ⬜ Facturation électronique — dans le périmètre alpha (réintégrée le 15/09)
+### ✂️ Facturation électronique — coupée du périmètre alpha le 16/09
 
-La réforme française rend la facture électronique obligatoire pour les
-indépendants. Pour l'alpha, périmètre minimal : **générer une facture au format
-Factur-X** (PDF/A-3 avec XML EN 16931 embarqué) à l'export, en plus du PDF
-actuel.
+Réintégrée le 15/09, ressortie le 16/09. Aucun code n'existait : la seule
+occurrence de « Factur-X » dans tout le dépôt était la carte de la landing.
 
-- Réutiliser le modèle de données `user_invoices` existant ; ajouter les champs
-  manquants au regard d'EN 16931 (SIREN/SIRET émetteur et client, mentions
-  légales, TVA par ligne).
-- Génération de l'XML Factur-X + embarquement dans le PDF (profil *BASIC* ou
-  *EN 16931* suffisant au départ).
-- **Hors périmètre alpha** : transmission via une PDP / Chorus Pro, cycle de
-  vie (statuts émise/reçue/encaissée normalisés), annuaire. À planifier
-  après-alpha selon le calendrier officiel.
-- ⚠️ La landing (`ProductProof`) annonce « Facturation électronique — format
-  Factur-X ». Elle n'est tenable que si l'export est en production le 21/09 ;
-  sinon, retirer la carte avant l'ouverture.
+**La landing est corrigée** : `ProductProof` annonçait « Factur-X, tes factures
+au format imposé par la réforme française » sans qu'aucun export n'existe, ce
+qui est une pratique commerciale trompeuse (art. L121-2 du Code de la
+consommation). La carte est remplacée par les **clés de répartition SACEM**
+(DEP et DRM), calculées pour de vrai dans `WorksPage.tsx`, page ouverte à
+l'alpha. Même argument de différenciation française, mais vérifiable.
+
+**Ce que ça ne coûte pas** : l'obligation d'**émission** en facture
+électronique ne s'impose aux TPE et PME qu'au **1er septembre 2027**. Depuis le
+1er septembre 2026, seule la **réception** est obligatoire. Les utilisateurs
+n'ont donc besoin de rien avant un an, et le sujet a toute sa place à la bêta.
+
+Le chantier lui-même est repris dans `BETA.md` (chantier 2, Iopole). Périmètre
+tel qu'il était pensé, à reprendre là-bas :
+
+- Réutiliser `user_invoices` ; ajouter les champs manquants au regard d'EN 16931
+  (SIREN/SIRET émetteur et client, mentions légales, TVA par ligne).
+- Génération de l'XML Factur-X + embarquement dans le PDF/A-3 (profil *BASIC*
+  ou *EN 16931*).
+- Transmission via une plateforme agréée, cycle de vie des statuts, annuaire.
+- ⚠️ Conséquence RGPD à traiter dans le même lot : une PA archive les factures
+  avec ses propres durées, donc supprimer un compte cesse de les effacer. Voir
+  `docs/legal/echeances.md`.
 - Recette : générer une facture Factur-X depuis un compte vierge et la passer
   dans un validateur (FNFE-MPE / validateur Factur-X) : XML conforme et PDF/A-3
   valide.
@@ -520,7 +547,15 @@ URLs de redirection. À dérouler après la bascule `claude-edits` → `main`.
       (`https://sidekickartists.com/**`, `http://localhost:3000/**`,
       `https://*-<scope>.vercel.app/**`).
 
-**Stockage audio — abonnement Supabase Pro**
+**Abonnement Supabase Pro — stockage audio, et surtout sauvegardes**
+
+🔴 **Deuxième raison, découverte le 16/09 et plus critique que le stockage : le
+plan gratuit ne fait aucune sauvegarde.** Aucune sauvegarde quotidienne, pas de
+PITR (réservé aux plans payants). Une base perdue est perdue, et l'alpha avec.
+Le plan Pro apporte 7 jours de sauvegardes quotidiennes, ce qui reste sous les
+30 jours promis par la politique de confidentialité pour l'effacement
+« sauvegardes comprises ». À souscrire **avant** d'ouvrir à des utilisateurs
+réels, pas quand le quota de stockage se remplira.
 
 L'hébergement des fichiers audio du catalogue Phono (un fichier par version de
 titre, masters WAV inclus) ne rentre pas dans les limites du plan Free. Un WAV
@@ -701,6 +736,25 @@ passe du compte démo de `.env.local` est refusé, à mettre à jour puis tester
    400/404 ; un fichier s'ouvre depuis le Drive ; un lien d'écoute lit l'audio
    et affiche la pochette. Le CDN Supabase peut servir une copie en cache
    jusqu'à 1 h (`cacheControl: 3600` à l'upload).
+✅ **Étape 2 faite le 16/09, avant l'étape 1.** L'ordre a été inversé
+volontairement, après avoir mesuré ce que cela cassait : le bucket ne contenait
+qu'un `Demo.mp3` et il n'existait **aucun lien d'écoute**. Refermer un accès
+public aux masters et aux contrats valait mieux qu'attendre un déploiement pour
+préserver un lien mort sur un seul compte.
+
+Vérifié : `public: false`, et l'ancienne URL publique répond 400.
+
+⚠️ **Conséquence jusqu'au déploiement** : la production tourne encore sur `main`
+(183 commits de retard) et n'a donc pas `/api/drive/file`. Les fichiers du Drive
+ne s'ouvrent pas depuis le site en ligne dans l'intervalle. C'est attendu, et
+cela se résout en déployant `claude-edits`. Reste donc à faire, dans cet ordre :
+
+1. Déployer le code.
+2. Vérifier qu'un fichier s'ouvre depuis le Drive et qu'un lien d'écoute lit
+   l'audio et affiche la pochette. Le CDN Supabase peut servir une copie en
+   cache jusqu'à 1 h (`cacheControl: 3600` à l'upload).
+3. Les pages légales peuvent partir dans le même déploiement : la contrainte
+   qui l'interdisait est levée.
 
 ### Historique — pourquoi c'était un problème
 

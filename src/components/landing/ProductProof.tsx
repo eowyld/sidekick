@@ -2,11 +2,20 @@
  * Section « différenciation » : en alpha, aucun chiffre d'usage ni témoignage
  * n'est réel, donc on ne joue pas la preuve sociale. On tient trois arguments
  * qu'un outil pensé ailleurs ne sort pas — l'intermittence et les statuts
- * français, la conformité Factur-X, l'hébergement UE.
+ * français, les clés de répartition SACEM, l'hébergement UE.
  *
- * Factur-X est réintégré au périmètre alpha le 15/09 : cette carte n'est
- * honnête que si l'export Factur-X est en production le jour de l'ouverture.
- * S'il glisse, la retirer (voir ALPHA.md).
+ * La carte Factur-X a été retirée le 16/09 : la facturation électronique est
+ * repoussée à la bêta et aucun export n'existe dans le code. Annoncer un format
+ * qu'on ne produit pas est une pratique commerciale trompeuse (art. L121-2 du
+ * Code de la consommation). Ne pas la remettre avant que l'export tourne.
+ *
+ * Chaque carte doit renvoyer à quelque chose d'ouvert dans le périmètre alpha :
+ * les clés DEP/DRM sont calculées dans `WorksPage.tsx`, page ouverte. Ne pas y
+ * mettre `/edition/sync`, qui est fermée.
+ *
+ * Le chapô n'argumente pas : le sur-titre et le titre affirment déjà « pensé
+ * d'ici, pour le marché français », et une troisième affirmation du même ordre
+ * sonnait creux. Il énumère puis annonce les cartes, rien de plus.
  */
 const FACTS = [
   {
@@ -16,10 +25,10 @@ const FACTS = [
       "Heures d'intermittence, statuts juridiques, échéances URSSAF et France Travail, suivis au même endroit que tes revenus.",
   },
   {
-    value: "Factur-X",
-    label: "facturation électronique",
+    value: "SACEM",
+    label: "clés de répartition",
     detail:
-      "Tes factures au format imposé par la réforme française. Aucun outil anglophone ne le couvre.",
+      "Tes œuvres, tes co-auteurs et tes clés DEP et DRM calculées selon le barème.",
   },
   {
     value: "UE",
@@ -42,8 +51,8 @@ export function ProductProof() {
             <span className="text-[#F0FF00]">MARCHÉ FRANÇAIS.</span>
           </h2>
           <p className="text-sm leading-relaxed text-[#f5f5f5]/60">
-            Intermittence, statuts, facturation électronique, hébergement
-            européen. Pas l&apos;adaptation d&apos;un outil pensé ailleurs.
+            Intermittence, statuts, droits d&apos;auteur, hébergement européen.
+            Concrètement, ça donne ça.
           </p>
         </div>
 

@@ -2,8 +2,9 @@
 //
 //   SHOT_EMAIL=… SHOT_PASSWORD=… node scripts/shots.mjs      (avec npm run dev lancé)
 //
-// Compte de démo : booking.yoton@gmail.com (seedé via l'onboarding, 3 secteurs
-// + données d'exemple). Le script se connecte, refait l'onboarding s'il est
+// Compte utilisé : eliott.matton@gmail.com (3 secteurs + données réelles). Le
+// compte de démo booking.yoton@gmail.com a été supprimé, ne pas le remettre ici
+// sans le recréer d'abord. Le script se connecte, refait l'onboarding s'il est
 // encore à faire, puis capture le dashboard + les pages Live / Revenus / Édition
 // en 3× vers public/images/landing/.
 import { chromium } from "playwright";

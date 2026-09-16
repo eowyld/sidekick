@@ -16,6 +16,8 @@ signalés 🔴.
 | Politique de confidentialité et cookies | `app/confidentialite/page.tsx` → `/confidentialite` | oui |
 | FAQ | `src/components/landing/faqData.ts` → `/faq` | oui |
 | Registre des traitements + procédures | `docs/legal/registre-rgpd.md` | interne |
+| Durées de conservation : la décision et le reste à faire | `docs/legal/passation-durees-conservation.md` | interne |
+| Échéances à date future (sept. 2029, bêta du 16/11) | `docs/legal/echeances.md` | interne |
 | CGV | `docs/legal/CGV-brouillon.md` | **non, après l'alpha** |
 
 Pas de page « charte RGPD » séparée : elle ferait doublon avec la politique de
@@ -36,23 +38,65 @@ confidentialité (côté utilisateurs) et le registre (côté obligations intern
       est faible. La clause correspondante des CGU ne s'affiche pas tant que
       `LEGAL_MEDIATOR` n'est pas renseigné. **À souscrire avant la bêta
       payante**, voir `BETA.md`.
-- [ ] Appliquer `supabase/migrations/20260915120000_user_fk_cascade.sql`
-      (`--dry-run` d'abord). Sans elle, supprimer un compte échoue.
-- [ ] Déployer le code, puis appliquer `20260916090000_drive_bucket_private.sql`
-      (bucket privé). La politique de confidentialité promet des fichiers sans
-      adresse publique : elle devient fausse si la migration n'est pas passée.
+- [x] `supabase/migrations/20260915120000_user_fk_cascade.sql` appliquée en
+      production le 15/09, vérifiée le 16/09 : supprimer un compte efface ses
+      données par cascade.
+- [ ] 🔴 **Déployer `claude-edits` en production.** C'est le bloquant numéro un :
+      la production tourne sur `main`, 183 commits de retard, et
+      `/mentions-legales`, `/cgu`, `/confidentialite` répondent **404**. Les
+      mentions légales sont obligatoires (LCEN art. 6-III) ; sans déploiement,
+      aucun des textes écrits n'existe pour le public.
+- [ ] 🔴 **Région d'exécution Vercel.** `"regions": ["cdg1"]` ajouté à
+      `vercel.json` le 16/09 : sans lui, le défaut Vercel est `iad1` (Washington)
+      et la promesse « données en Europe » était fausse côté calcul. Effectif au
+      prochain déploiement, à vérifier ensuite via `x-vercel-id`.
 - [ ] Vérifier que `SIGNUP_NOTIFY_TO` et la boîte hello@ reçoivent bien les
       emails (c'est l'adresse de toutes les demandes RGPD).
-- [ ] Vérifier qu'aucune page ne contient encore `TODO_` :
-      `grep -rn "TODO_" src/lib/legal.ts`
+- [x] Aucun `TODO_` ne fuit dans une page : les deux restants concernent le
+      médiateur, et la clause des CGU est conditionnée par `hasMediator`
+      (`app/cgu/page.tsx`), donc rien ne s'affiche tant qu'il n'est pas souscrit.
 
-### Chantier confié à un autre agent
+### Durées de conservation — tranché le 16/09
 
-- [ ] **Durées de conservation**, toutes données confondues : inventaire table
-      par table, mécanique de purge, réglages chez les prestataires. Passation
-      complète dans `docs/legal/passation-durees-conservation.md`. Les durées
-      publiées aujourd'hui (section 5 de la politique de confidentialité) ne
-      couvrent qu'une partie des données et ne sont appliquées par aucun code.
+Une seule règle : **les données vivent ce que vit le compte, et un compte
+inactif depuis 3 ans est supprimé après plusieurs emails de prévenance.** Pas
+d'inventaire table par table, pas de durée par donnée. Quatre exceptions
+subies, toutes déjà écrites en section 5 de la politique. Décision complète et
+justification : `docs/legal/passation-durees-conservation.md`.
+
+Reste à faire avant l'ouverture :
+
+- [x] Fichiers du bucket `drive` : `scripts/delete-user.mjs` exécute la
+      procédure 4 dans le bon ordre (vidage du dossier `{userId}/`, vérification,
+      puis suppression de l'utilisateur), et `--sweep` retrouve les dossiers
+      dont le compte n'existe plus. Écrit le 16/09.
+- [x] Balayage passé en production le 16/09 : 4 dossiers orphelins de comptes
+      de test supprimés (squelette de dossiers vides, aucun contenu personnel).
+      Vérifié après coup, le bucket ne contient plus qu'un dossier pour un
+      compte existant.
+- [x] PostHog : les trois durées annoncées sont tenues (vérifié le 16/09).
+      Cookie figé à 365 jours dans le code ; événements 1 an et replays 30
+      jours, imposés par le plan gratuit. 🔴 La rétention des événements n'est
+      **pas** réglable à la baisse et passe à 7 ans sur un plan payant : ne pas
+      changer de plan sans rouvrir la section 5.
+- [ ] Vérifier d'un coup d'œil *Project settings → Session replay → Data
+      retention* : la valeur affichée doit être ≤ 90 jours.
+- [x] Journaux et sauvegardes vérifiés le 16/09. Les 12 mois annoncés sont un
+      plafond très largement respecté (1 h chez Vercel Hobby, 1 j chez Supabase
+      Free), et la base légale de T9 a été corrigée : SIDEKICK ne porte aucune
+      obligation de conservation d'hébergeur puisqu'il ne journalise rien.
+- [ ] 🔴 **Souscrire Supabase Pro avant l'ouverture.** En plan gratuit il n'y a
+      **aucune sauvegarde** : une base perdue est perdue, et l'alpha avec. Déjà
+      prévu au 17/09 dans `ALPHA.md` pour le quota de stockage ; c'est en
+      réalité le point le plus critique de la recette.
+- [x] Registre complété le 16/09 : règle unique, liste fermée des quatre
+      exceptions, notes T8 et T9, base légale de T9 corrigée.
+- [x] `20260916090000_drive_bucket_private.sql` **appliquée en production le
+      16/09**. Vérifié : `public: false`, et l'ancienne URL publique répond 400.
+      Le bloc légal peut désormais être déployé sans rendre la section 6 fausse.
+
+Le cron de suppression des comptes inactifs n'est **pas** un sujet d'alpha : le
+premier cas réel tombe le 21/09/2029. Voir `docs/legal/echeances.md`.
 
 ### Important, dans la première semaine
 

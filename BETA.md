@@ -89,6 +89,11 @@ un produit qu'on n'ouvre pas.
 
 ### 2. Facturation électronique (Iopole)
 
+Coupée du périmètre alpha le 16/09, faute de code écrit et parce que
+l'obligation d'**émission** pour les TPE et PME ne tombe qu'au **1er septembre
+2027** (seule la réception est obligatoire depuis le 1er septembre 2026). Rien
+ne pressait. Détail de la décision dans `ALPHA.md`.
+
 Voir l'échange du 16/09. Montage retenu : **solution compatible branchée sur
 Iopole**, qui reste la plateforme agréée. Pas d'immatriculation de PHÖS AGENCY.
 
@@ -160,6 +165,14 @@ Ce qui s'ajoute, dans l'ordre où il faut s'en occuper :
 | **Seuil de franchise de TVA** surveillé : événementiel + SIDEKICK cumulés | continu | expert-comptable |
 | **Marque SIDEKICK à l'INPI** (classes 9, 41, 42) après recherche d'antériorité | avant de communiquer largement | |
 | Suppression de compte et export **en libre-service** dans l'app | bêta | aujourd'hui par email |
+| 🔴 **Ne pas passer PostHog au plan payant** sans rouvrir la section 5 : la rétention des événements saute de 1 an à 7 ans et n'est pas réglable à la baisse. C'est le moment du produit où la tentation arrive (volume d'événements en hausse) | avant tout changement de plan | `docs/legal/echeances.md` |
+| **Factures d'abonnement de PHÖS : 10 ans** (Code de commerce L123-22) à ajouter en section 5 de la politique. C'est la seule exception que le paiement crée à la règle « les données vivent ce que vit le compte » | avant le premier euro | `app/confidentialite/page.tsx` |
+
+📅 **Échéances longues** : `docs/legal/echeances.md` rassemble les obligations
+qui se déclenchent à une date future, dont les trois points juridiques que le
+passage au payant ouvre le 16/11 et le premier checkup des comptes inactifs en
+septembre 2029. La décision sur les durées est dans
+`docs/legal/passation-durees-conservation.md`.
 
 **Réversibilité, à ne pas oublier** : dès qu'Iopole archive les factures, un
 artiste qui part doit pouvoir récupérer 10 ans de documents et changer de
