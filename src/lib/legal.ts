@@ -6,8 +6,8 @@
  * fichier. Une adresse ou un numéro RCS ne s'écrit jamais en dur dans une page :
  * c'est comme ça qu'on finit avec trois versions différentes du siège social.
  *
- * Les champs `TODO_` doivent être remplis avant l'ouverture du 21/09 — voir
- * `docs/legal/README.md`.
+ * Reste à renseigner avant l'ouverture du 21/09 : le médiateur de la
+ * consommation. Voir `docs/legal/README.md`.
  */
 
 export const LEGAL_EDITOR = {
@@ -16,16 +16,22 @@ export const LEGAL_EDITOR = {
   legalForm: "SAS",
   /** En euros, tel qu'aux statuts. */
   shareCapital: "6 000",
-  /** Ville du greffe à relire sur le Kbis : Thumeries dépend de l'arrondissement de Lille. */
-  rcs: "980 520 142 R.C.S. TODO_VILLE_GREFFE",
+  rcs: "980 520 142 R.C.S. Lille Métropole",
   /** Siège social, une ligne. */
   address: "117 rue Roger Salengro, 59239 Thumeries, France",
   /** Numéro de TVA intracommunautaire, s'il existe. Chaîne vide sinon. */
   vatNumber: "FR33980520142",
   /** Président de la SAS, qui est aussi directeur de la publication. */
-  publicationDirector: "TODO_NOM_PRESIDENT",
+  publicationDirector: "Eliott Matton",
   /** Obligatoire pour un éditeur professionnel (LCEN). */
-  phone: "TODO_TELEPHONE",
+  phone: "+33 6 49 51 93 27",
+  /**
+   * L'éditeur est en franchise en base de TVA : aucune TVA n'est facturée, et
+   * toute facture doit porter la mention de l'article 293 B du CGI. Le numéro
+   * de TVA intracommunautaire existe pour les achats auprès de prestataires
+   * établis hors de France (autoliquidation), pas pour collecter.
+   */
+  vatExempt: true,
 } as const;
 
 export const LEGAL_CONTACT_EMAIL = "hello@sidekickartists.com";

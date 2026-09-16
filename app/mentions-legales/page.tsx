@@ -25,7 +25,12 @@ export default function MentionsLegalesPage() {
           {e.legalForm}{" "}au capital de {e.shareCapital}&nbsp;€, immatriculée au{" "}
           {e.rcs}, dont le siège social est situé {e.address}.
         </p>
-        {e.vatNumber && <p>Numéro de TVA intracommunautaire : {e.vatNumber}.</p>}
+        {e.vatNumber && (
+          <p>
+            Numéro de TVA intracommunautaire : {e.vatNumber}.
+            {e.vatExempt && " TVA non applicable, article 293 B du CGI."}
+          </p>
+        )}
         <p>
           Contact : <ContactEmail />, téléphone : {e.phone}.
         </p>

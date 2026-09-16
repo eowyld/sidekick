@@ -28,9 +28,8 @@ confidentialité (côté utilisateurs) et le registre (côté obligations intern
 - [x] Identité de l'éditeur renseignée le 16/09 : PHÖS AGENCY, SAS au capital
       de 6 000 €, SIREN 980 520 142, siège 117 rue Roger Salengro, 59239
       Thumeries, TVA FR33980520142.
-- [ ] Trois `TODO_` restants dans `src/lib/legal.ts` : ville du greffe du RCS
-      (à lire sur le Kbis, Thumeries relève de l'arrondissement de Lille), nom
-      du président / directeur de la publication, téléphone public.
+- [x] Identité complétée le 16/09 : RCS Lille Métropole, président et
+      directeur de la publication Eliott Matton, téléphone public renseigné.
 - [ ] Adhérer à un médiateur de la consommation et renseigner `LEGAL_MEDIATOR`.
 - [ ] Appliquer `supabase/migrations/20260915120000_user_fk_cascade.sql`
       (`--dry-run` d'abord). Sans elle, supprimer un compte échoue.
@@ -52,10 +51,11 @@ confidentialité (côté utilisateurs) et le registre (côté obligations intern
 
 ### Avant toute offre payante
 
-- [ ] Modifier l'objet social de PHÖS AGENCY et déclarer l'activité d'édition
-      de logiciel (APE 5829C ou 6201Z) sur le guichet unique INPI.
-- [ ] TVA : PHÖS AGENCY a un numéro de TVA, donc les abonnements seront
-      facturés TTC avec 20 % de TVA. À intégrer aux prix annoncés.
+- [ ] Faire corriger le code APE (5829C ou 6201Z) sur le guichet unique INPI.
+- [ ] TVA : l'éditeur est en franchise en base. Les CGV doivent porter la
+      mention « TVA non applicable, article 293 B du CGI », et les prix
+      annoncés sont nets de TVA. Surveiller le seuil de franchise : le jour où
+      il est dépassé, 20 % de TVA s'appliquent et les prix affichés changent.
 - [ ] 🔴 Faire relire la limitation de responsabilité (CGU art. 11, CGV art. 9).
 - [ ] Publier les CGV, coder la résiliation en ligne et la demande expresse
       d'exécution immédiate.
@@ -74,9 +74,11 @@ Recommandation : **la SAS**, pas la micro-entreprise.
   transfert.
 - **Seuils** : la micro-entreprise a un plafond de chiffre d'affaires commun à
   toutes ses activités. Ingé son et SIDEKICK s'additionneraient.
-- **Point à régler** : le code APE de PHÖS AGENCY est 9002Z, soutien au
-  spectacle vivant, et l'objet social vise la production d'événements.
-  L'édition d'un logiciel en ligne n'y est pas incluse. Ce n'est pas bloquant pour ouvrir une alpha gratuite (les actes
+- **Point à régler, mineur** : l'objet social des statuts couvre déjà
+  l'édition de logiciel ; seul le code APE (9002Z, soutien au spectacle
+  vivant) ne reflète pas l'activité. Le code APE est déclaratif et n'a pas
+  d'effet sur la validité des contrats, mais il sert de référence en cas de
+  contrôle : à faire corriger sur le guichet unique INPI. Ce n'est pas bloquant pour ouvrir une alpha gratuite (les actes
   engagent quand même la société envers les tiers), mais il faut **étendre
   l'objet social** par décision des associés puis formalité sur le guichet
   unique de l'INPI, avant la première vente.

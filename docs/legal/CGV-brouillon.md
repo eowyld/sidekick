@@ -40,8 +40,14 @@ les fonctionnalités incluses dans chaque offre.]
 
 ## Article 3. Prix
 
-Les prix sont indiqués en euros toutes taxes comprises : [9] € par mois ou [79]
-€ par an. Ils sont payables d'avance, pour la période choisie.
+Les prix sont indiqués en euros : [9] € par mois ou [79] € par an. Ils sont
+payables d'avance, pour la période choisie.
+
+L'Éditeur relève de la franchise en base de TVA : « TVA non applicable,
+article 293 B du CGI ». Aucune TVA n'est facturée. En cas de dépassement du
+seuil de franchise, les prix deviendront des prix hors taxes majorés de la TVA
+au taux en vigueur, après information des Clients dans les conditions de
+l'article 3.
 
 L'Éditeur peut modifier ses prix. Tout changement est notifié au Client par
 email au moins 30 jours avant de s'appliquer, et ne prend effet qu'à la période

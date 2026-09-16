@@ -6,7 +6,7 @@ sont réguliers, pas occasionnels). À présenter à la CNIL sur demande.
 
 **Responsable de traitement** : PHÖS AGENCY, SAS au capital de 6 000 €,
 SIREN 980 520 142, SIRET du siège 980 520 142 00012, 117 rue Roger Salengro,
-59239 Thumeries, représentée par son Président. Pas de DPO (non obligatoire : pas de suivi
+59239 Thumeries, représentée par son Président, Eliott Matton. Pas de DPO (non obligatoire : pas de suivi
 régulier et systématique à grande échelle, pas de données sensibles).
 Contact : hello@sidekickartists.com.
 
