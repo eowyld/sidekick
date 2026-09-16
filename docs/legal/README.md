@@ -46,6 +46,14 @@ confidentialité (côté utilisateurs) et le registre (côté obligations intern
 - [ ] Vérifier qu'aucune page ne contient encore `TODO_` :
       `grep -rn "TODO_" src/lib/legal.ts`
 
+### Chantier confié à un autre agent
+
+- [ ] **Durées de conservation**, toutes données confondues : inventaire table
+      par table, mécanique de purge, réglages chez les prestataires. Passation
+      complète dans `docs/legal/passation-durees-conservation.md`. Les durées
+      publiées aujourd'hui (section 5 de la politique de confidentialité) ne
+      couvrent qu'une partie des données et ne sont appliquées par aucun code.
+
 ### Important, dans la première semaine
 
 - [ ] Signer / archiver les DPA (Supabase, PostHog, Vercel, Brevo), voir le
