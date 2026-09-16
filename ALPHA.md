@@ -21,6 +21,7 @@ tarification (à partir de 8 €/mois) est annoncée sur la landing comme
 - **Revenus** — vue d'ensemble, facturation, royalties, droits d'auteur, intermittence
 - **Projets** + les trois secteurs artistiques (live, phono, édition)
 - **Admin** — gestion des statuts et des démarches **uniquement**
+- **Facturation électronique** — export Factur-X des factures (réintégré le 15/09, voir section dédiée)
 
 ### Fermé
 
@@ -37,7 +38,7 @@ les comptes. À ne pas confondre avec les préférences de modules
 (`enabled_modules`), qui sont un choix réversible de l'utilisateur.
 Rouvrir une fonctionnalité = retirer une ligne de ce fichier.
 
-Documents (`/admin/documents`, le Drive) **reste ouvert** : jugé stable.
+Le Drive (`/drive`, page autonome hors Admin) **reste ouvert** : jugé stable.
 
 Les 4 routes `/api/presskit/*` restent appelables bien que les pages soient
 fermées. Sans conséquence immédiate (elles sont authentifiées) — à traiter avec
@@ -317,6 +318,32 @@ production) — testé en local via un appel direct à la route avec
 `CRON_SECRET`. Édition catalogue UI/UX, prévue le même jour, non traitée :
 reste à faire.
 
+### 🟡 Mardi 15/09 (suite) — légal, avancé du 16/09
+
+Tout est dans `docs/legal/README.md` (checklist d'ouverture incluse).
+
+- Pages `/mentions-legales`, `/cgu` (avec annexe de sous-traitance art. 28),
+  `/confidentialite` refondue, liées au footer et au sitemap. Identité de
+  l'éditeur centralisée dans `src/lib/legal.ts`. **Éditeur retenu : la SAS.**
+- Mention d'acceptation des CGU + âge minimum 18 ans sur `/inscription` et
+  `/login` ; version des CGU stockée dans les métadonnées du compte (email).
+- FAQ corrigée (presskit fermé, import de fiches de paie inexistant,
+  artiste-auteur non sélectionnable, TVA absente des démarches) + 4 questions.
+- Landing : Factur-X retiré de `ProductProof`, puis **remis le même jour** après
+  réintégration de Factur-X au périmètre.
+- Adresse de contact `contact@` (inexistante) remplacée par `hello@`.
+- Page d'écoute : lien vers l'information des visiteurs.
+- PostHog : plus d'écriture sessionStorage avant consentement.
+- Migration `20260915120000_user_fk_cascade.sql` **écrite, non appliquée** :
+  sans elle, supprimer un compte échoue (≈20 clés sans ON DELETE).
+- Registre RGPD et procédures : `docs/legal/registre-rgpd.md`. CGV en brouillon
+  non publié : `docs/legal/CGV-brouillon.md`.
+
+**Bloquant avant ouverture** : `TODO_` de `src/lib/legal.ts` (données Kbis),
+adhésion médiateur, application de la migration
+(`npx supabase db push --linked --dry-run` vérifié le 15/09 : seule
+`20260915120000_user_fk_cascade.sql` est en attente).
+
 ### ⬜ Reste — semaine 3 (14/09 → 18/09), ouverture le lundi 21/09
 
 Mêmes deux règles qu'avant : la donnée avant l'interface, et les blocages
@@ -339,10 +366,14 @@ mail, donc pas de lien de récupération possible). À caler dans la semaine 3,
 avant l'ouverture à tous le 21/09 — c'est le jour où ce cas commence à pouvoir
 arriver.
 
-**Coupé du périmètre** : Factur-X et OAuth Outlook. C'était déjà le sacrifice
-prévu, la semaine perdue le rend effectif — reste à modifier les deux phrases de
-`ProductProof` sur la landing qui les annoncent, à faire le mercredi 16 avec le
-reste du texte.
+**Coupé du périmètre** : OAuth Outlook.
+
+**Réintégré le 15/09 : Factur-X.** Décision de le livrer pour l'ouverture malgré
+la semaine perdue. Le planning est déjà plein : à caser sur mer 16 et jeu 17,
+quitte à repousser `handleMutationError()` après l'ouverture. La carte Factur-X
+de `ProductProof` est remise sur la landing : **si l'export n'est pas en
+production le 21/09, la retirer avant d'ouvrir** (annoncer une fonctionnalité
+absente est une pratique commerciale trompeuse, art. L121-2 C. conso).
 
 `handleMutationError()` est placé après les refontes UI volontairement : les
 composants auront bougé, autant poser les messages d'erreur une seule fois, à
@@ -446,7 +477,7 @@ Google.
 
 ---
 
-### ✂️ Facturation électronique — coupée du périmètre alpha (reportée après l'ouverture)
+### ⬜ Facturation électronique — dans le périmètre alpha (réintégrée le 15/09)
 
 La réforme française rend la facture électronique obligatoire pour les
 indépendants. Pour l'alpha, périmètre minimal : **générer une facture au format
@@ -462,8 +493,11 @@ actuel.
   vie (statuts émise/reçue/encaissée normalisés), annuaire. À planifier
   après-alpha selon le calendrier officiel.
 - ⚠️ La landing (`ProductProof`) annonce « Facturation électronique — format
-  Factur-X ». La fonctionnalité étant coupée, **c'est la mention qu'il faut
-  retirer** avant l'ouverture, le mercredi 16/09.
+  Factur-X ». Elle n'est tenable que si l'export est en production le 21/09 ;
+  sinon, retirer la carte avant l'ouverture.
+- Recette : générer une facture Factur-X depuis un compte vierge et la passer
+  dans un validateur (FNFE-MPE / validateur Factur-X) : XML conforme et PDF/A-3
+  valide.
 
 ---
 
@@ -630,7 +664,41 @@ Trois issues, à trancher :
       sert qu'en développement, et retirer les boutons en production plutôt que
       d'afficher un message d'indisponibilité.
 
-## ⚠️ Le bucket `drive` est public — à trancher avant d'héberger des masters
+## 🟡 Bucket `drive` passé en privé — code fait le 16/09, migration à appliquer
+
+**Décision prise le 16/09 : bucket privé + URL signées partout.** La protection
+des masters et des contrats est un argument de confiance central pour les
+artistes (fuite avant sortie, vol) ; le statu quo n'était pas défendable.
+
+Fait :
+
+- `app/api/drive/file/route.ts` — ouverture d'un fichier : session + premier
+  segment du chemin = id du compte, puis redirection 302 vers une URL signée de
+  60 s (`Cache-Control: no-store`). Utilisable en `href` comme en `src`.
+- `driveFileHref()` dans `src/lib/drive-db.ts` remplace tous les
+  `getPublicUrl` : Drive (liste, upload), signatures de contrats. Les documents
+  en base qui portent une ancienne URL publique sont relus via leur
+  `storage_path`.
+- Pochette des liens d'écoute : URL signée 1 h côté serveur.
+- Plus aucun `getPublicUrl` dans le code.
+- Baseline et `supabase/scripts/setup_drive_bucket.sql` alignés sur
+  `public = false`.
+- Politique de confidentialité (section 6) et FAQ décrivent la protection.
+
+Vérifié en dev : route refusée sans session (401). **Non vérifié** : ouverture
+par le propriétaire et refus sur le fichier d'un autre compte (403) — le mot de
+passe du compte démo de `.env.local` est refusé, à mettre à jour puis tester.
+
+**Ordre de mise en production, impératif :**
+
+1. Déployer le code (sinon le Drive affiche des liens morts).
+2. `npx supabase db push --linked` → `20260916090000_drive_bucket_private.sql`.
+3. Vérifier : une ancienne URL `…/storage/v1/object/public/drive/…` répond
+   400/404 ; un fichier s'ouvre depuis le Drive ; un lien d'écoute lit l'audio
+   et affiche la pochette. Le CDN Supabase peut servir une copie en cache
+   jusqu'à 1 h (`cacheControl: 3600` à l'upload).
+
+### Historique — pourquoi c'était un problème
 
 Vérifié le 05/09 auprès de l'API Storage : le bucket `drive` a `public = true`.
 `supabase/scripts/setup_drive_bucket.sql` le crée ainsi et le README du dossier
@@ -651,10 +719,7 @@ Passer le bucket en privé n'est pas un changement anodin : le module Drive
 lui faire consommer des URL signées. Le catalogue Phono, lui, est déjà prêt —
 son lecteur passe par `/api/phono/signed-audio`, qui vérifie le propriétaire.
 
-- [ ] Décider : bucket privé + URL signées partout, ou statu quo assumé.
-- [ ] Si privé : `update storage.buckets set public = false where id = 'drive';`
-      puis basculer `DocumentsPage.tsx` sur des URL signées, et vérifier les
-      covers de presskit et les contrats signés, qui lisent aussi ce champ.
+- [x] Décidé le 16/09 : bucket privé + URL signées partout (voir ci-dessus).
 
 ## Dette identifiée, non bloquante pour l'alpha
 

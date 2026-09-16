@@ -65,7 +65,7 @@ export default function FaqPage() {
               </Link>
             </Button>
             <Link
-              href="mailto:contact@sidekickartists.com"
+              href="mailto:hello@sidekickartists.com"
               className="text-sm text-[#f5f5f5]/60 underline decoration-[#f5f5f5]/20 underline-offset-4 transition-colors hover:text-[#F0FF00]"
             >
               Écrire à l&apos;équipe

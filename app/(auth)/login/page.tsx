@@ -10,6 +10,7 @@ import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth-errors";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { TermsNotice } from "@/components/auth/TermsNotice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -193,6 +194,8 @@ function LoginPageContent() {
           disabled={googleLoading || loading}
           loading={googleLoading}
         />
+
+        <TermsNotice />
 
         <p className="text-center text-sm text-[#f5f5f5]/60">
           Pas encore de compte ?{" "}

@@ -4,7 +4,7 @@ import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { CONSENT_GRANTED_EVENT } from "@/lib/analytics-consent";
 
 /**
@@ -30,9 +30,11 @@ function useIdentifyUser() {
         const supabase = createClient();
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getSessionUser(supabase);
 
-        if (cancelled || !user) return;
+        // Sans accord, rien n'est écrit sur l'appareil, pas même la garde
+        // sessionStorage : elle ne sert que la mesure d'audience.
+        if (cancelled || !user || !posthog.has_opted_in_capturing()) return;
 
         posthog.identify(user.id, {
           email: user.email,

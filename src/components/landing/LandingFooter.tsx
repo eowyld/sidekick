@@ -32,7 +32,11 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   },
   {
     title: "Légal",
-    links: [{ label: "Confidentialité", href: "/confidentialite" }],
+    links: [
+      { label: "Mentions légales", href: "/mentions-legales" },
+      { label: "CGU", href: "/cgu" },
+      { label: "Confidentialité", href: "/confidentialite" },
+    ],
   },
 ];
 

@@ -3,13 +3,17 @@
  * n'est réel, donc on ne joue pas la preuve sociale. On tient trois arguments
  * qu'un outil pensé ailleurs ne sort pas — l'intermittence et les statuts
  * français, la conformité Factur-X, l'hébergement UE.
+ *
+ * Factur-X est réintégré au périmètre alpha le 15/09 : cette carte n'est
+ * honnête que si l'export Factur-X est en production le jour de l'ouverture.
+ * S'il glisse, la retirer (voir ALPHA.md).
  */
 const FACTS = [
   {
     value: "URSSAF",
     label: "droits, charges et statuts",
     detail:
-      "Cachets et heures d'intermittence, statuts juridiques, échéances URSSAF, France Travail et TVA — suivis au même endroit que tes revenus.",
+      "Heures d'intermittence, statuts juridiques, échéances URSSAF et France Travail, suivis au même endroit que tes revenus.",
   },
   {
     value: "Factur-X",

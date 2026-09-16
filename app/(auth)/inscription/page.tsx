@@ -11,6 +11,8 @@ import { authErrorMessage } from "@/lib/auth-errors";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { TermsNotice } from "@/components/auth/TermsNotice";
+import { LEGAL_UPDATED } from "@/lib/legal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,7 +99,8 @@ function InscriptionPageContent() {
         email,
         password,
         options: {
-          data: { full_name: fullName },
+          // Version des CGU acceptée, gardée comme preuve de l'acceptation.
+          data: { full_name: fullName, terms_accepted: LEGAL_UPDATED.cgu },
           // Doit passer par /auth/callback : le lien de confirmation porte un
           // code PKCE à échanger contre une session. Pointer directement sur
           // /dashboard laissait l'utilisateur non connecté.
@@ -299,6 +302,8 @@ function InscriptionPageContent() {
             {loading ? "Inscription…" : "Créer mon compte"}
           </Button>
         </form>
+
+        <TermsNotice />
 
         <p className="text-center text-sm text-[#f5f5f5]/60">
           Déjà un compte ?{" "}
