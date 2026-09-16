@@ -3,6 +3,10 @@
 Document de reprise. À lire en premier pour reprendre le chantier de mise en
 vente. Mis à jour à chaque fin de journée.
 
+**Après l'ouverture du 21/09, la suite se prépare dans `BETA.md`** : bêta
+payante visée le lundi 16/11/2026 (Stripe, CGV, Iopole, réouverture du
+périmètre fermé).
+
 **Cible : ouverture de l'alpha le lundi 21/09/2026.**
 *(repoussée du 14/09 — semaine du 09 au 13/09 perdue, voir Avancement)*
 Alpha **gratuite et ouverte à tous** : inscription libre depuis la landing, sans

@@ -18,6 +18,12 @@ export const metadata: Metadata = {
 };
 
 export default function CguPage() {
+  /* Le médiateur de la consommation n'est obligatoire qu'à partir d'une offre
+   * payante (art. L612-1 du Code de la consommation). Tant qu'il n'est pas
+   * souscrit, on n'en annonce pas : une clause qui renvoie à un médiateur
+   * inexistant se retourne contre l'éditeur. */
+  const hasMediator = !LEGAL_MEDIATOR.name.startsWith("TODO_");
+
   return (
     <LegalPage
       title="Conditions générales d'utilisation"
@@ -315,11 +321,14 @@ export default function CguPage() {
           écrivez d&apos;abord à <ContactEmail />{" "}: la plupart des questions se
           règlent ainsi.
         </p>
-        <p>
-          Si vous agissez en qualité de consommateur et qu&apos;aucune solution
-          n&apos;est trouvée, vous pouvez recourir gratuitement au médiateur de
-          la consommation : {LEGAL_MEDIATOR.name}, {LEGAL_MEDIATOR.website}.
-        </p>
+        {hasMediator && (
+          <p>
+            Si vous agissez en qualité de consommateur et qu&apos;aucune
+            solution n&apos;est trouvée, vous pouvez recourir gratuitement au
+            médiateur de la consommation : {LEGAL_MEDIATOR.name},{" "}
+            {LEGAL_MEDIATOR.website}.
+          </p>
+        )}
         <p>
           À défaut d&apos;accord amiable, le litige est porté devant les
           juridictions compétentes selon les règles de droit commun. Entre

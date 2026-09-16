@@ -30,7 +30,12 @@ confidentialité (côté utilisateurs) et le registre (côté obligations intern
       Thumeries, TVA FR33980520142.
 - [x] Identité complétée le 16/09 : RCS Lille Métropole, président et
       directeur de la publication Eliott Matton, téléphone public renseigné.
-- [ ] Adhérer à un médiateur de la consommation et renseigner `LEGAL_MEDIATOR`.
+- [x] Médiateur de la consommation : écarté pour l'alpha, décision du 16/09.
+      L'obligation de l'article L612-1 vise les litiges nés d'un contrat de
+      fourniture de services à un consommateur ; sans offre payante, le risque
+      est faible. La clause correspondante des CGU ne s'affiche pas tant que
+      `LEGAL_MEDIATOR` n'est pas renseigné. **À souscrire avant la bêta
+      payante**, voir `BETA.md`.
 - [ ] Appliquer `supabase/migrations/20260915120000_user_fk_cascade.sql`
       (`--dry-run` d'abord). Sans elle, supprimer un compte échoue.
 - [ ] Déployer le code, puis appliquer `20260916090000_drive_bucket_private.sql`
