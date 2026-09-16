@@ -12,16 +12,16 @@
 
 export const LEGAL_EDITOR = {
   /** Dénomination sociale exacte, telle qu'au Kbis. */
-  companyName: "TODO_RAISON_SOCIALE",
+  companyName: "PHÖS AGENCY",
   legalForm: "SAS",
   /** En euros, tel qu'aux statuts. */
-  shareCapital: "TODO_CAPITAL",
-  /** Ex. « 123 456 789 R.C.S. Paris ». */
-  rcs: "TODO_RCS",
+  shareCapital: "6 000",
+  /** Ville du greffe à relire sur le Kbis : Thumeries dépend de l'arrondissement de Lille. */
+  rcs: "980 520 142 R.C.S. TODO_VILLE_GREFFE",
   /** Siège social, une ligne. */
-  address: "TODO_ADRESSE_SIEGE",
+  address: "117 rue Roger Salengro, 59239 Thumeries, France",
   /** Numéro de TVA intracommunautaire, s'il existe. Chaîne vide sinon. */
-  vatNumber: "TODO_TVA_OU_VIDE",
+  vatNumber: "FR33980520142",
   /** Président de la SAS, qui est aussi directeur de la publication. */
   publicationDirector: "TODO_NOM_PRESIDENT",
   /** Obligatoire pour un éditeur professionnel (LCEN). */
