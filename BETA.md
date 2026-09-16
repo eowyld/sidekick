@@ -7,6 +7,12 @@ l'ouverture du 21/09/2026 ; ce document prend le relais ensuite.
 l'alpha. Lundi, jamais un vendredi : les premiers paiements ratés doivent tomber
 un jour où tu peux répondre.
 
+**Règle de communication : on n'annonce rien tant que les essentiels ne sont pas
+faits.** La date vit dans ce document, pas sur la landing ni dans un email aux
+testeurs. On l'annonce quand le paiement fonctionne de bout en bout et que la
+facturation électronique est branchée. Tant qu'elle n'est pas annoncée, elle se
+recalibre sans rien coûter.
+
 Créé le 16/09/2026.
 
 ---
@@ -38,14 +44,12 @@ Proposition de frontière, à trancher avec les chiffres de l'alpha :
 | Rappels de démarches par email | Export comptable, note de frais |
 | 1 Go de stockage, 3 liens d'écoute actifs | 20 Go, liens d'écoute illimités, presskit public |
 
-⚠️ **Décision à prendre avant de coder le paiement** : les rappels de démarches
-restent-ils gratuits ? C'est l'argument de rétention de l'alpha. Les laisser
-gratuits attire, les rendre payants monétise le seul usage qui fait revenir.
-Recommandation : gratuits, c'est ce qui fait rester les gens dans l'outil.
+**Tranché le 16/09 : les rappels de démarches restent gratuits.** C'est ce qui
+fait revenir les gens dans l'outil ; on ne met pas de péage sur la rétention.
 
-⚠️ **Seuil de gratuité du stockage** : un master WAV pèse ~64 Mo. 1 Go gratuit,
-c'est 15 fichiers. À calibrer sur ce que les testeurs de l'alpha auront
-réellement importé.
+**Tranché le 16/09 : 1 Go de stockage dans le gratuit.** Soit une quinzaine de
+masters WAV. À revoir seulement si les chiffres de l'alpha montrent que le
+plafond est atteint avant que les gens aient compris la valeur du produit.
 
 ---
 
@@ -147,7 +151,7 @@ Ce qui s'ajoute, dans l'ordre où il faut s'en occuper :
 | Quoi | Quand | Où |
 |---|---|---|
 | **CGV publiées sur `/cgv`**, acceptées par case à cocher au paiement | avant le premier euro | `docs/legal/CGV-brouillon.md` |
-| **Médiateur de la consommation** souscrit et cité dans les CGV et CGU | avant le premier euro, prévoir des semaines de traitement | `LEGAL_MEDIATOR` dans `src/lib/legal.ts` |
+| **Médiateur de la consommation** souscrit et cité dans les CGV et CGU | **adhésion à lancer en S5, autour du 19/10** : plusieurs semaines de traitement | `LEGAL_MEDIATOR` dans `src/lib/legal.ts` |
 | 🔴 **Relecture avocat** de la limitation de responsabilité (CGU art. 11, CGV art. 9) | avant le premier euro, ~500 € | |
 | **Récapitulatif sur support durable** (email + PDF) après souscription | avec Stripe | |
 | **DPA Iopole**, ajout au registre et à la politique de confidentialité | avec Iopole | `docs/legal/registre-rgpd.md` |
@@ -169,36 +173,34 @@ plateforme agréée dans l'annuaire. C'est à écrire dans les CGU et à coder.
 |---|---|
 | S1–S2 (22/09 → 03/10) | Correctifs d'alpha, écoute des testeurs, premiers chiffres à J14 |
 | S3–S4 (05/10 → 17/10) | Stripe de bout en bout, écran Abonnement, résiliation en ligne, CGV publiées |
-| S5–S6 (19/10 → 31/10) | Iopole et Factur-X, dette technique (erreurs des hooks, lint) |
+| S5–S6 (19/10 → 31/10) | **Lancer l'adhésion au médiateur de la consommation** (délai externe de plusieurs semaines, à faire maintenant pour être couvert le 16/11) · Iopole et Factur-X, dette technique (erreurs des hooks, lint) |
 | S7 (02/11 → 07/11) | Réouverture Marketing, presskit, Contrats, Comptabilité, une par une |
 | S8 (09/11 → 14/11) | Outlook si le temps le permet, recette complète sur comptes vierges, paiements de test |
 | **Lun 16/11** | **Ouverture de la bêta payante** |
 
 ---
 
-## Le problème de ce plan, dit franchement
+## Ordre de priorité
 
-**Le périmètre choisi ne rentre pas dans huit semaines pour une personne
-seule.** Stripe de bout en bout, c'est deux semaines. Iopole, c'est deux à
-trois semaines, dont une hors de ton contrôle (contrat, vérifications
-d'identité). Rouvrir quatre modules fermés demande une recette pour chacun, et
-ces modules ont été fermés parce qu'ils n'étaient pas prêts.
+Le planning ci-dessus est une intention, pas un engagement : rien n'est annoncé,
+donc il se recalibre en route. Ce qui compte, c'est l'ordre.
 
-Ordre de sacrifice recommandé, du premier à couper au dernier :
+**Essentiels, dans cet ordre.** Ce sont eux qui déclenchent l'annonce :
 
-1. **OAuth Outlook** (contournable : les gens ont une adresse email).
-2. **Comptabilité** (le module le moins mûr).
-3. **Marketing et presskit public** (surface publique, donc risque, pour un
-   gain incertain).
-4. **Contrats** (utile, mais ce n'est pas ce qui fait payer).
+1. **Le paiement** de bout en bout (Stripe, verrouillage côté serveur,
+   résiliation en ligne).
+2. **Les CGV et le médiateur**, sans quoi le paiement ne peut pas s'ouvrir.
+3. **Iopole et Factur-X**, le seul argument qu'aucun outil anglophone ne tient.
+4. **Les erreurs silencieuses des hooks**, parce qu'un client qui paie ne
+   pardonne pas ce qu'un testeur gratuit laisse passer.
 
-**Ce qui ne se coupe pas** : le paiement, les CGV, la dette qui produit des
-erreurs silencieuses, et Iopole, qui est ton seul argument qu'aucun outil
-anglophone ne tient.
+**Le reste vient après, et se décale sans drame** : réouverture de Contrats,
+Marketing et presskit, Comptabilité, puis Outlook. Si l'un d'eux n'est pas prêt
+le 16/11, il sort à la mise à jour suivante, la bêta n'attend pas après lui.
 
-Si le 16/11 se tend, décale la date plutôt que le périmètre de qualité. Une
-bêta payante qui perd les données d'un client coûte plus cher qu'un mois de
-retard.
+Deux points de vigilance qui ne dépendent pas de toi : le contrat Iopole et les
+vérifications d'identité de leurs utilisateurs prennent un délai externe, et
+l'adhésion au médiateur aussi. Ce sont les deux à lancer tôt.
 
 ---
 
