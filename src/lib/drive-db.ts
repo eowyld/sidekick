@@ -2,6 +2,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { STORAGE_QUOTA_BYTES, formatBytes } from "@/modules/phono/lib/audio-limits";
 
+/**
+ * Adresse d'ouverture d'un fichier du bucket `drive`, privé. Passe par
+ * `/api/drive/file`, qui vérifie session et propriétaire avant de rediriger
+ * vers une URL signée courte. Ne jamais exposer d'URL publique Storage.
+ */
+export function driveFileHref(path: string, opts?: { download?: boolean }): string {
+  const query = new URLSearchParams({ path });
+  if (opts?.download) query.set("download", "1");
+  return `/api/drive/file?${query.toString()}`;
+}
+
 export interface DriveFolderRow {
   id: string;
   user_id: string;
@@ -71,7 +82,9 @@ function rowToDocument(row: DriveDocumentRow): DriveDocument {
     id: row.id,
     title: row.title,
     folderId: row.folder_id ?? null,
-    link: row.link ?? undefined,
+    // Les documents importés avant le passage du bucket en privé portent une
+    // URL publique, désormais morte : le chemin Storage fait foi.
+    link: row.storage_path ? driveFileHref(row.storage_path) : row.link ?? undefined,
     category: row.category ?? undefined,
     sourceModule: row.source_module ?? undefined,
     notes: row.notes ?? undefined,
@@ -152,7 +165,12 @@ export async function fetchUserDocuments(
   return (data ?? []).map((row) => rowToDocument(row as DriveDocumentRow));
 }
 
-async function fetchUserStorage(
+/**
+ * Lit le compteur stocké dans `user_drive_storage` : une seule requête.
+ * Il peut dériver (écritures hors Drive, contrats, nettoyage audio) ; pour le
+ * recaler, voir `getUserStorageUsed`, qui parcourt tout le bucket.
+ */
+export async function fetchUserStorage(
   supabase: SupabaseClient,
   userId: string
 ): Promise<number> {
@@ -166,12 +184,15 @@ async function fetchUserStorage(
   return (data?.storage_used_bytes as number | null) ?? 0;
 }
 
+/** Recalcule l'espace réel en parcourant le bucket et recale le compteur stocké. */
 export async function getUserStorageUsed(
   supabase: SupabaseClient,
   userId: string
 ): Promise<number> {
-  const actualUsed = await calculateStorageUsedFromFiles(supabase, userId);
-  const storedUsed = await fetchUserStorage(supabase, userId);
+  const [actualUsed, storedUsed] = await Promise.all([
+    calculateStorageUsedFromFiles(supabase, userId),
+    fetchUserStorage(supabase, userId)
+  ]);
   if (Math.abs(actualUsed - storedUsed) > 1024) {
     await supabase.from("user_drive_storage").upsert(
       { user_id: userId, storage_used_bytes: actualUsed, updated_at: new Date().toISOString() },
@@ -325,7 +346,8 @@ export async function deleteDocument(
 
   const storagePath = existing?.storage_path;
   if (storagePath && typeof storagePath === "string") {
-    await supabase.storage.from(DRIVE_BUCKET).remove([storagePath]);
+    const { error: removeError } = await supabase.storage.from(DRIVE_BUCKET).remove([storagePath]);
+    if (removeError) throw new Error(removeError.message ?? String(removeError));
   }
 
   const fileSizeBytes = existing?.file_size_bytes;
@@ -457,7 +479,9 @@ export async function uploadDriveFileToPath(
       `Fichier trop volumineux : ${formatBytes(file.size)}, limite actuelle ${formatBytes(maxBytes)}.`
     );
   }
-  const currentUsed = await getUserStorageUsed(supabase, userId);
+  // Compteur stocké plutôt que recalcul complet : le recalcul parcourt tout le
+  // bucket et rendait chaque upload lent. Il est recalé au chargement du Drive.
+  const currentUsed = await fetchUserStorage(supabase, userId);
   if (currentUsed + file.size > STORAGE_LIMIT_BYTES) {
     // La limite est lue depuis la constante, jamais écrite en dur : elle est
     // pilotée par NEXT_PUBLIC_STORAGE_QUOTA_GB et changera au passage en
@@ -507,14 +531,7 @@ export async function uploadDriveFileToPath(
     onProgress(100);
   }
 
-  // ATTENTION : le bucket `drive` est configuré `public = true` (vérifié côté
-  // Supabase). Cette URL fonctionne donc sans authentification, et quiconque la
-  // détient peut télécharger le fichier — y compris un master inédit. Le module
-  // Drive s'en sert comme lien d'ouverture, on la conserve pour ne pas le
-  // casser. Passer le bucket en privé et servir des URL signées partout est une
-  // décision d'infrastructure à prendre à part : voir ALPHA.md.
-  const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(path);
-  return { url: urlData.publicUrl, path };
+  return { url: driveFileHref(path), path };
 }
 
 export async function uploadDriveFile(
@@ -605,8 +622,25 @@ export interface StorageContentsResult {
   files: StorageFileEntry[];
 }
 
-function hasFileSizeMetadata(item: { metadata?: { size?: unknown } | null }): boolean {
-  return typeof item.metadata?.size === "number";
+interface StorageListItem {
+  name: string;
+  id?: string | null;
+  metadata?: { size?: unknown } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * L'API Storage renvoie les dossiers (préfixes) avec `id` et `metadata` à null,
+ * et les fichiers avec un id et leurs métadonnées. Pas besoin de lister chaque
+ * élément pour savoir si c'est un dossier : c'était une requête par élément.
+ */
+function isStorageFolderItem(item: StorageListItem): boolean {
+  return item.id == null && item.metadata == null;
+}
+
+function storageItemSize(item: StorageListItem): number {
+  return Number(item.metadata?.size) || 0;
 }
 
 
@@ -620,49 +654,25 @@ export async function listStorageContents(
     .list(folderPath, { limit: 500, sortBy: { column: "name", order: "asc" } });
 
   if (error) return { folders: [], files: [] };
-  const items = data ?? [];
   const folders: StorageFolderEntry[] = [];
   const files: StorageFileEntry[] = [];
 
-  for (const item of items) {
+  for (const item of (data ?? []) as StorageListItem[]) {
     const name = item.name;
     if (!name) continue;
     if (isPlaceholderFileName(name)) continue;
     const childPath = folderPath ? `${folderPath}/${name}` : name;
-    if (hasFileSizeMetadata(item)) {
-      // Bucket public : cette URL est exploitable sans authentification.
-      // Voir l'avertissement de `uploadDriveFileToPath`.
-      files.push({
-        name,
-        path: childPath,
-        url: supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath).data.publicUrl,
-        sizeBytes: Number(item.metadata?.size) || 0,
-        updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
-      });
+    if (isStorageFolderItem(item)) {
+      folders.push({ name, path: childPath, createdAt: item.created_at ?? null });
       continue;
     }
-
-    const { data: childData } = await supabase.storage
-      .from(DRIVE_BUCKET)
-      .list(childPath, { limit: 1 });
-    const isFolder = (childData?.length ?? 0) > 0;
-    if (isFolder) {
-      folders.push({
-        name,
-        path: childPath,
-        createdAt: ("created_at" in item ? (item.created_at as string | null) : null) ?? null
-      });
-    } else {
-      // Bucket public : cette URL est exploitable sans authentification.
-      // Voir l'avertissement de `uploadDriveFileToPath`.
-      files.push({
-        name,
-        path: childPath,
-        url: supabase.storage.from(DRIVE_BUCKET).getPublicUrl(childPath).data.publicUrl,
-        sizeBytes: Number(item.metadata?.size) || 0,
-        updatedAt: ("updated_at" in item ? (item.updated_at as string | null) : null) ?? null
-      });
-    }
+    files.push({
+      name,
+      path: childPath,
+      url: driveFileHref(childPath),
+      sizeBytes: storageItemSize(item),
+      updatedAt: item.updated_at ?? null
+    });
   }
 
   return { folders, files };
@@ -674,45 +684,53 @@ export async function listAllStorageContents(
   rootPath: string
 ): Promise<StorageContentsResult> {
   const { folders, files } = await listStorageContents(supabase, rootPath);
-  const allFolders: StorageFolderEntry[] = [...folders];
-  const allFiles: StorageFileEntry[] = [...files];
-  for (const folder of folders) {
-    const sub = await listAllStorageContents(supabase, folder.path);
-    allFolders.push(...sub.folders);
-    allFiles.push(...sub.files);
-  }
-  return { folders: allFolders, files: allFiles };
+  const subs = await Promise.all(
+    folders.map((folder) => listAllStorageContents(supabase, folder.path))
+  );
+  return {
+    folders: [...folders, ...subs.flatMap((s) => s.folders)],
+    files: [...files, ...subs.flatMap((s) => s.files)]
+  };
 }
 
-/** Liste récursivement tous les chemins de fichiers sous un préfixe (pour suppression/renommage de dossier). */
+interface StorageObjectRef {
+  path: string;
+  sizeBytes: number;
+}
+
+/**
+ * Liste récursivement tous les objets sous un préfixe, placeholders compris
+ * (pour suppression/renommage de dossier). Les sous-dossiers sont parcourus
+ * en parallèle.
+ */
+async function listAllObjectsUnderPrefix(
+  supabase: SupabaseClient,
+  prefix: string
+): Promise<StorageObjectRef[]> {
+  const { data, error } = await supabase.storage
+    .from(DRIVE_BUCKET)
+    .list(prefix, { limit: 1000 });
+  if (error) throw new Error(error.message ?? String(error));
+  const objects: StorageObjectRef[] = [];
+  const subfolders: string[] = [];
+  for (const item of (data ?? []) as StorageListItem[]) {
+    if (!item.name) continue;
+    const childPath = prefix ? `${prefix}/${item.name}` : item.name;
+    if (isStorageFolderItem(item)) subfolders.push(childPath);
+    else objects.push({ path: childPath, sizeBytes: storageItemSize(item) });
+  }
+  const subs = await Promise.all(
+    subfolders.map((sub) => listAllObjectsUnderPrefix(supabase, sub))
+  );
+  return [...objects, ...subs.flat()];
+}
+
 async function listAllFilePathsUnderPrefix(
   supabase: SupabaseClient,
   prefix: string
 ): Promise<string[]> {
-  const { data, error } = await supabase.storage
-    .from(DRIVE_BUCKET)
-    .list(prefix, { limit: 1000 });
-  if (error) return [];
-  const paths: string[] = [];
-  for (const item of data ?? []) {
-    const name = item.name;
-    if (!name) continue;
-    const childPath = prefix ? `${prefix}/${name}` : name;
-    if (hasFileSizeMetadata(item)) {
-      paths.push(childPath);
-      continue;
-    }
-    const { data: childData } = await supabase.storage
-      .from(DRIVE_BUCKET)
-      .list(childPath, { limit: 1 });
-    if ((childData?.length ?? 0) > 0) {
-      const sub = await listAllFilePathsUnderPrefix(supabase, childPath);
-      paths.push(...sub);
-    } else {
-      paths.push(childPath);
-    }
-  }
-  return paths;
+  const objects = await listAllObjectsUnderPrefix(supabase, prefix);
+  return objects.map((o) => o.path);
 }
 
 /** Calcule l'espace réellement utilisé dans le Storage en listant récursivement tous les fichiers. */
@@ -720,33 +738,8 @@ async function calculateStorageUsedFromFiles(
   supabase: SupabaseClient,
   userId: string
 ): Promise<number> {
-  async function sumFilesInPath(path: string): Promise<number> {
-    const { data, error } = await supabase.storage.from(DRIVE_BUCKET).list(path, {
-      limit: 1000
-    });
-    if (error || !data) return 0;
-    let total = 0;
-    const subfolders: string[] = [];
-    for (const item of data) {
-      if (!item.name || isPlaceholderFileName(item.name)) continue;
-      const childPath = path ? `${path}/${item.name}` : item.name;
-      if (hasFileSizeMetadata(item)) {
-        total += Number(item.metadata?.size) || 0;
-        continue;
-      }
-      const { data: childData } = await supabase.storage
-        .from(DRIVE_BUCKET)
-        .list(childPath, { limit: 1 });
-      if ((childData?.length ?? 0) > 0) {
-        subfolders.push(childPath);
-      }
-    }
-    for (const subfolder of subfolders) {
-      total += await sumFilesInPath(subfolder);
-    }
-    return total;
-  }
-  return await sumFilesInPath(userId);
+  const objects = await listAllObjectsUnderPrefix(supabase, userId);
+  return objects.reduce((total, o) => total + o.sizeBytes, 0);
 }
 
 /** Quota global par utilisateur. Aligné sur le plafond audio, qui le domine. */
@@ -764,25 +757,14 @@ export async function deleteStorageFolder(
   folderPath: string
 ): Promise<void> {
   const userId = folderPath.split("/")[0];
-  const paths = await listAllFilePathsUnderPrefix(supabase, folderPath);
-  if (paths.length === 0) return;
-  let totalSize = 0;
-  for (const path of paths) {
-    const pathParts = path.split("/");
-    const fileName = pathParts[pathParts.length - 1];
-    const parentPath = pathParts.slice(0, -1).join("/");
-    const { data } = await supabase.storage.from(DRIVE_BUCKET).list(parentPath || userId, {
-      limit: 1000
-    });
-    const file = data?.find((f) => f.name === fileName);
-    if (file?.metadata?.size) {
-      totalSize += Number(file.metadata.size) || 0;
-    }
-  }
+  const objects = await listAllObjectsUnderPrefix(supabase, folderPath);
+  if (objects.length === 0) return;
+  const totalSize = objects.reduce((total, o) => total + o.sizeBytes, 0);
   const batchSize = 1000;
-  for (let i = 0; i < paths.length; i += batchSize) {
-    const chunk = paths.slice(i, i + batchSize);
-    await supabase.storage.from(DRIVE_BUCKET).remove(chunk);
+  for (let i = 0; i < objects.length; i += batchSize) {
+    const chunk = objects.slice(i, i + batchSize).map((o) => o.path);
+    const { error } = await supabase.storage.from(DRIVE_BUCKET).remove(chunk);
+    if (error) throw new Error(error.message ?? String(error));
   }
   if (userId && totalSize > 0) {
     await subtractStorageUsed(supabase, userId, totalSize);

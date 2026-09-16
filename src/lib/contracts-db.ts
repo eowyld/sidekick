@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   uploadDriveFileToPath,
-  DRIVE_BUCKET
+  driveFileHref
 } from "./drive-db";
 
 // Types
@@ -355,13 +355,7 @@ export async function fetchUserContractSignatures(
     return rows.map((r) => rowToSignature(r));
   }
 
-  // Bucket public → URL publique.
-  return await Promise.all(
-    rows.map(async (r) => {
-      const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(r.storage_path);
-      return rowToSignature(r, urlData.publicUrl);
-    })
-  );
+  return rows.map((r) => rowToSignature(r, driveFileHref(r.storage_path)));
 }
 
 export async function setActiveSignature(
@@ -413,8 +407,7 @@ export async function insertContractSignatureRecord(
 
   if (error) throw error;
 
-  const { data: urlData } = supabase.storage.from(DRIVE_BUCKET).getPublicUrl(payload.storagePath);
-  return rowToSignature(data as unknown as SignatureRow, urlData.publicUrl);
+  return rowToSignature(data as unknown as SignatureRow, driveFileHref(payload.storagePath));
 }
 
 export async function uploadContractSignatureImage(
@@ -426,7 +419,7 @@ export async function uploadContractSignatureImage(
   const pngFile = new File([payload.file], `${id}.png`, { type: payload.file.type || "image/png" });
 
   // Stock dans drive : drive/{userId}/contracts-signatures/{id}.png
-  const { path, url } = await uploadDriveFileToPath(
+  const { path } = await uploadDriveFileToPath(
     supabase,
     userId,
     pngFile,
@@ -481,10 +474,9 @@ export async function updateContractSignatureLabel(
 
   if (error) throw error;
 
-  const { data: urlData } = supabase.storage
-    .from(DRIVE_BUCKET)
-    .getPublicUrl((data as SignatureRow).storage_path);
-
-  return rowToSignature(data as unknown as SignatureRow, urlData.publicUrl);
+  return rowToSignature(
+    data as unknown as SignatureRow,
+    driveFileHref((data as SignatureRow).storage_path)
+  );
 }
 

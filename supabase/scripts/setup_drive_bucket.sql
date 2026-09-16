@@ -6,7 +6,7 @@
 -- Si l'INSERT dans storage.buckets échoue (permission ou schéma) :
 -- 1. Va dans Storage → New bucket
 -- 2. Name: drive
--- 3. Public bucket: ON (pour que les liens des fichiers soient accessibles)
+-- 3. Public bucket: OFF (les fichiers s'ouvrent via /api/drive/file, URL signées)
 -- 4. File size limit: 50 MB
 -- 5. Crée le bucket, puis exécute UNIQUEMENT la partie "POLICIES RLS" ci-dessous
 -- =============================================================================
@@ -16,7 +16,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values (
   'drive',
   'drive',
-  true,
+  false,
   52428800,
   null
 )

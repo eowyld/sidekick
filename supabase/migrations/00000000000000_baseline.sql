@@ -2621,7 +2621,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
 
 -- Bucket Storage du Drive : drive/{user_id}/...
 INSERT INTO "storage"."buckets" ("id", "name", "public", "file_size_limit", "allowed_mime_types")
-VALUES ('drive', 'drive', true, 52428800, NULL)
+VALUES ('drive', 'drive', false, 52428800, NULL)
 ON CONFLICT ("id") DO UPDATE SET
   "public" = EXCLUDED."public",
   "file_size_limit" = EXCLUDED."file_size_limit";
