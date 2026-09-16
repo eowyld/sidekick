@@ -290,7 +290,23 @@ export interface Project {
   notes: string;
   brainstorm: string;
   creationSeededSectors: CreationSector[];
+  targetDate: string;
+  pinned: boolean;
+  pinnedOrder: number;
+  manualMilestones: {
+    editionWritingCompositionDone: boolean;
+    liveConceptDone: boolean;
+    liveSetlistDone: boolean;
+    liveTeamDone: boolean;
+  };
+  objectives: ProjectObjective[];
+  milestoneStates: Record<string, boolean>;
 }
+
+export type ProjectObjective =
+  | "phono_single" | "phono_ep" | "phono_album"
+  | "live_show" | "live_dj_set" | "live_tour"
+  | "edition_composition" | "edition_lyrics" | "edition_sync";
 
 // --- Project Creation ---
 export type CreationStepStatus = "todo" | "doing" | "done";
@@ -362,16 +378,15 @@ export interface TrackGuest {
   role: string;
 }
 
-export interface TrackVersion {
-  id: string;
-  label: string;
-  /**
-   * ISRC propre à cette version. L'ISRC identifie un enregistrement, pas une
-   * œuvre : radio edit, instrumental et live ont chacun le leur. Vide, la
-   * version hérite de `Track.isrc` à l'affichage.
-   */
-  isrc?: string;
-  /** Chemin dans le bucket `drive`. Absent = version sans fichier audio. */
+/**
+ * Fichier audio rattaché à une entité du catalogue.
+ *
+ * Partagé par `TrackVersion` et `Mix` : un DJ set est un fichier au même titre
+ * qu'un master, et le lecteur, l'attachement et le calcul des peaks ne
+ * connaissent que ces champs. Les dupliquer aurait fait diverger les deux.
+ */
+export interface AudioAttachment {
+  /** Chemin dans le bucket `drive`. Absent = pas de fichier audio. */
   audioPath?: string;
   /** `upload` = fichier déposé depuis le catalogue, `drive` = fichier déjà rangé dans le Drive. */
   audioSource?: "upload" | "drive";
@@ -381,6 +396,17 @@ export interface TrackVersion {
   sizeBytes?: number;
   /** ~400 valeurs entre 0 et 1, calculées dans le navigateur à l'ajout. */
   peaks?: number[];
+}
+
+export interface TrackVersion extends AudioAttachment {
+  id: string;
+  label: string;
+  /**
+   * ISRC propre à cette version. L'ISRC identifie un enregistrement, pas une
+   * œuvre : radio edit, instrumental et live ont chacun le leur. Vide, la
+   * version hérite de `Track.isrc` à l'affichage.
+   */
+  isrc?: string;
 }
 
 export interface Track {
@@ -465,7 +491,7 @@ export interface MixTracklistItem {
  */
 export type MixFormat = "dj_set" | "live_set" | "mix" | "podcast";
 
-export interface Mix {
+export interface Mix extends AudioAttachment {
   id: string;
   title: string;
   artists: string;

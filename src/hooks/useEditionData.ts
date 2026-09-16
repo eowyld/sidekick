@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Work, SyncData } from "@/lib/sidekick-store";
 
 export type { Work, SyncData };
@@ -101,7 +101,7 @@ const KEY = "user_edition";
 
 async function fetchEditionData(): Promise<EditionData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return FALLBACK;
 
   const [w, s] = await Promise.all([
@@ -144,7 +144,7 @@ export function useEditionData() {
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { mutateLocal(snapshot, false); return; }
 
       const prevMap = new Map(snapshot.works.map((e) => [e.id, e]));
@@ -199,7 +199,7 @@ export function useEditionData() {
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { mutateLocal(snapshot, false); return; }
 
       const { error: err } = await supabase

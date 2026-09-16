@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useEditionData } from "@/hooks/useEditionData";
+import { useProjectLinks } from "@/modules/projects/hooks/useProjectLinks";
 import type { Project } from "@/lib/sidekick-store";
 import { Music2, Plus, Link, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,45 +28,36 @@ interface PhonoSectionProps {
 
 export function PhonoSection({ project }: PhonoSectionProps) {
   const router = useRouter();
-  const { data, setData } = useSidekickData();
+  const { albums, tracks, sessions } = usePhonoData();
+  const { works } = useEditionData();
+  const { updateLinks } = useProjectLinks(project.id);
   const [linkAlbumOpen, setLinkAlbumOpen] = useState(false);
   const [linkTrackOpen, setLinkTrackOpen] = useState(false);
   const [linkSessionOpen, setLinkSessionOpen] = useState(false);
 
-  const linkedAlbums = (data.phono?.albums ?? []).filter((a) => project.linkedAlbums.includes(a.id));
-  const linkedTracks = (data.phono?.tracks ?? []).filter((t) => project.linkedTracks.includes(t.id));
-  const linkedSessions = (data.phono?.sessions ?? []).filter((s) => project.linkedSessions.includes(s.id));
+  const linkedAlbums = albums.filter((a) => project.linkedAlbums.includes(a.id));
+  const linkedTracks = tracks.filter((t) => project.linkedTracks.includes(t.id));
+  const linkedSessions = sessions.filter((s) => project.linkedSessions.includes(s.id));
 
-  const availableAlbums = (data.phono?.albums ?? []).filter((a) => !project.linkedAlbums.includes(a.id));
-  const availableTracks = (data.phono?.tracks ?? []).filter((t) => !project.linkedTracks.includes(t.id));
-  const availableSessions = (data.phono?.sessions ?? []).filter((s) => !project.linkedSessions.includes(s.id));
+  const availableAlbums = albums.filter((a) => !project.linkedAlbums.includes(a.id));
+  const availableTracks = tracks.filter((t) => !project.linkedTracks.includes(t.id));
+  const availableSessions = sessions.filter((s) => !project.linkedSessions.includes(s.id));
 
   const totalTracks = linkedTracks.length;
   const publishedTracks = linkedTracks.filter((t) => t.status === "publie").length;
 
-  const updateProjectLinks = (updates: Partial<Pick<Project, "linkedAlbums" | "linkedTracks" | "linkedSessions">>) => {
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.map((p) =>
-          p.id === project.id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        ),
-      },
-    }));
-  };
-
   const linkAlbum = (albumId: string) => {
-    updateProjectLinks({ linkedAlbums: [...project.linkedAlbums, albumId] });
+    updateLinks({ linkedAlbums: [...project.linkedAlbums, albumId] });
     setLinkAlbumOpen(false);
   };
 
   const linkTrack = (trackId: string) => {
-    updateProjectLinks({ linkedTracks: [...project.linkedTracks, trackId] });
+    updateLinks({ linkedTracks: [...project.linkedTracks, trackId] });
     setLinkTrackOpen(false);
   };
 
   const linkSession = (sessionId: string) => {
-    updateProjectLinks({ linkedSessions: [...project.linkedSessions, sessionId] });
+    updateLinks({ linkedSessions: [...project.linkedSessions, sessionId] });
     setLinkSessionOpen(false);
   };
 
@@ -155,7 +148,7 @@ export function PhonoSection({ project }: PhonoSectionProps) {
           <div className="space-y-1">
             {linkedTracks.map((track) => {
               const linkedWork = track.linkedWorkId
-                ? (data.edition?.works ?? []).find((w) => w.id === track.linkedWorkId)
+                ? works.find((w) => w.id === track.linkedWorkId)
                 : null;
               return (
                 <div

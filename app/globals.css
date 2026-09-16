@@ -98,6 +98,57 @@ a {
   }
 }
 
+/*
+  Analyse d'un fichier audio (Phono) : quatre barres d'égaliseur qui pulsent.
+  Un spinner générique ne disait pas ce qui se passait ; ici la forme même de
+  l'attente annonce qu'on est en train de lire le son.
+*/
+@keyframes audio-scan-bar {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.audio-scan-bar {
+  transform-origin: center;
+  animation: audio-scan-bar 900ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-scan-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+/* Halo néon décoratif (SectionGlow) : rotation lente d'une barre de lumière. */
+@keyframes glow-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-orbit,
+  .glow-orbit-rev {
+    animation: none !important;
+  }
+}
+
+.glow-orbit {
+  animation: glow-orbit 28s linear infinite;
+}
+
+.glow-orbit-rev {
+  animation: glow-orbit 46s linear infinite reverse;
+}
+
 /* Harmonisation visuelle globale : modules sombres, texte clair */
 .bg-background {
   background-color: #101010 !important;

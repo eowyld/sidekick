@@ -6,6 +6,7 @@ import { Mic, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,10 +16,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoResult } from "@/components/ui/no-result";
 import type { Mix } from "@/lib/sidekick-store";
+import { handleDetachedAudio } from "@/modules/phono/lib/audio-cleanup";
 import { formatTracklistForCopy, normalizeMix } from "@/modules/phono/lib/mix";
+import { sortCatalog } from "@/modules/phono/lib/catalog-sort";
+import { CatalogSortMenu } from "../CatalogSortMenu";
+import { usePhonoSort } from "../PhonoSortProvider";
 import { MixDialog } from "./MixDialog";
 import { MixRow } from "./MixRow";
 
@@ -32,20 +38,26 @@ const strip = (s: string) =>
 
 export function MixesTab({ mixes, setMixes }: MixesTabProps) {
   const posthog = usePostHog();
+  const { sorts } = usePhonoSort();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMix, setEditingMix] = useState<Mix | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Mix | null>(null);
+  const [deleteFromDrive, setDeleteFromDrive] = useState(false);
 
   const normalized = useMemo(() => mixes.map(normalizeMix), [mixes]);
 
   const visible = useMemo(() => {
     const q = strip(search.trim());
-    if (!q) return normalized;
-    return normalized.filter((m) =>
-      strip([m.title, m.artists].join(" ")).includes(q)
-    );
-  }, [normalized, search]);
+    const rows = q
+      ? normalized.filter((m) =>
+          strip([m.title, m.artists].join(" ")).includes(q)
+        )
+      : normalized;
+    // Même fonction de tri que la file du lecteur : « suivant » enchaîne les
+    // mixes dans l'ordre affiché ici.
+    return sortCatalog(rows, sorts.mixes);
+  }, [normalized, search, sorts.mixes]);
 
   const openCreate = () => {
     setEditingMix(null);
@@ -68,6 +80,10 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
       setDialogOpen(false);
     }
     setPendingDelete(null);
+    if (mix.audioPath && mix.audioSource === "upload") {
+      void handleDetachedAudio([mix.audioPath], deleteFromDrive);
+    }
+    setDeleteFromDrive(false);
   };
 
   const copyTracklist = (mix: Mix) => {
@@ -90,10 +106,13 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
             className="pl-9"
           />
         </div>
-        <Button type="button" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Mix
-        </Button>
+        <div className="flex items-center gap-2">
+          <CatalogSortMenu scope="mixes" />
+          <Button type="button" onClick={openCreate} className="btn-glow">
+            <Plus className="mr-2 h-4 w-4" />
+            Mix
+          </Button>
+        </div>
       </div>
 
       {mixes.length === 0 ? (
@@ -139,7 +158,10 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
       <Dialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
+          if (!open) {
+            setPendingDelete(null);
+            setDeleteFromDrive(false);
+          }
         }}
       >
         <DialogContent className="max-w-md">
@@ -152,11 +174,30 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
               définitive.
             </DialogDescription>
           </DialogHeader>
+          {pendingDelete?.audioPath && pendingDelete.audioSource === "upload" ? (
+            <div className="flex items-start gap-2 rounded-md border border-[rgba(245,245,245,0.12)] p-3">
+              <Checkbox
+                id="delete-mix-from-drive"
+                checked={deleteFromDrive}
+                onCheckedChange={(checked) => setDeleteFromDrive(checked === true)}
+              />
+              <Label
+                htmlFor="delete-mix-from-drive"
+                className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
+              >
+                Supprimer aussi le fichier du Drive. Sans cette case, il est
+                conservé dans Drive → Phono → depuis-catalogue.
+              </Label>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setPendingDelete(null)}
+              onClick={() => {
+                setPendingDelete(null);
+                setDeleteFromDrive(false);
+              }}
             >
               Annuler
             </Button>

@@ -25,7 +25,7 @@ const MODULE_LABELS: { key: keyof EnabledModules; label: string; description: st
   {
     key: "admin",
     label: "Admin",
-    description: "Statuts, démarches administratives, documents."
+    description: "Statuts et démarches administratives."
   },
   // Marketing est fermé pour l'alpha (cf. src/lib/coming-soon.ts) : proposer un
   // interrupteur sans effet serait trompeur. À remettre à sa réouverture.

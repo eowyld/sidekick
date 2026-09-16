@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { createStorageFolder, deleteStorageFolder, renameStorageFolder } from "@/lib/drive-db";
 import type { AdminStatus } from "@/lib/sidekick-store";
 
@@ -6,7 +6,7 @@ export async function ensureLockedFolderForStatus(status: AdminStatus): Promise<
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   if (!user) return status;
 
   const oldPath = typeof status.data?.folderPath === "string" ? status.data.folderPath : null;
@@ -47,7 +47,7 @@ export async function removeStatusLockedFolder(status: AdminStatus | undefined):
   await deleteStorageFolder(supabase, folderPath);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   const normalized =
     user && folderPath.startsWith(`${user.id}/`) ? folderPath.slice(user.id.length + 1) : folderPath;
   await supabase.from("drive_locked_storage_templates").delete().eq("path", normalized);

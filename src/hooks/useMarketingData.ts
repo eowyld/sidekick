@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { MailingCampaign, MailingContact, MailingSegment } from "@/modules/marketing/data/mailing.tsx";
 import { DEFAULT_PRESSKIT_PROFILE, type PresskitProfile } from "@/modules/marketing/data/presskit";
 import type { EditorialEvent } from "@/modules/marketing/data/calendrier-editorial";
@@ -144,7 +144,7 @@ const EMPTY: MarketingData = {
 
 async function fetchMarketingData(): Promise<MarketingData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return EMPTY;
 
   const [c, d, mc, seg, ev, pk] = await Promise.all([
@@ -178,7 +178,7 @@ function makeSliceUpdater<T extends { id: string }>(
   return (fn: (prev: T[]) => T[]) => {
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) return;
 
       // Capture current cached data
@@ -274,7 +274,7 @@ export function useMarketingData() {
   const setPresskit = useMemo(() => (updater: PresskitProfile | ((prev: PresskitProfile) => PresskitProfile)) => {
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) return;
 
       const current = (await mutate(KEY, undefined, { revalidate: false })) as MarketingData | undefined;

@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useLiveData } from "@/hooks/useLiveData";
+import { useProjectLinks } from "@/modules/projects/hooks/useProjectLinks";
 import type { Project } from "@/lib/sidekick-store";
 import { Mic2, Plus, Link, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,28 +15,19 @@ interface LiveSectionProps {
 
 export function LiveSection({ project }: LiveSectionProps) {
   const router = useRouter();
-  const { data, setData } = useSidekickData();
+  const { tourDates, rehearsals } = useLiveData();
+  const { updateLinks } = useProjectLinks(project.id);
   const [linkDateOpen, setLinkDateOpen] = useState(false);
   const [linkRepetOpen, setLinkRepetOpen] = useState(false);
 
-  const linkedTourDates = (data.live?.tourDates ?? []).filter((d) => project.linkedTourDates.includes(d.id));
-  const linkedRehearsals = (data.live?.rehearsals ?? []).filter((r) => project.linkedRehearsals.includes(r.id));
-  const availableTourDates = (data.live?.tourDates ?? []).filter((d) => !project.linkedTourDates.includes(d.id));
-  const availableRehearsals = (data.live?.rehearsals ?? []).filter((r) => !project.linkedRehearsals.includes(r.id));
+  // Les dates Live ont un id numérique, les liens projet stockent des chaînes.
+  const linkedTourDates = tourDates.filter((d) => project.linkedTourDates.includes(String(d.id)));
+  const linkedRehearsals = rehearsals.filter((r) => project.linkedRehearsals.includes(r.id));
+  const availableTourDates = tourDates.filter((d) => !project.linkedTourDates.includes(String(d.id)));
+  const availableRehearsals = rehearsals.filter((r) => !project.linkedRehearsals.includes(r.id));
 
   const totalDates = linkedTourDates.length;
-  const playedDates = linkedTourDates.filter((d) => d.status === "done" || d.status === "played").length;
-
-  const updateLinks = (updates: Partial<Pick<Project, "linkedTourDates" | "linkedRehearsals">>) => {
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.map((p) =>
-          p.id === project.id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        ),
-      },
-    }));
-  };
+  const playedDates = linkedTourDates.filter((d) => d.status === "Passée").length;
 
   return (
     <div className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-5 space-y-5">
@@ -138,7 +130,7 @@ export function LiveSection({ project }: LiveSectionProps) {
             ) : availableTourDates.map((d) => (
               <button
                 key={d.id}
-                onClick={() => { updateLinks({ linkedTourDates: [...project.linkedTourDates, d.id] }); setLinkDateOpen(false); }}
+                onClick={() => { updateLinks({ linkedTourDates: [...project.linkedTourDates, String(d.id)] }); setLinkDateOpen(false); }}
                 className="w-full text-left px-3 py-2 rounded-lg text-[13px] text-[#F5F5F5]/70 hover:bg-[rgba(245,245,245,0.06)] hover:text-[#F5F5F5] transition-colors"
               >
                 {(d.venue as string) || d.city} — {d.date}

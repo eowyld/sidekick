@@ -13,8 +13,13 @@
 --
 -- ALTER TABLE ... RENAME conserve policies, index et contraintes.
 
-alter table if exists public.user_phono_podcasts
-  rename to user_phono_mixes;
+do $$
+begin
+  if to_regclass('public.user_phono_podcasts') is not null
+     and to_regclass('public.user_phono_mixes') is null then
+    alter table public.user_phono_podcasts rename to user_phono_mixes;
+  end if;
+end $$;
 
 alter table public.user_phono_mixes
   add column if not exists format text not null default 'dj_set';
@@ -22,8 +27,23 @@ alter table public.user_phono_mixes
 -- Backfill avant toute suppression : un live set était le seul cas que
 -- l'ancien modèle distinguait. Le reste devient dj_set, reclassable à la main
 -- depuis l'interface.
-update public.user_phono_mixes
-  set format = case when is_live then 'live_set' else 'dj_set' end;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'user_phono_mixes'
+      and column_name = 'is_live'
+  ) then
+    -- SQL dynamique : une référence statique à is_live échoue dès l'analyse
+    -- quand une tentative précédente a déjà retiré cette colonne.
+    execute $sql$
+      update public.user_phono_mixes
+      set format = case when is_live then 'live_set' else 'dj_set' end
+    $sql$;
+  end if;
+end $$;
 
 alter table public.user_phono_mixes
   drop constraint if exists user_phono_mixes_format_check;
@@ -38,5 +58,20 @@ alter table public.user_phono_mixes
 -- La policy a survécu au renommage de la table, mais son nom mentionne encore
 -- « podcasts » : une policy mal nommée est un piège pour qui auditera les
 -- accès plus tard.
-alter policy "user owns podcasts" on public.user_phono_mixes
-  rename to "user owns mixes";
+do $$
+begin
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_phono_mixes'
+      and policyname = 'user owns podcasts'
+  ) and not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_phono_mixes'
+      and policyname = 'user owns mixes'
+  ) then
+    alter policy "user owns podcasts" on public.user_phono_mixes
+      rename to "user owns mixes";
+  end if;
+end $$;

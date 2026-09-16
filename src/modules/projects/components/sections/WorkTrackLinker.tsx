@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useEditionData } from "@/hooks/useEditionData";
 import type { Project } from "@/lib/sidekick-store";
 import { Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,13 @@ interface WorkTrackLinkerProps {
 
 export function WorkTrackLinker({ project }: WorkTrackLinkerProps) {
   const posthog = usePostHog();
-  const { data, setData } = useSidekickData();
+  const { tracks, setTracks } = usePhonoData();
+  const { works, setWorks } = useEditionData();
   const [selectedTrackId, setSelectedTrackId] = useState("");
   const [selectedWorkId, setSelectedWorkId] = useState("");
 
-  const linkedTracks = (data.phono?.tracks ?? []).filter((t) => project.linkedTracks.includes(t.id));
-  const linkedWorks = (data.edition?.works ?? []).filter((w) => project.linkedWorks.includes(w.id));
+  const linkedTracks = tracks.filter((t) => project.linkedTracks.includes(t.id));
+  const linkedWorks = works.filter((w) => project.linkedWorks.includes(w.id));
 
   // Paires existantes : titres qui ont déjà une oeuvre liée
   const existingPairs = linkedTracks
@@ -32,23 +34,18 @@ export function WorkTrackLinker({ project }: WorkTrackLinkerProps) {
   const handleLink = () => {
     if (!selectedTrackId || !selectedWorkId) return;
 
-    setData((prev) => ({
-      ...prev,
-      phono: {
-        ...prev.phono,
-        tracks: prev.phono.tracks.map((t) =>
-          t.id === selectedTrackId ? { ...t, linkedWorkId: selectedWorkId } : t
-        ),
-      },
-      edition: {
-        ...prev.edition,
-        works: prev.edition.works.map((w) =>
-          w.id === selectedWorkId
-            ? { ...w, linkedTrackIds: [...new Set([...(w.linkedTrackIds ?? []), selectedTrackId])] }
-            : w
-        ),
-      },
-    }));
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === selectedTrackId ? { ...t, linkedWorkId: selectedWorkId } : t
+      )
+    );
+    setWorks((prev) =>
+      prev.map((w) =>
+        w.id === selectedWorkId
+          ? { ...w, linkedTrackIds: [...new Set([...(w.linkedTrackIds ?? []), selectedTrackId])] }
+          : w
+      )
+    );
 
     posthog?.capture("work_track_linked", { module: "edition" });
     setSelectedTrackId("");
@@ -56,23 +53,16 @@ export function WorkTrackLinker({ project }: WorkTrackLinkerProps) {
   };
 
   const handleUnlink = (trackId: string, workId: string) => {
-    setData((prev) => ({
-      ...prev,
-      phono: {
-        ...prev.phono,
-        tracks: prev.phono.tracks.map((t) =>
-          t.id === trackId ? { ...t, linkedWorkId: undefined } : t
-        ),
-      },
-      edition: {
-        ...prev.edition,
-        works: prev.edition.works.map((w) =>
-          w.id === workId
-            ? { ...w, linkedTrackIds: (w.linkedTrackIds ?? []).filter((id) => id !== trackId) }
-            : w
-        ),
-      },
-    }));
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, linkedWorkId: undefined } : t))
+    );
+    setWorks((prev) =>
+      prev.map((w) =>
+        w.id === workId
+          ? { ...w, linkedTrackIds: (w.linkedTrackIds ?? []).filter((id) => id !== trackId) }
+          : w
+      )
+    );
   };
 
   // Titres sans oeuvre liée parmi les liés au projet

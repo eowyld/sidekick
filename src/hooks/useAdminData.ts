@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { AdminStatus, AdminStructure, AdminProcedure } from "@/lib/sidekick-store";
 import { normalizeStoredAdminStatusType } from "@/modules/admin/data/statuts-form-config";
 
@@ -106,7 +106,7 @@ const FALLBACK: AdminData = { statuses: [], structures: [], procedures: [] };
 
 async function fetchAdminData(): Promise<AdminData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return FALLBACK;
 
   const [s, st, p] = await Promise.all([
@@ -139,7 +139,7 @@ export function useAdminData() {
 
       (async () => {
         const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getSessionUser(supabase);
         if (!user) {
           mutateLocal({ statuses: snapshot, structures, procedures }, false);
           return;
@@ -189,7 +189,7 @@ export function useAdminData() {
 
       (async () => {
         const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getSessionUser(supabase);
         if (!user) {
           mutateLocal({ statuses, structures: snapshot, procedures }, false);
           return;
@@ -239,7 +239,7 @@ export function useAdminData() {
 
       (async () => {
         const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getSessionUser(supabase);
         if (!user) {
           mutateLocal({ statuses, structures, procedures: snapshot }, false);
           return;

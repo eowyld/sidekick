@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useEditionData } from "@/hooks/useEditionData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useProjectLinks } from "@/modules/projects/hooks/useProjectLinks";
 import type { Project } from "@/lib/sidekick-store";
 import { BookOpen, Plus, Link, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,26 +23,19 @@ interface EditionSectionProps {
 
 export function EditionSection({ project }: EditionSectionProps) {
   const router = useRouter();
-  const { data, setData } = useSidekickData();
+  const { works } = useEditionData();
+  const { tracks } = usePhonoData();
+  const { updateLinks } = useProjectLinks(project.id);
   const [linkOpen, setLinkOpen] = useState(false);
 
-  const linkedWorks = (data.edition?.works ?? []).filter((w) => project.linkedWorks.includes(w.id));
-  const availableWorks = (data.edition?.works ?? []).filter((w) => !project.linkedWorks.includes(w.id));
+  const linkedWorks = works.filter((w) => project.linkedWorks.includes(w.id));
+  const availableWorks = works.filter((w) => !project.linkedWorks.includes(w.id));
 
   const totalWorks = linkedWorks.length;
   const registeredWorks = linkedWorks.filter((w) => w.status === "registered-sacem" || w.status === "accepted-sacem").length;
 
   const linkWork = (workId: string) => {
-    setData((prev) => ({
-      ...prev,
-      projects: {
-        projects: prev.projects.projects.map((p) =>
-          p.id === project.id
-            ? { ...p, linkedWorks: [...p.linkedWorks, workId], updatedAt: new Date().toISOString() }
-            : p
-        ),
-      },
-    }));
+    updateLinks({ linkedWorks: [...project.linkedWorks, workId] });
     setLinkOpen(false);
   };
 
@@ -88,7 +83,7 @@ export function EditionSection({ project }: EditionSectionProps) {
         ) : (
           <div className="space-y-1">
             {linkedWorks.map((work) => {
-              const linkedTracks = (data.phono?.tracks ?? []).filter((t) => (work.linkedTrackIds ?? []).includes(t.id));
+              const linkedTracks = tracks.filter((t) => (work.linkedTrackIds ?? []).includes(t.id));
               return (
                 <div
                   key={work.id}

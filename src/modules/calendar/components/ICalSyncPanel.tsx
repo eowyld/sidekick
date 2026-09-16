@@ -6,7 +6,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { CalendarSector } from "./GlobalCalendarPage";
 
 const ALL_SECTORS: { key: CalendarSector; label: string }[] = [
@@ -47,7 +47,7 @@ export function ICalSyncPanel({ allEvents }: Props) {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { setLoading(false); return; }
 
       const { data } = await supabase
@@ -82,7 +82,7 @@ export function ICalSyncPanel({ allEvents }: Props) {
 
   async function handleGenerate() {
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getSessionUser(supabase);
     if (!user) { setSaving(false); return; }
 
     setMigrating(true);
@@ -131,7 +131,7 @@ export function ICalSyncPanel({ allEvents }: Props) {
   }
 
   async function handleRevoke() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getSessionUser(supabase);
     if (!user) return;
     await supabase.from("ical_tokens").delete().eq("user_id", user.id);
     setToken(null);

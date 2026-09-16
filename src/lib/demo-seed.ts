@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Sector } from "@/hooks/usePreferencesData";
 import {
   calendarRows,
@@ -23,7 +23,7 @@ export async function seedDemoData(sectors: Sector[]): Promise<DemoManifest> {
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   if (!user) throw new Error("not_authenticated");
 
   const tables: Record<string, SeedRow[]> = {
@@ -82,7 +82,7 @@ export async function removeDemoData(manifest: DemoManifest): Promise<void> {
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   if (!user) throw new Error("not_authenticated");
 
   for (const [table, ids] of Object.entries(manifest)) {

@@ -5,15 +5,11 @@ import type { Project } from "@/lib/sidekick-store";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { CreationTab } from "./tabs/CreationTab";
 import { BudgetTab } from "./tabs/BudgetTab";
-import { MarketingTab } from "./tabs/MarketingTab";
-import { AdminTab } from "./tabs/AdminTab";
 
 const TABS = [
   { key: "overview", label: "Vue d'ensemble" },
   { key: "creation", label: "Artistique" },
   { key: "budget", label: "Budget" },
-  { key: "marketing", label: "Campagne marketing" },
-  { key: "admin", label: "Admin" },
 ];
 
 export function ProjectTabs({ project }: { project: Project }) {
@@ -47,8 +43,6 @@ export function ProjectTabs({ project }: { project: Project }) {
       {active === "overview" && <OverviewTab project={project} onGoTab={goTab} />}
       {active === "creation" && <CreationTab project={project} />}
       {active === "budget" && <BudgetTab project={project} />}
-      {active === "marketing" && <MarketingTab project={project} />}
-      {active === "admin" && <AdminTab project={project} />}
     </div>
   );
 }

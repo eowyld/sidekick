@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { migratePreferencesToSupabase } from "@/lib/migrate-preferences-to-supabase";
 import { migrateFacturationToSupabase } from "@/lib/migrate-facturation-to-supabase";
 import type { ReactNode } from "react";
@@ -28,7 +28,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         const supabase = createClient();
         const {
           data: { user }
-        } = await supabase.auth.getUser();
+        } = await getSessionUser(supabase);
 
         if (!isMounted) return;
 

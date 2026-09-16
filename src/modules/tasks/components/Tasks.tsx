@@ -19,9 +19,14 @@ import { useLiveData } from "@/hooks/useLiveData";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useIncomesData } from "@/hooks/useIncomesData";
 import { useProjectsData } from "@/hooks/useProjectsData";
+import { useListeningData, useListeningInvites } from "@/hooks/useListeningData";
 import { allRules } from "../rules";
 import type { RuleContext, RuleSuggestion } from "../rules/types";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
+
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === "AbortError" || error.message.toLowerCase().includes("signal is aborted"));
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
@@ -52,9 +57,11 @@ export function Tasks() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id ?? null);
-    });
+    getSessionUser(supabase)
+      .then(({ data: { user } }) => setUserId(user?.id ?? null))
+      .catch((authError) => {
+        if (!isAbortError(authError)) console.error("[Tasks] Auth échouée:", authError);
+      });
   }, []);
 
   const sensors = useSensors(
@@ -107,6 +114,13 @@ export function Tasks() {
     [activeId, todos]
   );
 
+  // Les invitations ne sont pas exposées par le hook des liens : elles ne
+  // servent qu'à la règle de relance, on les charge donc à part.
+  const { links: listeningLinks } = useListeningData();
+  const listeningInvites = useListeningInvites(
+    useMemo(() => listeningLinks.map((l) => l.id), [listeningLinks])
+  );
+
   const ruleSuggestions = useMemo<RuleSuggestion[]>(() => {
     const importsList = Object.values(imports).filter(Boolean) as import("@/hooks/useIncomesData").DistributorImport[];
     const ctx: RuleContext = {
@@ -115,9 +129,13 @@ export function Tasks() {
       admin: enabledModules.admin !== false ? { structures, procedures } : null,
       incomes: enabledModules.revenus !== false ? { invoices, imports: importsList } : null,
       projects: projects.length > 0 ? projects : null,
+      phono:
+        enabledModules.phono !== false
+          ? { links: listeningLinks, invites: listeningInvites }
+          : null,
     };
     return allRules.map((rule) => rule(ctx)).filter((s): s is RuleSuggestion => s !== null);
-  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules, projects]);
+  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules, projects, listeningLinks, listeningInvites]);
 
   const calendarEvents = data.calendar?.events ?? [];
 

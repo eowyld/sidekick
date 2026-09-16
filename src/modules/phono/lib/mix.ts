@@ -44,6 +44,9 @@ export function normalizeMix(m: Mix): Mix {
     isVideo: Boolean(m.isVideo),
     status: m.status ?? "en_production",
     releaseDate: m.releaseDate ?? "",
+    // Champs audio laissés tels quels : `undefined` signifie « pas de
+    // fichier », et les coercer en chaîne vide ferait croire à un fichier
+    // rattaché dont le chemin serait vide.
     tracklist: Array.isArray(m.tracklist)
       ? m.tracklist.map((item) => ({
           id: item.id,

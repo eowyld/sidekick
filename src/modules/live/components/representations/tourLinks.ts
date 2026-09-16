@@ -57,6 +57,17 @@ export function quickCreateTour(setProjects: SetProjects, dateId: number, title:
     notes: "",
     brainstorm: "",
     creationSeededSectors: [],
+    targetDate: "",
+    pinned: false,
+    pinnedOrder: 0,
+    manualMilestones: {
+      editionWritingCompositionDone: false,
+      liveConceptDone: false,
+      liveSetlistDone: false,
+      liveTeamDone: false,
+    },
+    objectives: ["live_tour"],
+    milestoneStates: {},
   };
   // Retire d'abord la date d'éventuelles autres tournées, puis ajoute le nouveau projet.
   setProjects((prev) => [

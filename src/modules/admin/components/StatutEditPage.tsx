@@ -1042,7 +1042,7 @@ export function StatutEditPage({ statusId }: StatutEditPageProps) {
           <EditSection
             id="section-danger"
             title="Zone sensible"
-            description="Supprimer ce statut efface aussi son dossier Documents et tout ce qu’il contient."
+            description="Supprimer ce statut efface aussi son dossier Drive et tout ce qu’il contient."
             variant="danger"
           >
             <Button variant="destructive" size="sm" onClick={() => setPendingDelete(true)}>

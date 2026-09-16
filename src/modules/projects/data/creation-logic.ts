@@ -1,6 +1,8 @@
 import type {
-  CreationStep, CreationPhase, Track, Session, Work, TourDate, Rehearsal,
+  CreationStep, CreationPhase, Track, Session, Work,
 } from "@/lib/sidekick-store";
+// Live est servi par Supabase : ses types font autorité sur ceux du store legacy.
+import type { TourDate, RehearsalItem } from "@/hooks/useLiveData";
 import { CREATION_PHASE_ORDER } from "@/lib/sidekick-store";
 import { frToIso, isValidDateFr } from "@/lib/date-format";
 
@@ -57,7 +59,7 @@ export interface CreationSignalContext {
   sessions: Session[];
   works: Work[];
   tourDates: TourDate[];
-  rehearsals: Rehearsal[];
+  rehearsals: RehearsalItem[];
 }
 
 const plural = (n: number) => (n > 1 ? "s" : "");

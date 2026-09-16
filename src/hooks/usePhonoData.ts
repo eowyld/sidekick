@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Track, Album, Mix, TrackGuest } from "@/lib/sidekick-store";
 import { normalizeTrackGuests } from "@/modules/phono/lib/track";
 
@@ -148,6 +148,12 @@ function mixToRow(m: Mix, userId: string): Record<string, unknown> {
     release_date: m.releaseDate ?? "",
     tracklist: m.tracklist ?? [],
     cover: m.cover ?? null,
+    audio_path: m.audioPath ?? null,
+    audio_source: m.audioSource ?? null,
+    audio_name: m.audioName ?? null,
+    duration_ms: m.durationMs ?? null,
+    size_bytes: m.sizeBytes ?? null,
+    peaks: m.peaks ?? null,
   };
 }
 
@@ -163,6 +169,12 @@ function rowToMix(row: Record<string, unknown>): Mix {
     releaseDate: (row.release_date as string) ?? "",
     tracklist: (row.tracklist as Mix["tracklist"]) ?? [],
     cover: (row.cover as string) ?? undefined,
+    audioPath: (row.audio_path as string) ?? undefined,
+    audioSource: (row.audio_source as Mix["audioSource"]) ?? undefined,
+    audioName: (row.audio_name as string) ?? undefined,
+    durationMs: (row.duration_ms as number) ?? undefined,
+    sizeBytes: (row.size_bytes as number) ?? undefined,
+    peaks: (row.peaks as number[]) ?? undefined,
   };
 }
 
@@ -201,7 +213,7 @@ function rowToSession(row: Record<string, unknown>): StudioSession {
 
 async function fetchPhonoData(): Promise<PhonoData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return FALLBACK;
 
   const [t, a, p, s] = await Promise.all([
@@ -246,7 +258,7 @@ function makeOptimisticSetter<T extends { id: string }>(
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) {
         mutate(KEY, (current: PhonoData | undefined) => ({ ...(current ?? FALLBACK), [slice]: snapshot }), false);
         return;

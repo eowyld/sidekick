@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { CreationStep, CreationSector } from "@/lib/sidekick-store";
 import { CREATION_TEMPLATES } from "@/modules/projects/data/creation-templates";
 
@@ -185,7 +185,7 @@ export function useProjectCreationData(projectId: string) {
       const supabase = createClient();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSessionUser(supabase);
       if (!user) return null;
 
       const { data, error } = await supabase

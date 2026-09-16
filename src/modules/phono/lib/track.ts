@@ -1,5 +1,11 @@
 // src/modules/phono/lib/track.ts
-import type { PhonoRole, Track, TrackGuest, TrackVersion } from "@/lib/sidekick-store";
+import type {
+  PhonoRole,
+  ReleaseStatus,
+  Track,
+  TrackGuest,
+  TrackVersion,
+} from "@/lib/sidekick-store";
 
 export const ROLES: { value: PhonoRole; label: string }[] = [
   { value: "artiste_principal", label: "Artiste principal" },
@@ -64,6 +70,41 @@ export function newVersionId(): string {
 
 export function defaultVersion(label = "Original"): TrackVersion {
   return { id: newVersionId(), label };
+}
+
+/**
+ * Nom de version attendu à chaque étape du pipeline.
+ *
+ * Demander « Original » sur un titre en production n'a pas de sens : le master
+ * n'existe pas encore, et l'artiste se retrouve à renommer une version qu'il
+ * n'a pas choisie. « Original » reste le nom du titre publié — c'est la version
+ * que les plateformes connaissent.
+ */
+const SUGGESTED_VERSION_LABEL: Record<ReleaseStatus, string> = {
+  en_production: "Démo",
+  mixe: "Pré-mix",
+  masterise: "Master",
+  publie: "Original",
+};
+
+export function suggestedVersionLabel(status: ReleaseStatus | undefined): string {
+  return SUGGESTED_VERSION_LABEL[status ?? "en_production"];
+}
+
+const SUGGESTED_LABELS = new Set(Object.values(SUGGESTED_VERSION_LABEL));
+
+/**
+ * Vrai si la version n'est encore qu'une suggestion : aucun fichier, aucun
+ * ISRC, et un nom que l'artiste n'a pas saisi lui-même. Seules ces versions-là
+ * suivent le statut en silence — une version qui porte un fichier a été déposée
+ * sous ce nom, et les liens d'écoute publiés l'ont dénormalisé.
+ */
+export function isSuggestedVersion(version: TrackVersion): boolean {
+  return (
+    !version.audioPath &&
+    (version.isrc ?? "").trim() === "" &&
+    SUGGESTED_LABELS.has(version.label.trim())
+  );
 }
 
 /** Comble les champs absents d'un titre venu de la base. */

@@ -130,6 +130,17 @@ export function ProjectModal({ open, onClose, project }: ProjectModalProps) {
         notes,
         brainstorm: "",
         creationSeededSectors: [],
+        targetDate: "",
+        pinned: false,
+        pinnedOrder: 0,
+        manualMilestones: {
+          editionWritingCompositionDone: false,
+          liveConceptDone: false,
+          liveSetlistDone: false,
+          liveTeamDone: false,
+        },
+        objectives: [],
+        milestoneStates: {},
       };
       setProjects((prev) => [newProject, ...prev]);
       posthog?.capture("project_created", { module: "projects" });

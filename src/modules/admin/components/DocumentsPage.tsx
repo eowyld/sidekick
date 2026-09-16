@@ -14,6 +14,7 @@ import {
   type StorageContentsResult
 } from "@/lib/drive-db";
 import { createClient } from "@/lib/supabase";
+import { getCatalogAudioPaths } from "@/modules/phono/lib/audio-gc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,7 @@ const DEFAULT_LOCKED_TEMPLATE_PATHS = [
   "Marketing/Publications",
   "Marketing/Presskit",
   "Phono",
+  "Phono/Catalogue",
   "Revenus"
 ];
 
@@ -116,7 +118,8 @@ export function DocumentsPage() {
     renameStorageFileAtPath,
     moveStorageFolderAtPath,
     moveStorageFileAtPath,
-    refetch
+    refetch,
+    resyncStorageUsed
   } = useDriveData();
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -171,6 +174,7 @@ export function DocumentsPage() {
     fileName: ""
   });
   const [lockedTemplatePaths, setLockedTemplatePaths] = useState<string[]>(DEFAULT_LOCKED_TEMPLATE_PATHS);
+  const [catalogAudioPaths, setCatalogAudioPaths] = useState<Set<string>>(new Set());
   const [allAvailableFolders, setAllAvailableFolders] = useState<{ id: string; name: string; path: string }[]>([]);
   const [globalSearchContents, setGlobalSearchContents] = useState<StorageContentsResult | null>(null);
   const [isLoadingGlobalSearch, setIsLoadingGlobalSearch] = useState(false);
@@ -381,6 +385,22 @@ export function DocumentsPage() {
     void loadLockedTemplates();
   }, [userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    async function loadCatalogAudioPaths() {
+      const supabase = createClient();
+      const paths = await getCatalogAudioPaths(supabase);
+      if (!cancelled) {
+        setCatalogAudioPaths(new Set([...(paths ?? [])].map((p) => p.toLowerCase())));
+      }
+    }
+    void loadCatalogAudioPaths();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   const foldersById = useMemo(
     () => new Map(documentFolders.map((f: DriveFolder) => [f.id, f])),
     [documentFolders]
@@ -473,7 +493,7 @@ export function DocumentsPage() {
             dateModified: f.updatedAt ?? null,
             dateAdded: null,
             isSystem: true,
-            isLocked: false,
+            isLocked: catalogAudioPaths.has(f.path.toLowerCase()),
             fileSizeBytes: f.sizeBytes ?? 0,
             fileExtension: f.name.includes(".") ? f.name.slice(f.name.lastIndexOf(".")) : null,
             parentPath
@@ -492,14 +512,14 @@ export function DocumentsPage() {
         dateModified: "updatedAt" in f ? (f.updatedAt as string | null) : null,
         dateAdded: null,
         isSystem: true,
-        isLocked: false,
+        isLocked: catalogAudioPaths.has(f.path.toLowerCase()),
         fileSizeBytes: "sizeBytes" in f ? (f.sizeBytes as number) : 0,
         fileExtension: f.name.includes(".") ? f.name.slice(f.name.lastIndexOf(".")) : null,
         parentPath: null as string | null
       }));
     if (searchLower) return list.filter((d: { title: string }) => d.title.toLowerCase().includes(searchLower));
     return list.map((d) => ({ ...d, parentPath: null as string | null }));
-  }, [isStorageView, storageContents?.files, searchLower, storagePath, globalSearchContents, userId]);
+  }, [isStorageView, storageContents?.files, searchLower, storagePath, globalSearchContents, userId, catalogAudioPaths]);
 
   const isGlobalSearchMode = searchLower.length > 0;
 
@@ -616,8 +636,8 @@ export function DocumentsPage() {
           const parentPath = path.includes("/")
             ? path.slice(0, path.lastIndexOf("/"))
             : userId ?? "";
-          await loadStorageContents(parentPath);
-          await refetch();
+          await loadStorageContents(parentPath, { silent: true });
+          void refetch();
           invalidateGlobalSearch();
           setCurrentFolderId((prev) =>
             prev === renameTarget!.item.id
@@ -634,10 +654,9 @@ export function DocumentsPage() {
         if (renameTarget.item.id.startsWith("storage-file:")) {
           const path = renameTarget.item.id.slice("storage-file:".length);
           await renameStorageFileAtPath(path, renameValue.trim());
-          if (storagePath) await loadStorageContents(storagePath);
-          await refetch();
+          if (storagePath) await loadStorageContents(storagePath, { silent: true });
           invalidateGlobalSearch();
-          posthog?.capture("file_renamed", { module: "documents" });
+          posthog?.capture("file_renamed", { module: "drive" });
           setSubmitSuccess("Fichier renommé.");
         } else {
           await updateDocumentById(renameTarget.item.id, {
@@ -645,7 +664,7 @@ export function DocumentsPage() {
           });
           await refetch();
           invalidateGlobalSearch();
-          posthog?.capture("file_renamed", { module: "documents" });
+          posthog?.capture("file_renamed", { module: "drive" });
           setSubmitSuccess("Document renommé.");
         }
       }
@@ -676,13 +695,14 @@ export function DocumentsPage() {
           id.includes("/") ? id.slice(0, id.lastIndexOf("/")) : null;
         const inDeleted = currentFolderId === id || (currentFolderId?.startsWith(id + "/") ?? false);
         if (inDeleted) setCurrentFolderId(parentId);
-        const refreshPath = parentId == null ? (userId ?? "") : parentId.slice(STORAGE_FOLDER_PREFIX.length);
-        await loadStorageContents(refreshPath);
-        await refetch();
+        // Le dossier a déjà disparu de la vue (suppression optimiste du hook).
+        // Si on était dedans, le changement de dossier courant recharge le parent.
+        if (!inDeleted && storagePath) void loadStorageContents(storagePath, { silent: true });
+        void refetch();
         invalidateGlobalSearch();
       } else {
         await deleteFolderById(id);
-        await refetch();
+        void refetch();
         invalidateGlobalSearch();
         if (currentFolderId === id) setCurrentFolderId(null);
       }
@@ -699,17 +719,16 @@ export function DocumentsPage() {
     try {
       if (id.startsWith("storage-file:")) {
         const path = id.slice("storage-file:".length);
+        // Le fichier a déjà disparu de la vue (suppression optimiste du hook).
         await deleteStorageFileAtPath(path);
-        if (storagePath) await loadStorageContents(storagePath);
-        await refetch();
         invalidateGlobalSearch();
-        posthog?.capture("file_deleted", { module: "documents" });
+        posthog?.capture("file_deleted", { module: "drive" });
         setSubmitSuccess("Fichier supprimé.");
       } else {
         await deleteDocumentById(id);
-        await refetch();
+        void refetch();
         invalidateGlobalSearch();
-        posthog?.capture("file_deleted", { module: "documents" });
+        posthog?.capture("file_deleted", { module: "drive" });
         setSubmitSuccess("Document supprimé.");
       }
       setTimeout(() => setSubmitSuccess(null), 3000);
@@ -727,9 +746,9 @@ export function DocumentsPage() {
         : currentFolderId;
       await addFolder(newFolderName.trim(), targetFolderId);
       if (isStorageView && storagePath) {
-        await loadStorageContents(storagePath);
+        await loadStorageContents(storagePath, { silent: true });
       }
-      await refetch();
+      void refetch();
       invalidateGlobalSearch();
       if (uploadDialogOpen) {
         await loadAllAvailableFolders();
@@ -828,13 +847,13 @@ export function DocumentsPage() {
       });
 
       if (isStorageView && storagePath) {
-        await loadStorageContents(storagePath);
+        await loadStorageContents(storagePath, { silent: true });
       }
-      await refetch();
+      void refetch();
       invalidateGlobalSearch();
 
-      posthog?.capture("file_added", { module: "documents" });
-      posthog?.capture("item_created", { module: "documents" });
+      posthog?.capture("file_added", { module: "drive" });
+      posthog?.capture("item_created", { module: "drive" });
       setSubmitSuccess("Fichier ajouté avec succès.");
       setUploadToast({
         open: true,
@@ -877,6 +896,7 @@ export function DocumentsPage() {
       if (isStorageView && storagePath) {
         loadingPathRef.current = null;
         await loadStorageContents(storagePath);
+        void resyncStorageUsed();
         invalidateGlobalSearch();
       } else {
         await refetch();
@@ -934,11 +954,11 @@ export function DocumentsPage() {
           return;
         }
         await moveStorageFileAtPath(filePath, newParentPath);
-        posthog?.capture("file_moved", { module: "documents" });
+        posthog?.capture("file_moved", { module: "drive" });
       }
 
-      if (isStorageView && storagePath) await loadStorageContents(storagePath);
-      await refetch();
+      if (isStorageView && storagePath) await loadStorageContents(storagePath, { silent: true });
+      void refetch();
       invalidateGlobalSearch();
       setMovePopover(null);
       setMoveBrowserPath("");
@@ -958,7 +978,7 @@ export function DocumentsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Drive</h1>
         <p className="text-sm text-muted-foreground">
           Centralise tes fichiers et dossiers.
         </p>
@@ -1146,6 +1166,7 @@ export function DocumentsPage() {
                             if (row.folder.isLocked) return;
                             setContextMenu({ type: "folder", item: row.folder as DriveFolder, x: e.clientX, y: e.clientY });
                           } else {
+                            if (row.doc.isLocked) return;
                             setContextMenu({ type: "document", item: row.doc, x: e.clientX, y: e.clientY });
                           }
                         }}
@@ -1169,12 +1190,22 @@ export function DocumentsPage() {
                               className="flex items-center gap-2 text-primary hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="relative inline-flex items-center">
+                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                {row.doc.isLocked && (
+                                  <Lock className="h-2.5 w-2.5 text-muted-foreground absolute -bottom-0.5 -right-0.5" />
+                                )}
+                              </span>
                               {row.name}
                             </a>
                           ) : (
                             <span className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="relative inline-flex items-center">
+                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                {row.doc.isLocked && (
+                                  <Lock className="h-2.5 w-2.5 text-muted-foreground absolute -bottom-0.5 -right-0.5" />
+                                )}
+                              </span>
                               {row.name}
                             </span>
                           )}

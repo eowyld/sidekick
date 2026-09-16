@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { getStorageKey, type SidekickData } from "@/lib/sidekick-store";
 
 const FLAG = "preferences_migrated_to_supabase";
@@ -19,7 +19,7 @@ export async function migratePreferencesToSupabase(): Promise<void> {
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   if (!user) return; // réessaiera au prochain chargement authentifié
 
   // La clé est indexée par utilisateur : lire celle de l'utilisateur courant,

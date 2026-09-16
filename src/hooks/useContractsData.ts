@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import {
   type ContractInstance,
   type ContractSignature,
@@ -34,7 +34,7 @@ interface ContractsData {
 
 async function fetchContractsData(): Promise<ContractsData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return { templates: [], contracts: [], signatures: [] };
   const [templates, contracts, signatures] = await Promise.all([
     fetchUserContractTemplates(supabase, user.id),
@@ -61,7 +61,7 @@ export function useContractsData() {
 
   const getUserId = useCallback(async (): Promise<string> => {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getSessionUser(supabase);
     if (!user) throw new Error("Non connecté");
     return user.id;
   }, []);

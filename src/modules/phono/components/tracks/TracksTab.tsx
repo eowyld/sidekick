@@ -1,34 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePostHog } from "posthog-js/react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Music } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoResult } from "@/components/ui/no-result";
-import { toIsoDatePickerValue } from "@/lib/date-format";
 import { usePhonoData } from "@/hooks/usePhonoData";
-import { useSidekickData } from "@/hooks/useSidekickData";
 import type { Track, TrackVersion } from "@/lib/sidekick-store";
-import { RELEASE_STATUSES } from "@/modules/phono/lib/release-status";
 import {
   defaultVersion,
   newTrackId,
   newVersionId,
   normalizeTrackGuests,
-  versionsWithAudio,
 } from "@/modules/phono/lib/track";
 import type { CatalogFilter } from "../CatalogHeader";
+import { handleDetachedAudio } from "@/modules/phono/lib/audio-cleanup";
 import { DeleteTrackDialog } from "./DeleteTrackDialog";
-import { TrackDialog } from "./TrackDialog";
 import { TrackRow } from "./TrackRow";
 import { TracksToolbar } from "./TracksToolbar";
-import {
-  effectiveFilterValues,
-  type AudioExtra,
-  type IsrcExtra,
-  type SortKey,
-} from "./track-filters";
+import { sortCatalog } from "@/modules/phono/lib/catalog-sort";
+import { usePhonoSort } from "../PhonoSortProvider";
 
 interface TracksTabProps {
   tracks: Track[];
@@ -52,40 +43,26 @@ export function TracksTab({
   projects,
   onExportMetadata,
 }: TracksTabProps) {
-  const posthog = usePostHog();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
-  const { setData } = useSidekickData();
   // Lecture seule ici : sert à prévenir « figure dans N albums » et à retirer
   // le titre des albums à la suppression. Les onglets Albums restent gérés par
   // CatalogPage jusqu'à la phase 2.
   const { albums, setAlbums } = usePhonoData();
 
+  const { sorts } = usePhonoSort();
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortKey>("date-desc");
-  const [audioExtra, setAudioExtra] = useState<AudioExtra>("all");
-  const [isrcExtra, setIsrcExtra] = useState<IsrcExtra>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Track | null>(null);
 
-  const {
-    status: statusValue,
-    audio: audioValue,
-    isrc: isrcValue,
-  } = effectiveFilterValues(filter, audioExtra, isrcExtra);
+  const statusValue = filter.kind === "status" ? filter.status : "all";
+  const isrcValue = filter.kind === "missing-isrc" ? "missing" : "all";
 
-  const filtersActive =
-    filter.kind !== "none" ||
-    audioExtra !== "all" ||
-    isrcExtra !== "all" ||
-    search.trim() !== "";
+  const filtersActive = filter.kind !== "none" || search.trim() !== "";
 
   const resetFilters = () => {
     setSearch("");
-    setAudioExtra("all");
-    setIsrcExtra("all");
     onFilterChange({ kind: "none" });
   };
 
@@ -95,13 +72,7 @@ export function TracksTab({
       const status = t.status ?? "en_production";
       if (statusValue !== "all" && status !== statusValue) return false;
 
-      const hasAudio = versionsWithAudio(t).length > 0;
-      if (audioValue === "with" && !hasAudio) return false;
-      if (audioValue === "without" && hasAudio) return false;
-
-      const hasIsrc = (t.isrc ?? "").trim() !== "";
-      if (isrcValue === "present" && !hasIsrc) return false;
-      if (isrcValue === "missing" && hasIsrc) return false;
+      if (isrcValue === "missing" && (t.isrc ?? "").trim() !== "") return false;
 
       if (q) {
         const guests = normalizeTrackGuests(t.guestArtists)
@@ -117,28 +88,10 @@ export function TracksTab({
       return true;
     });
 
-    const rank = (t: Track) =>
-      RELEASE_STATUSES.findIndex((s) => s.value === (t.status ?? "en_production"));
-
-    const sorted = [...rows];
-    if (sort === "title-asc") {
-      sorted.sort((a, b) => (a.title || "").localeCompare(b.title || "", "fr"));
-    } else if (sort === "status") {
-      sorted.sort((a, b) => rank(a) - rank(b));
-    } else if (sort === "date-desc") {
-      // Défaut : date de sortie décroissante, titres sans date en fin de liste.
-      sorted.sort((a, b) => {
-        const da = toIsoDatePickerValue(a.releaseDate || "");
-        const db = toIsoDatePickerValue(b.releaseDate || "");
-        if (!da && !db) return 0;
-        if (!da) return 1;
-        if (!db) return -1;
-        return db.localeCompare(da);
-      });
-    }
-    // "recent" : on garde l'ordre d'arrivée (hook = created_at décroissant).
-    return sorted;
-  }, [tracks, search, statusValue, audioValue, isrcValue, sort]);
+    // Même tri que la file du lecteur, à la même fonction : « suivant »
+    // enchaîne dans l'ordre affiché ici.
+    return sortCatalog(rows, sorts.tracks);
+  }, [tracks, search, statusValue, isrcValue, sorts.tracks]);
 
   // ─── Mutations (toujours via setTracks, jamais d'écriture Supabase directe) ──
 
@@ -158,7 +111,7 @@ export function TracksTab({
     ]);
   };
 
-  const confirmDelete = (track: Track) => {
+  const confirmDelete = (track: Track, deleteFromDrive: boolean) => {
     setTracks((prev) => prev.filter((t) => t.id !== track.id));
     // Retire le titre des albums qui le référencent (« il en sera retiré »).
     const inAlbums = albums.filter((a) => (a.trackIds ?? []).includes(track.id));
@@ -173,6 +126,11 @@ export function TracksTab({
     }
     if (expandedId === track.id) setExpandedId(null);
     setPendingDelete(null);
+
+    const uploadedPaths = (track.versions ?? [])
+      .filter((v) => v.audioSource === "upload")
+      .map((v) => v.audioPath);
+    void handleDetachedAudio(uploadedPaths, deleteFromDrive);
   };
 
   const patchVersion = (
@@ -219,34 +177,8 @@ export function TracksTab({
   };
 
   const openCreate = () => {
-    setEditingTrack(null);
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = (next: Track) => {
-    const isEdit = tracks.some((t) => t.id === next.id);
-    setTracks((prev) =>
-      isEdit ? prev.map((t) => (t.id === next.id ? next : t)) : [next, ...prev]
-    );
-    if (isEdit) return;
-
-    posthog?.capture("item_created", { module: "phono" });
-    if (projectIdParam) {
-      setData((prev) => ({
-        ...prev,
-        projects: {
-          projects: prev.projects.projects.map((p) =>
-            p.id === projectIdParam
-              ? {
-                  ...p,
-                  linkedTracks: [...new Set([...p.linkedTracks, next.id])],
-                  updatedAt: new Date().toISOString(),
-                }
-              : p
-          ),
-        },
-      }));
-    }
+    const suffix = projectIdParam ? `?projectId=${projectIdParam}` : "";
+    router.push(`/phono/catalogue/titre/nouveau${suffix}`);
   };
 
   const pendingAlbumCount = pendingDelete
@@ -260,12 +192,6 @@ export function TracksTab({
         onFilterChange={onFilterChange}
         search={search}
         onSearch={setSearch}
-        sort={sort}
-        onSort={setSort}
-        audioExtra={audioExtra}
-        setAudioExtra={setAudioExtra}
-        isrcExtra={isrcExtra}
-        setIsrcExtra={setIsrcExtra}
         onCreate={openCreate}
       />
 
@@ -292,10 +218,7 @@ export function TracksTab({
               onToggleExpand={() =>
                 setExpandedId((cur) => (cur === track.id ? null : track.id))
               }
-              onEdit={() => {
-                setEditingTrack(track);
-                setDialogOpen(true);
-              }}
+              onEdit={() => router.push(`/phono/catalogue/titre/${track.id}`)}
               onDuplicate={() => duplicate(track)}
               onDelete={() => setPendingDelete(track)}
               onExportMetadata={(versionId) => onExportMetadata(track.id, versionId)}
@@ -311,16 +234,6 @@ export function TracksTab({
           ))}
         </div>
       )}
-
-      <TrackDialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingTrack(null);
-        }}
-        track={editingTrack}
-        onSubmit={handleSubmit}
-      />
 
       <DeleteTrackDialog
         track={pendingDelete}

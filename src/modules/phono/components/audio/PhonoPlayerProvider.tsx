@@ -10,20 +10,16 @@ import {
   useState,
 } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import {
+  buildPlayerQueue,
+  defaultQueueItem,
+  type PlayerQueueItem,
+} from "@/modules/phono/lib/player-queue";
+import { usePhonoSort } from "../PhonoSortProvider";
 import { useSignedAudioUrl } from "./useSignedAudioUrl";
 
-export interface PlayerTrackRef {
-  trackId: string;
-  versionId: string;
-  /** Affiché dans la barre. */
-  title: string;
-  versionLabel: string;
-  coverSrc?: string;
-  audioPath: string;
-  /** ~400 valeurs entre 0 et 1, déjà stockées avec la version. */
-  peaks?: number[];
-  durationMs?: number;
-}
+export type PlayerTrackRef = PlayerQueueItem;
 
 export interface PhonoPlayerContextValue {
   current: PlayerTrackRef | null;
@@ -34,14 +30,22 @@ export interface PhonoPlayerContextValue {
   duration: number;
   volume: number;
   error: string | null;
+  /** File complète du catalogue, dans l'ordre affiché. */
+  queue: PlayerQueueItem[];
+  /** Rang de l'entrée en cours dans la file, `-1` si elle n'y est plus. */
+  index: number;
   play: (ref: PlayerTrackRef) => void;
   toggle: () => void;
   seek: (seconds: number) => void;
   setVolume: (v: number) => void;
   stop: () => void;
+  next: () => void;
+  previous: () => void;
 }
 
 const VOLUME_KEY = "phono-player-volume";
+/** Clé de la dernière entrée écoutée, restaurée à la reconnexion. */
+const LAST_ITEM_KEY = "phono-player-last-item";
 
 const PhonoPlayerContext = createContext<PhonoPlayerContextValue | null>(null);
 
@@ -68,6 +72,17 @@ export function PhonoPlayerProvider({
   const [volume, setStoredVolume] = useLocalStorage<number>(VOLUME_KEY, 1);
   const { getSignedUrl, invalidate } = useSignedAudioUrl();
 
+  // Le lecteur construit sa file lui-même. Elle ne peut pas venir de la page
+  // Catalogue : le lecteur est monté dans le layout et doit fonctionner depuis
+  // n'importe quelle page du site.
+  const { tracks, albums, mixes, loading } = usePhonoData();
+  const { sorts } = usePhonoSort();
+
+  const queue = useMemo(
+    () => buildPlayerQueue(tracks, albums, mixes, sorts),
+    [tracks, albums, mixes, sorts]
+  );
+
   // Un seul élément audio pour tout le catalogue : lancer une version en
   // arrête forcément une autre, sans coordination entre composants.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -84,6 +99,14 @@ export function PhonoPlayerProvider({
   const loadRef = useRef<(ref: PlayerTrackRef, isRetry: boolean) => void>(
     () => {}
   );
+  /**
+   * Avance dans la file, appelé depuis l'écouteur `ended`.
+   *
+   * L'élément `Audio` n'est créé qu'une fois : ses écouteurs capturent les
+   * fermetures du premier rendu et ne verraient jamais la file à jour. Passer
+   * par une ref est ce qui leur donne accès à l'état courant.
+   */
+  const stepRef = useRef<(delta: number) => void>(() => {});
 
   useEffect(() => {
     volumeRef.current = volume;
@@ -114,6 +137,9 @@ export function PhonoPlayerProvider({
     audio.addEventListener("ended", () => {
       setIsPlaying(false);
       setPosition(0);
+      // Enchaînement automatique : c'est ce qui rend « écouter tout l'album »
+      // vrai sans que l'artiste ait à relancer chaque titre.
+      stepRef.current(1);
     });
     audio.addEventListener("seeking", () => {
       isSeekingRef.current = true;
@@ -123,6 +149,10 @@ export function PhonoPlayerProvider({
       setPosition(audio.currentTime);
     });
     audio.addEventListener("error", () => {
+      // `stop()` retire la source et rappelle `load()` : l'élément émet alors
+      // une erreur qui ne dit rien de la lecture. Sans ce garde, arrêter le
+      // lecteur affichait « fichier introuvable » juste après.
+      if (!audio.src || !currentRef.current) return;
       const ref = currentRef.current;
       // Une URL signée sortie du cache a pu expirer en cours de route : on la
       // purge et on resigne, une seule fois — sinon l'échec boucle.
@@ -159,9 +189,19 @@ export function PhonoPlayerProvider({
         // Un chargement plus récent a pris la main : son échec ne nous
         // concerne pas (le `play()` interrompu rejette systématiquement).
         if (token !== loadTokenRef.current) return;
+        // `play()` rejette en `AbortError` dès que la lecture est interrompue
+        // avant d'avoir commencé : pause pendant que l'URL signée arrivait,
+        // nouvelle source posée sur le même élément. C'est un geste de
+        // l'artiste, pas une panne — le jeton ne l'attrape pas, puisqu'une
+        // pause n'ouvre aucun chargement concurrent. Sans ce cas, le message
+        // natif du navigateur (« The play() request was interrupted by a call
+        // to pause() ») finissait affiché tel quel dans la barre du lecteur.
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setIsPlaying(false);
         setError(
-          err instanceof Error ? err.message : "Lecture impossible pour le moment."
+          err instanceof DOMException && err.name === "NotAllowedError"
+            ? "Le navigateur a bloqué la lecture : relance-la depuis la barre."
+            : "Lecture impossible pour le moment."
         );
       }
     },
@@ -187,22 +227,80 @@ export function PhonoPlayerProvider({
     }
   }, [loadAndPlay]);
 
-  const play = useCallback(
+  /** Lance une entrée, sans jamais interpréter le geste comme une pause. */
+  const start = useCallback(
     (ref: PlayerTrackRef) => {
-      if (currentRef.current?.versionId === ref.versionId) {
-        toggle();
-        return;
-      }
       currentRef.current = ref;
       setCurrent(ref);
       setPosition(0);
       // Durée connue avant chargement : la waveform ne saute pas au premier
       // `loadedmetadata`.
       setDuration(ref.durationMs ? ref.durationMs / 1000 : 0);
+      try {
+        window.localStorage.setItem(LAST_ITEM_KEY, ref.key);
+      } catch {
+        // Navigation privée ou stockage plein : la reprise à la reconnexion
+        // est un confort, son échec ne doit pas empêcher d'écouter.
+      }
       void loadAndPlay(ref, false);
     },
-    [loadAndPlay, toggle]
+    [loadAndPlay]
   );
+
+  const play = useCallback(
+    (ref: PlayerTrackRef) => {
+      // Rejouer la version déjà en cours vaut pause/reprise. Le test porte sur
+      // `versionId` et non sur `key` : la même version atteinte par son titre
+      // ou par son album reste le même enregistrement pour l'oreille.
+      //
+      // `audioPath` tranche les cas où l'id ne suffit pas : deux entrées qui
+      // pointent des fichiers différents ne sont pas le même enregistrement,
+      // quoi que dise leur id. Des versions ont pu être enregistrées avec une
+      // id dupliquée (cf. `emptyForm` dans `TrackEditPage`) ; sans ce garde,
+      // lancer l'une d'elles mettait l'autre en pause au lieu de la jouer.
+      const playing = currentRef.current;
+      if (
+        playing?.versionId === ref.versionId &&
+        playing.audioPath === ref.audioPath
+      ) {
+        toggle();
+        return;
+      }
+      start(ref);
+    },
+    [start, toggle]
+  );
+
+  const index = useMemo(
+    () => (current ? queue.findIndex((q) => q.key === current.key) : -1),
+    [queue, current]
+  );
+
+  const step = useCallback(
+    (delta: number) => {
+      if (queue.length === 0) return;
+      const from = currentRef.current
+        ? queue.findIndex((q) => q.key === currentRef.current!.key)
+        : -1;
+      // Entrée sortie de la file entre-temps — tri changé, fichier détaché,
+      // titre supprimé : on repart d'un bout plutôt que de ne rien faire.
+      const target =
+        from === -1
+          ? delta > 0
+            ? 0
+            : queue.length - 1
+          : (from + delta + queue.length) % queue.length;
+      start(queue[target]);
+    },
+    [queue, start]
+  );
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const next = useCallback(() => step(1), [step]);
+  const previous = useCallback(() => step(-1), [step]);
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;
@@ -248,6 +346,44 @@ export function PhonoPlayerProvider({
     };
   }, []);
 
+  /**
+   * Reprise à la reconnexion.
+   *
+   * Ajustement d'état en cours de rendu, et non dans un effet : le dépôt
+   * interdit `useEffect(() => setState(…))`, et l'entrée doit de toute façon
+   * être posée avant la première peinture pour que la barre ne clignote pas
+   * d'un état vide à l'état restauré.
+   *
+   * Aucune lecture n'est déclenchée : les navigateurs la refuseraient sans
+   * geste de l'utilisateur, et démarrer du son tout seul à l'ouverture d'une
+   * page serait de toute façon hostile. La barre s'affiche en pause, prête.
+   */
+  const [restored, setRestored] = useState(false);
+  if (!restored && !loading && queue.length > 0) {
+    setRestored(true);
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(LAST_ITEM_KEY);
+    } catch {
+      saved = null;
+    }
+    const item =
+      (saved ? queue.find((q) => q.key === saved) : undefined) ??
+      defaultQueueItem(queue, tracks);
+    if (item) {
+      setCurrent(item);
+      setDuration(item.durationMs ? item.durationMs / 1000 : 0);
+    }
+  }
+
+  // `currentRef` double `current` pour les lectures synchrones : les écouteurs
+  // de l'élément `Audio`, créés une seule fois, ne verraient jamais l'état à
+  // jour. `start` l'écrit déjà depuis son gestionnaire d'événement ; cet effet
+  // couvre le seul chemin qui ne passe pas par lui, la reprise ci-dessus.
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
+
   const value = useMemo<PhonoPlayerContextValue>(
     () => ({
       current,
@@ -256,11 +392,15 @@ export function PhonoPlayerProvider({
       duration,
       volume,
       error,
+      queue,
+      index,
       play,
       toggle,
       seek,
       setVolume,
       stop,
+      next,
+      previous,
     }),
     [
       current,
@@ -269,11 +409,15 @@ export function PhonoPlayerProvider({
       duration,
       volume,
       error,
+      queue,
+      index,
       play,
       toggle,
       seek,
       setVolume,
       stop,
+      next,
+      previous,
     ]
   );
 

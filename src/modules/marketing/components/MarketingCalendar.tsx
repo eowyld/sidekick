@@ -30,7 +30,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { MAX_FILE_SIZE_BYTES, isPlaceholderFileName, uploadDriveFileToPath } from "@/lib/drive-db";
 import type { MarketingEvent } from "@/lib/sidekick-store";
 import {
@@ -265,7 +265,7 @@ export function MarketingCalendar() {
       const supabase = createClient();
       const {
         data: { user }
-      } = await supabase.auth.getUser();
+      } = await getSessionUser(supabase);
       if (!user || cancelled) return;
       const folders: Array<{ id: string; name: string; path: string }> = [];
       async function collectFolders(path: string, displayPath: string) {
@@ -437,7 +437,7 @@ export function MarketingCalendar() {
       const supabase = createClient();
       const {
         data: { user }
-      } = await supabase.auth.getUser();
+      } = await getSessionUser(supabase);
       if (!user) throw new Error("Utilisateur non connecté.");
       const uploadBase = stripExtension(uploadFileName.trim()) || "fichier";
       const { extension } = splitFileName(selectedFile.name);

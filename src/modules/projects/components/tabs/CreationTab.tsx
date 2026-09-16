@@ -14,7 +14,9 @@ import { CREATION_PHASE_ORDER, CREATION_PHASE_LABELS } from "@/lib/sidekick-stor
 import { useProjectsData } from "@/hooks/useProjectsData";
 import { useProjectCreationData } from "@/hooks/useProjectCreationData";
 import { useTasksData } from "@/hooks/useTasksData";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useEditionData } from "@/hooks/useEditionData";
+import { useLiveData } from "@/hooks/useLiveData";
 import { SECTOR_LABELS } from "@/modules/projects/data/creation-templates";
 import {
   computeActivePhase, isPhaseDone, allPhasesDone, phaseProgress, globalProgress,
@@ -293,7 +295,9 @@ function PhaseCard({
 export function CreationTab({ project }: { project: Project }) {
   const router = useRouter();
   const { setProjects } = useProjectsData();
-  const { data } = useSidekickData();
+  const { tracks: phonoTracks, sessions: phonoSessions } = usePhonoData();
+  const { works: editionWorks } = useEditionData();
+  const { tourDates: liveTourDates, rehearsals: liveRehearsals } = useLiveData();
   const { steps, setSteps, seedSectors, generateTask, loading } = useProjectCreationData(project.id);
   const { tasks, setTasks } = useTasksData();
 
@@ -362,13 +366,13 @@ export function CreationTab({ project }: { project: Project }) {
   // Données de modules liées (source des signaux auto).
   const signalCtx = useMemo(
     () => ({
-      tracks: (data.phono?.tracks ?? []).filter((t) => project.linkedTracks.includes(t.id)),
-      sessions: (data.phono?.sessions ?? []).filter((s) => project.linkedSessions.includes(s.id)),
-      works: (data.edition?.works ?? []).filter((w) => project.linkedWorks.includes(w.id)),
-      tourDates: (data.live?.tourDates ?? []).filter((d) => project.linkedTourDates.includes(d.id)),
-      rehearsals: (data.live?.rehearsals ?? []).filter((r) => project.linkedRehearsals.includes(r.id)),
+      tracks: phonoTracks.filter((t) => project.linkedTracks.includes(t.id)),
+      sessions: phonoSessions.filter((s) => project.linkedSessions.includes(s.id)),
+      works: editionWorks.filter((w) => project.linkedWorks.includes(w.id)),
+      tourDates: liveTourDates.filter((d) => project.linkedTourDates.includes(String(d.id))),
+      rehearsals: liveRehearsals.filter((r) => project.linkedRehearsals.includes(r.id)),
     }),
-    [data.phono, data.edition, data.live, project.linkedTracks, project.linkedSessions, project.linkedWorks, project.linkedTourDates, project.linkedRehearsals]
+    [phonoTracks, phonoSessions, editionWorks, liveTourDates, liveRehearsals, project.linkedTracks, project.linkedSessions, project.linkedWorks, project.linkedTourDates, project.linkedRehearsals]
   );
 
   const handleCycleStatus = (step: CreationStep) => {

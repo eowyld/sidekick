@@ -7,7 +7,7 @@ import {
   normalizeCustomTimesForDateRange,
   parseTimeToMinutes,
 } from "@/lib/calendar-time";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { formatTimeForDisplay } from "@/lib/utils";
 
 export type CalendarSector = "live" | "phono" | "admin" | "marketing" | "edition" | "revenus" | "other";
@@ -112,7 +112,7 @@ export function useCalendarData() {
       const supabase = createClient();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSessionUser(supabase);
       if (!user) {
         mutateLocal(snapshot, false);
         return;

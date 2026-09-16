@@ -31,7 +31,7 @@ export function TrackCoverField({ value, onChange }: TrackCoverFieldProps) {
 
   return (
     <div className="space-y-2">
-      <Label>Cover</Label>
+      <Label className="block">Cover</Label>
       <input
         ref={inputRef}
         type="file"

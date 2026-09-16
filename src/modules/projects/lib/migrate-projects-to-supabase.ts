@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Project } from "@/lib/sidekick-store";
 
 const FLAG = "projects_migrated_to_supabase";
@@ -17,7 +17,7 @@ export async function migrateProjectsToSupabase(localProjects: Project[]): Promi
   }
 
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return; // réessaiera au prochain chargement authentifié
 
   // Ne pas écraser si des projets existent déjà côté Supabase
@@ -48,6 +48,17 @@ export async function migrateProjectsToSupabase(localProjects: Project[]): Promi
     linked_statut_ids: (p as Partial<Project>).linkedStatutIds ?? [],
     key_dates: (p as Partial<Project>).keyDates ?? [],
     notes: p.notes ?? "",
+    target_date: p.targetDate || null,
+    pinned: p.pinned ?? false,
+    pinned_order: p.pinnedOrder ?? 0,
+    manual_milestones: p.manualMilestones ?? {
+      editionWritingCompositionDone: false,
+      liveConceptDone: false,
+      liveSetlistDone: false,
+      liveTeamDone: false,
+    },
+    objectives: p.objectives ?? [],
+    milestone_states: p.milestoneStates ?? {},
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   }));

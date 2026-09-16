@@ -6,14 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { computeAudioPeaks, formatDuration } from "@/lib/audio-peaks";
 import { getUserStorageUsed, uploadDriveFileToPath } from "@/lib/drive-db";
-import { createClient } from "@/lib/supabase";
-import { MAX_AUDIO_BYTES, audioUploadError } from "@/modules/phono/lib/audio-limits";
-import type { TrackVersion } from "@/lib/sidekick-store";
+import { createClient, getSessionUser } from "@/lib/supabase";
+import {
+  AUDIO_ACCEPT,
+  MAX_AUDIO_BYTES,
+  audioUploadError,
+} from "@/modules/phono/lib/audio-limits";
+import type { AudioAttachment } from "@/lib/sidekick-store";
+import { cn, focusRing } from "@/lib/utils";
 import { DrivePickerDialog } from "./DrivePickerDialog";
 
-interface VersionAudioFieldProps {
-  version: TrackVersion;
-  onChange: (patch: Partial<TrackVersion>) => void;
+/**
+ * Forme des deux entrées d'attachement. Sans bordure, ce n'étaient que deux
+ * bouts de texte gris séparés par un point médian : rien n'indiquait qu'on
+ * pouvait cliquer, et le survol ne répondait pas.
+ */
+export const ATTACH_BUTTON = cn(
+  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]",
+  "border-[rgba(245,245,245,0.12)] text-[#F5F5F5]/60 transition-colors duration-150",
+  "hover:border-[#F0FF00]/40 hover:bg-[#F0FF00]/10 hover:text-[#F0FF00]",
+  focusRing
+);
+
+interface AudioAttachFieldProps {
+  attachment: AudioAttachment;
+  onChange: (patch: Partial<AudioAttachment>) => void;
   /**
    * Ouvre d'emblée le sélecteur de fichiers du Drive. Lu une seule fois, au
    * montage : c'est ce qui permet à l'entrée « Choisir dans le Drive » du menu
@@ -21,6 +38,37 @@ interface VersionAudioFieldProps {
    * l'utilisateur devrait choisir une seconde fois.
    */
   autoOpen?: "drive";
+  /**
+   * Affiche l'astérisque qui renvoie à la note de formats en pied de carte.
+   * Faux pendant un remplacement : la note, elle, n'est affichée que s'il reste
+   * une version sans fichier, et un astérisque sans sa note ne renvoie à rien.
+   */
+  showFormatsMark?: boolean;
+  /**
+   * Nom donné au fichier téléversé, sans extension (ex. « Artiste - Titre
+   * (Radio edit) »). Absent ou vide : le nom du fichier d'origine est gardé.
+   * Sans effet sur un fichier rattaché depuis le Drive, qui garde son nom.
+   */
+  fileBaseName?: string;
+}
+
+/** Assemble « Artiste - Titre (Version) » en ignorant les parties vides. */
+export function catalogFileBaseName(artist?: string, title?: string, version?: string): string {
+  const main = [artist?.trim(), title?.trim()].filter(Boolean).join(" - ");
+  const label = version?.trim();
+  return label ? `${main} (${label})`.trim() : main;
+}
+
+/**
+ * Renomme le fichier choisi. Les accents sont retirés : `uploadDriveFileToPath`
+ * ne garde que l'ASCII dans les chemins, un « é » y deviendrait un tiret.
+ */
+function renameFile(file: File, baseName: string | undefined): File {
+  const base = baseName?.normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  if (!base) return file;
+  const dot = file.name.lastIndexOf(".");
+  const ext = dot > 0 ? file.name.slice(dot) : "";
+  return new File([file], `${base}${ext}`, { type: file.type, lastModified: file.lastModified });
 }
 
 /** Étape en cours, pour distinguer analyse et envoi dans le libellé. */
@@ -31,21 +79,47 @@ type Phase =
   | { kind: "fetching" };
 
 /**
- * Rattache un fichier audio à une version de titre.
+ * Égaliseur d'attente : quatre barres décalées dans le temps.
  *
- * Composant partagé par le formulaire de création et l'édition inline du
- * catalogue : la logique d'upload et de calcul des peaks n'existe qu'une fois.
+ * Le décalage est réparti pour que le motif ne se referme jamais sur lui-même —
+ * quatre barres en phase donneraient un clignotement, pas un signal.
+ */
+function AudioScanner() {
+  return (
+    <span
+      aria-hidden
+      className="flex h-3.5 w-4 shrink-0 items-center justify-between"
+    >
+      {[0, 140, 280, 420].map((delay) => (
+        <span
+          key={delay}
+          className="audio-scan-bar block h-full w-[2px] rounded-full bg-[#F0FF00]"
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Rattache un fichier audio à une entité du catalogue.
+ *
+ * Ne connaît que `AudioAttachment` : il sert donc indifféremment une version de
+ * titre et un mix, sans rien savoir de l'un ni de l'autre. La logique d'upload
+ * et de calcul des peaks n'existe qu'une fois.
  *
  * Deux chemins d'attachement :
  * - upload d'un fichier local (consomme du quota, soumis aux plafonds) ;
  * - référence à un fichier déjà présent dans le Drive (aucun octet transféré,
  *   donc aucun quota consommé).
  */
-export function VersionAudioField({
-  version,
+export function AudioAttachField({
+  attachment,
   onChange,
   autoOpen,
-}: VersionAudioFieldProps) {
+  showFormatsMark = true,
+  fileBaseName,
+}: AudioAttachFieldProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(autoOpen === "drive");
@@ -57,7 +131,7 @@ export function VersionAudioField({
     setPhase({ kind: "analyzing" });
     try {
       const supabase = createClient();
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser(supabase);
       const userId = auth.user?.id;
       if (!userId) throw new Error("Session expirée, reconnectez-vous.");
 
@@ -74,12 +148,8 @@ export function VersionAudioField({
       const { peaks, durationMs } = await computeAudioPeaks(file);
 
       setPhase({ kind: "uploading", progress: 0 });
-      const { path } = await uploadDriveFileToPath(
-        supabase,
-        userId,
-        file,
-        "phono/audio",
-        {
+      const upload = (f: File) =>
+        uploadDriveFileToPath(supabase, userId, f, "Phono/Catalogue", {
           // Le plafond audio prime sur celui des fichiers Drive génériques :
           // sans lui, `uploadDriveFileToPath` refuserait à 50 Mo un fichier
           // déjà accepté par `audioUploadError`.
@@ -89,13 +159,25 @@ export function VersionAudioField({
               kind: "uploading",
               progress: Math.max(0, Math.min(100, Math.round(progress))),
             }),
-        }
-      );
+        });
+
+      const named = renameFile(file, fileBaseName);
+      let path: string;
+      try {
+        ({ path } = await upload(named));
+      } catch (e) {
+        // Nom déjà pris : cas normal d'un remplacement, l'ancien fichier n'est
+        // traité qu'une fois le nouveau rattaché. Un seul nouvel essai, avec un
+        // suffixe qui ne peut pas entrer en collision une seconde fois.
+        const message = e instanceof Error ? e.message : String(e);
+        if (!/already exists|duplicate/i.test(message) || named === file) throw e;
+        ({ path } = await upload(renameFile(file, `${fileBaseName}-${Date.now()}`)));
+      }
 
       onChange({
         audioPath: path,
         audioSource: "upload",
-        audioName: file.name,
+        audioName: named.name,
         durationMs,
         sizeBytes: file.size,
         peaks,
@@ -160,9 +242,11 @@ export function VersionAudioField({
   }
 
   function detach() {
-    // On retire seulement la référence : le fichier reste dans le Drive, où
-    // l'artiste le supprimera s'il le souhaite. Le supprimer ici casserait les
-    // liens d'écoute qui l'ont déjà dénormalisé.
+    // On ne retire ici que la référence, jamais le fichier : rien n'est encore
+    // enregistré tant que le dialogue n'est pas validé, et un fichier du Drive
+    // n'appartient pas au catalogue. Le fichier téléversé devenu orphelin est
+    // ramassé après coup par `pruneOrphanAudio`, qui vérifie d'abord qu'aucun
+    // lien d'écoute publié ne le sert encore.
     onChange({
       audioPath: undefined,
       audioSource: undefined,
@@ -178,19 +262,19 @@ export function VersionAudioField({
       ? `Envoi… ${phase.progress} %`
       : phase.kind === "fetching"
         ? "Récupération du fichier…"
-        : "Analyse du fichier…";
+        : "Analyse de la forme d'onde…";
 
   return (
     <div className="pl-1">
       <div className="flex items-center gap-2">
-        {version.audioPath ? (
+        {attachment.audioPath ? (
           <>
             <Music className="h-4 w-4 shrink-0" style={{ color: "#F0FF00" }} />
             <span
               className="truncate text-xs"
               style={{ color: "rgba(245,245,245,0.7)" }}
             >
-              {version.audioName} · {formatDuration(version.durationMs ?? 0)}
+              {attachment.audioName} · {formatDuration(attachment.durationMs ?? 0)}
             </span>
             <Button
               type="button"
@@ -205,23 +289,30 @@ export function VersionAudioField({
           </>
         ) : busy ? (
           <span
-            className="inline-flex items-center gap-1.5 text-xs"
-            style={{ color: "rgba(245,245,245,0.7)" }}
+            aria-live="polite"
+            className="inline-flex items-center gap-2 text-[11px] text-[#F5F5F5]/70"
           >
-            <Upload className="h-3 w-3" />
+            <AudioScanner />
             {busyLabel}
           </span>
         ) : (
           <>
-            <label
-              className="inline-flex cursor-pointer items-center gap-1.5 text-xs"
-              style={{ color: "rgba(245,245,245,0.7)" }}
-            >
-              <Upload className="h-3 w-3" />
+            {/*
+              L'astérisque renvoie à la note en pied de carte : annoncer les
+              formats acceptés dans le bouton lui-même l'allongerait sur chaque
+              version, alors que la contrainte est la même pour toutes.
+            */}
+            <label className={cn(ATTACH_BUTTON, "cursor-pointer")}>
+              <Upload className="h-3 w-3 shrink-0" />
               Ajouter un fichier audio
+              {showFormatsMark ? (
+                <span aria-hidden className="opacity-60">
+                  *
+                </span>
+              ) : null}
               <input
                 type="file"
-                accept="audio/*,.wav,.aiff,.aif,.flac"
+                accept={AUDIO_ACCEPT}
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -230,14 +321,12 @@ export function VersionAudioField({
                 }}
               />
             </label>
-            <span style={{ color: "rgba(245,245,245,0.3)" }}>·</span>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 text-xs"
-              style={{ color: "rgba(245,245,245,0.7)" }}
+              className={ATTACH_BUTTON}
               onClick={() => setPickerOpen(true)}
             >
-              <HardDrive className="h-3 w-3" />
+              <HardDrive className="h-3 w-3 shrink-0" />
               Choisir dans le Drive
             </button>
           </>

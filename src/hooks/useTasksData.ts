@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Todo } from "@/lib/sidekick-store";
 
 const KEY = "user_tasks";
@@ -59,7 +59,7 @@ export function useTasksData() {
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) {
         mutateLocal(snapshot, false);
         return;

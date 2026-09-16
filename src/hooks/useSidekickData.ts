@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import {
   DEFAULT_SIDEKICK_DATA,
   getStorageKey,
@@ -49,7 +49,7 @@ export function useSidekickData() {
       setData(readStored(key));
       setPreferencesReady(true);
     };
-    supabase.auth.getUser()
+    getSessionUser(supabase)
       .then(({ data: { user } }) => applyUserPrefs(user?.id ?? null))
       .catch((error) => {
         if (!isAbortError(error)) console.error("[useSidekickData] Auth échouée:", error);

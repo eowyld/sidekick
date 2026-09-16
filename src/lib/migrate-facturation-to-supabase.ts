@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { getStorageKey, type SidekickData } from "@/lib/sidekick-store";
 
 const FLAG = "facturation_migrated_to_supabase";
@@ -33,7 +33,7 @@ export async function migrateFacturationToSupabase(): Promise<void> {
   const supabase = createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSessionUser(supabase);
   if (!user) return; // réessaiera au prochain chargement authentifié
 
   const blob = readJson<Partial<SidekickData>>(getStorageKey(user.id));

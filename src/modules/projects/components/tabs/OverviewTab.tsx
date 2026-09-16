@@ -1,220 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo } from "react";
 import type { Project } from "@/lib/sidekick-store";
-import { useProjectsData } from "@/hooks/useProjectsData";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useEditionData } from "@/hooks/useEditionData";
+import { useLiveData } from "@/hooks/useLiveData";
 import { useProjectBudgetData } from "@/hooks/useProjectBudgetData";
-import { useProjectMarketingData } from "@/hooks/useProjectMarketingData";
-import { useProjectAdminData } from "@/hooks/useProjectAdminData";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ImagePlus, X, ChevronDown, Pencil } from "lucide-react";
+import { buildProjectCockpit } from "@/modules/projects/lib/project-cockpit";
+import { AlertTriangle, ArrowRight, BookOpen, CalendarDays, CheckCircle2, Mic2, Music2, Wallet } from "lucide-react";
+import { cn, focusRing } from "@/lib/utils";
 
-function fmt(amount: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+const fmtMoney = (value: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+const fmtDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+const dateKey = (value: string) => { const iso = value?.match(/^(\d{4})-(\d{2})-(\d{2})/); if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`; const fr = value?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return fr ? `${fr[3]}-${fr[2].padStart(2, "0")}-${fr[1].padStart(2, "0")}` : null; };
+
+function ModuleCard({ href, icon: Icon, label, value, detail }: { href: string; icon: typeof Music2; label: string; value: string; detail: string }) {
+  return <Link href={href} className={cn("group rounded-xl border border-white/[.08] bg-[rgba(44,44,46,.42)] p-4 transition-colors hover:border-white/20", focusRing)}><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.12em] text-white/35"><Icon size={13} />{label}</span><ArrowRight size={13} className="text-white/20 transition-transform group-hover:translate-x-0.5 group-hover:text-white/50" /></div><p className="mt-4 text-xl font-light text-white/90">{value}</p><p className="mt-1 text-[11px] text-white/35">{detail}</p></Link>;
 }
 
-function CockpitCard({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="text-left rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-4 hover:border-[rgba(245,245,245,0.18)] transition-colors"
-    >
-      <div className="text-[11px] uppercase tracking-wider text-[#F5F5F5]/40 mb-2">{label}</div>
-      {children}
-    </button>
-  );
-}
+export function OverviewTab({ project }: { project: Project; onGoTab: (tab: string) => void }) {
+  const phono = usePhonoData(); const edition = useEditionData(); const live = useLiveData(); const { kpis } = useProjectBudgetData(project.id);
+  const source = useMemo(() => ({ tracks: phono.tracks, albums: phono.albums, sessions: phono.sessions, works: edition.works, tourDates: live.tourDates, rehearsals: live.rehearsals }), [phono.tracks, phono.albums, phono.sessions, edition.works, live.tourDates, live.rehearsals]);
+  const cockpit = useMemo(() => buildProjectCockpit(project, source), [project, source]);
+  const tracks = phono.tracks.filter((item) => project.linkedTracks.includes(item.id));
+  const albums = phono.albums.filter((item) => project.linkedAlbums.includes(item.id));
+  const works = edition.works.filter((item) => project.linkedWorks.includes(item.id));
+  const dates = live.tourDates.filter((item) => project.linkedTourDates.includes(String(item.id)));
+  const rehearsals = live.rehearsals.filter((item) => project.linkedRehearsals.includes(item.id));
+  const timeline = [
+    ...albums.map((item) => ({ date: dateKey(item.releaseDate), label: `Sortie · ${item.title}`, sector: "Phono" })),
+    ...tracks.map((item) => ({ date: dateKey(item.releaseDate), label: `Sortie titre · ${item.title}`, sector: "Phono" })),
+    ...dates.map((item) => ({ date: dateKey(item.date), label: `${item.venue || "Concert"} · ${item.city}`, sector: "Live" })),
+    ...rehearsals.map((item) => ({ date: dateKey(item.date), label: item.label || "Répétition", sector: "Live" })),
+    ...(project.keyDates ?? []).map((item) => ({ date: dateKey(item.date), label: item.label, sector: "Projet" })),
+  ].filter((item): item is { date: string; label: string; sector: string } => Boolean(item.date)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
 
-export function OverviewTab({
-  project,
-  onGoTab,
-}: {
-  project: Project;
-  onGoTab: (tab: string) => void;
-}) {
-  const { setProjects } = useProjectsData();
-  const { kpis, loading: budgetLoading } = useProjectBudgetData(project.id);
-  const { campaigns, events, loading: marketingLoading } = useProjectMarketingData(project.id);
-  const { contracts, loading: adminLoading } = useProjectAdminData(project.id);
-  const keyDates = project.keyDates ?? [];
-  const linkedStatutIds = project.linkedStatutIds ?? [];
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState("");
+  return <div className="space-y-7">
+    <section aria-labelledby="attention-title"><div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#F0FF00]/60">Priorités</p><h2 id="attention-title" className="mt-1 text-base font-semibold">À faire maintenant</h2></div><span className="text-[11px] text-white/30">Calculé depuis les modules liés</span></div>
+      {cockpit.alerts.length ? <div className="divide-y divide-white/[.06] overflow-hidden rounded-xl border border-amber-300/15 bg-amber-300/[.025]">{cockpit.alerts.map((alert, index) => <div key={alert} className="flex items-center gap-3 px-4 py-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-300/10 text-amber-300"><AlertTriangle size={14} /></span><p className="flex-1 text-sm text-white/70">{alert}</p><span className="text-[10px] tabular-nums text-white/25">{String(index + 1).padStart(2, "0")}</span></div>)}</div> : <div className="flex items-center gap-3 rounded-xl border border-emerald-300/10 bg-emerald-300/[.025] px-4 py-4"><CheckCircle2 size={17} className="text-emerald-300/70" /><div><p className="text-sm text-white/75">Aucun blocage détecté</p><p className="mt-0.5 text-[11px] text-white/35">Les données liées sont à jour.</p></div></div>}
+    </section>
 
-  const updateProject = (updates: Partial<Project>) => {
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === project.id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-      )
-    );
-  };
+    <section aria-labelledby="modules-title"><h2 id="modules-title" className="mb-3 text-[11px] font-semibold uppercase tracking-[.13em] text-white/40">Le projet dans SIDEKICK</h2><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><ModuleCard href={`/phono/catalogue?projectId=${project.id}`} icon={Music2} label="Phono" value={`${tracks.length + albums.length}`} detail={`${tracks.length} titre${tracks.length > 1 ? "s" : ""} · ${albums.length} sortie${albums.length > 1 ? "s" : ""}`} /><ModuleCard href={`/edition?projectId=${project.id}`} icon={BookOpen} label="Édition" value={`${works.length}`} detail={`œuvre${works.length > 1 ? "s" : ""} liée${works.length > 1 ? "s" : ""}`} /><ModuleCard href={`/live/representations?projectId=${project.id}`} icon={Mic2} label="Live" value={`${dates.length + rehearsals.length}`} detail={`${dates.length} date${dates.length > 1 ? "s" : ""} · ${rehearsals.length} répétition${rehearsals.length > 1 ? "s" : ""}`} /><ModuleCard href={`/projects/${project.id}?tab=budget`} icon={Wallet} label="Finances" value={fmtMoney(kpis.balance)} detail={`${fmtMoney(kpis.totalRealExpenses)} dépensé`} /></div></section>
 
-  const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) =>
-      updateProject({ images: [...project.images, ev.target?.result as string] });
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveImage = (index: number) =>
-    updateProject({ images: project.images.filter((_, i) => i !== index) });
-
-  const handleSaveNotes = () => {
-    updateProject({ notes: notesValue });
-    setEditingNotes(false);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Cockpit — 4 cartes */}
-      <div className="grid grid-cols-2 gap-3">
-        <CockpitCard label="🎛️ Artistique" onClick={() => onGoTab("creation")}>
-          <p className="text-[12px] text-[#F5F5F5]/70 leading-relaxed">
-            🎵 {project.linkedTracks.length} titre{project.linkedTracks.length !== 1 ? "s" : ""}<br />
-            ✍️ {project.linkedWorks.length} œuvre{project.linkedWorks.length !== 1 ? "s" : ""}<br />
-            🎤 {project.linkedTourDates.length} date{project.linkedTourDates.length !== 1 ? "s" : ""}
-          </p>
-        </CockpitCard>
-        <CockpitCard label="💶 Budget & finances" onClick={() => onGoTab("budget")}>
-          {budgetLoading ? (
-            <p className="text-[12px] text-[#F5F5F5]/20">…</p>
-          ) : kpis.totalPlannedExpenses === 0 && kpis.totalRealExpenses === 0 ? (
-            <p className="text-[13px] text-[#F5F5F5]/30 italic">Budget non configuré</p>
-          ) : (
-            <p className="text-[12px] text-[#F5F5F5]/70 leading-relaxed">
-              📋 {fmt(kpis.totalPlannedExpenses)} prévu<br />
-              💸 {fmt(kpis.totalRealExpenses)} dépensé<br />
-              <span className={kpis.balance >= 0 ? "text-green-400" : "text-red-400"}>
-                {kpis.balance >= 0 ? "+" : ""}{fmt(kpis.balance)} balance
-              </span>
-            </p>
-          )}
-        </CockpitCard>
-        <CockpitCard label="📣 Campagne marketing" onClick={() => onGoTab("marketing")}>
-          {marketingLoading ? (
-            <p className="text-[12px] text-[#F5F5F5]/20">…</p>
-          ) : keyDates.length === 0 && events.length === 0 && campaigns.length === 0 ? (
-            <p className="text-[13px] text-[#F5F5F5]/30 italic">Campagne non configurée</p>
-          ) : (
-            <p className="text-[12px] text-[#F5F5F5]/70 leading-relaxed">
-              🚩 {keyDates.length} temps fort{keyDates.length !== 1 ? "s" : ""}<br />
-              📅 {events.length} publication{events.length !== 1 ? "s" : ""}<br />
-              📧 {campaigns.length} campagne{campaigns.length !== 1 ? "s" : ""}
-            </p>
-          )}
-        </CockpitCard>
-        <CockpitCard label="📄 Admin" onClick={() => onGoTab("admin")}>
-          {adminLoading ? (
-            <p className="text-[12px] text-[#F5F5F5]/20">…</p>
-          ) : linkedStatutIds.length === 0 && contracts.length === 0 ? (
-            <p className="text-[13px] text-[#F5F5F5]/30 italic">Admin non configuré</p>
-          ) : (
-            <p className="text-[12px] text-[#F5F5F5]/70 leading-relaxed">
-              🏛️ {linkedStatutIds.length} statut{linkedStatutIds.length !== 1 ? "s" : ""} lié{linkedStatutIds.length !== 1 ? "s" : ""}<br />
-              📝 {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}
-            </p>
-          )}
-        </CockpitCard>
-      </div>
-
-      {/* Galerie */}
-      <div className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={() => setGalleryOpen((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-[13px] font-medium text-[#F5F5F5]/70 hover:text-[#F5F5F5]"
-        >
-          <span>Images & mood board</span>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-[#F5F5F5]/30">
-              {project.images.length} image{project.images.length !== 1 ? "s" : ""}
-            </span>
-            <ChevronDown
-              size={14}
-              className={`transition-transform ${galleryOpen ? "rotate-180" : ""}`}
-            />
-          </div>
-        </button>
-        {galleryOpen && (
-          <div className="px-5 pb-5">
-            <div className="flex flex-wrap gap-2">
-              {project.images.map((img, i) => (
-                <div
-                  key={i}
-                  className="relative group w-24 h-24 rounded-lg overflow-hidden border border-[rgba(245,245,245,0.08)]"
-                >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveImage(i)}
-                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-black/60 rounded-full p-0.5"
-                  >
-                    <X size={10} className="text-white" />
-                  </button>
-                </div>
-              ))}
-              <label className="flex w-24 h-24 flex-col items-center justify-center rounded-lg border border-dashed border-[rgba(245,245,245,0.15)] text-[#F5F5F5]/30 text-[11px] gap-1 cursor-pointer hover:border-[rgba(245,245,245,0.3)] transition-colors">
-                <ImagePlus size={16} />
-                Ajouter
-                <input type="file" accept="image/*" onChange={handleAddImage} className="hidden" />
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Notes */}
-      <div className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.72)] backdrop-blur-xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-medium text-[#F5F5F5]/70">Notes</h2>
-          {!editingNotes && (
-            <button
-              onClick={() => {
-                setNotesValue(project.notes);
-                setEditingNotes(true);
-              }}
-              className="text-[11px] text-[#F5F5F5]/30 hover:text-[#F5F5F5] flex items-center gap-1"
-            >
-              <Pencil size={11} /> Modifier
-            </button>
-          )}
-        </div>
-        {editingNotes ? (
-          <div className="space-y-2">
-            <Textarea
-              value={notesValue}
-              onChange={(e) => setNotesValue(e.target.value)}
-              className="bg-[#101010] border-[rgba(245,245,245,0.12)] text-[#F5F5F5] resize-none text-[13px]"
-              rows={4}
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>
-                Annuler
-              </Button>
-              <Button size="sm" onClick={handleSaveNotes}>
-                Enregistrer
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[13px] text-[#F5F5F5]/50 whitespace-pre-wrap min-h-[2rem]">
-            {project.notes || <span className="italic text-[#F5F5F5]/20">Pas de notes</span>}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+    <section aria-labelledby="timeline-title"><div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-white/30">Tous modules confondus</p><h2 id="timeline-title" className="mt-1 text-base font-semibold">Chronologie</h2></div><CalendarDays size={16} className="text-white/25" /></div>{timeline.length ? <ol className="overflow-hidden rounded-xl border border-white/[.08] bg-[rgba(44,44,46,.32)]">{timeline.map((item, index) => <li key={`${item.date}-${item.label}-${index}`} className="grid grid-cols-[72px_14px_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] px-4 py-3 last:border-0"><time className="text-xs font-medium capitalize tabular-nums text-white/55">{fmtDate(item.date)}</time><span className="relative h-2 w-2 rounded-full bg-[#F0FF00] shadow-[0_0_8px_rgba(240,255,0,.4)]" /><span className="truncate text-sm text-white/70">{item.label}</span><span className="text-[9px] uppercase tracking-[.1em] text-white/25">{item.sector}</span></li>)}</ol> : <div className="rounded-xl border border-dashed border-white/10 px-5 py-10 text-center"><p className="text-sm text-white/45">Aucune date liée pour le moment</p><p className="mt-1 text-xs text-white/25">Les sorties, répétitions et concerts apparaîtront ici automatiquement.</p></div>}</section>
+  </div>;
 }

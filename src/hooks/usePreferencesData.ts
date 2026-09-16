@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import {
   DEFAULT_INVOICE_TEMPLATE,
   DEFAULT_SIDEKICK_DATA,
@@ -147,7 +147,7 @@ export function usePreferencesData() {
         const supabase = createClient();
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getSessionUser(supabase);
         if (!user) {
           mutateLocal(snapshot, false);
           return;
@@ -214,7 +214,7 @@ export function usePreferencesData() {
       const supabase = createClient();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSessionUser(supabase);
       if (!user) throw new Error("not_authenticated");
 
       const { error: upsertError } = await supabase

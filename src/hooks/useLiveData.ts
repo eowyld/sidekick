@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { TourDate, TimetableItem } from "@/modules/live/data/defaultRepresentations";
 
 export type { TourDate, TimetableItem };
@@ -258,7 +258,7 @@ function rowToProspection(row: Record<string, unknown>): ProspectionEntry {
 
 async function fetchLiveData(): Promise<LiveData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return EMPTY;
 
   const [td, rh, inv, lists, pro] = await Promise.all([
@@ -304,7 +304,7 @@ function makeOptimisticSetter<T extends { id: string | number }>(
     (async () => {
       setError(null);
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) {
         setError("Not authenticated");
         mutate(KEY, (cur: LiveData | undefined) => ({ ...(cur ?? EMPTY), [slice]: snapshot }), false);

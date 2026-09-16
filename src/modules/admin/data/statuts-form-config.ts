@@ -245,7 +245,7 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
       placeholder:
         "Nom de l’entreprise individuelle ou prénom + nom tels qu’inscrits auprès de l’administration",
       identitySectionDescription:
-        "Le nom exact que tu utilises pour tes déclarations aux impôts et à l’URSSAF. Il apparaît aussi dans Sidekick et ton dossier Documents.",
+        "Le nom exact que tu utilises pour tes déclarations aux impôts et à l’URSSAF. Il apparaît aussi dans Sidekick et ton dossier Drive.",
     };
   }
   if (type === "association_1901") {
@@ -253,7 +253,7 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
       label: "Nom de l’association",
       placeholder: "Nom officiel tel qu’il figure dans les statuts et en préfecture",
       identitySectionDescription:
-        "Le nom officiel de ton association, celui qui figure dans les statuts déposés en préfecture. Il apparaît aussi dans Sidekick et ton dossier Documents.",
+        "Le nom officiel de ton association, celui qui figure dans les statuts déposés en préfecture. Il apparaît aussi dans Sidekick et ton dossier Drive.",
     };
   }
   if (type === "intermittent") {
@@ -267,7 +267,7 @@ export function getStatusIdentityNameField(type: AdminStatusType): {
   return {
     label: "Nom du statut",
     placeholder: "Ex. Mon association, Ma SASU, Carte intermittent…",
-    identitySectionDescription: "Le nom qui s’affichera dans Sidekick et ton dossier Documents.",
+    identitySectionDescription: "Le nom qui s’affichera dans Sidekick et ton dossier Drive.",
   };
 }
 

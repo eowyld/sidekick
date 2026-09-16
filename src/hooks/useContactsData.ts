@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 
 export interface Contact {
   id: string;
@@ -72,7 +72,7 @@ export function useContactsData() {
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { mutateLocal(snapshot, false); return; }
 
       const prevMap = new Map(snapshot.map((c) => [c.id, c]));

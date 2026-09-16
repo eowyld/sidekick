@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Disc3, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,9 @@ import type { Album, ReleaseStatus, Track } from "@/lib/sidekick-store";
 import { albumTracks } from "@/modules/phono/lib/album";
 import { isStatusMoreAdvanced } from "@/modules/phono/lib/release-status";
 import { normalizeTrack } from "@/modules/phono/lib/track";
+import { sortCatalog } from "@/modules/phono/lib/catalog-sort";
+import { CatalogSortMenu } from "../CatalogSortMenu";
+import { usePhonoSort } from "../PhonoSortProvider";
 import { AlbumCard } from "./AlbumCard";
 import { AlbumDialog } from "./AlbumDialog";
 
@@ -35,9 +38,17 @@ export function AlbumsTab({
   setTracks,
   onExportMetadata,
 }: AlbumsTabProps) {
+  const { sorts } = usePhonoSort();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Album | null>(null);
+
+  // Même fonction de tri que la file du lecteur : parcourir les albums avec les
+  // flèches suit l'ordre affiché ici.
+  const visible = useMemo(
+    () => sortCatalog(albums, sorts.albums),
+    [albums, sorts.albums]
+  );
 
   const openCreate = () => {
     setEditingAlbum(null);
@@ -84,8 +95,9 @@ export function AlbumsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button type="button" onClick={openCreate}>
+      <div className="flex items-center justify-end gap-2">
+        <CatalogSortMenu scope="albums" />
+        <Button type="button" onClick={openCreate} className="btn-glow">
           <Plus className="mr-2 h-4 w-4" />
           Album
         </Button>
@@ -100,7 +112,7 @@ export function AlbumsTab({
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {albums.map((album) => (
+          {visible.map((album) => (
             <AlbumCard
               key={album.id}
               album={album}

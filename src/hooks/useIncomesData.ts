@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type {
   Distributor,
   DistributorImport,
@@ -203,7 +203,7 @@ const KEY = "user_incomes";
 
 async function fetchIncomesData(): Promise<IncomesData> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return FALLBACK;
 
   const [imp, man, inv, mis] = await Promise.all([
@@ -245,7 +245,7 @@ function makeUpdater<T extends { id: string }>(
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { mutateLocal(snapshot, false); return; }
 
       const prevMap = new Map((snapshot[sliceKey] as unknown as T[]).map((e) => [e.id, e]));
@@ -313,7 +313,7 @@ export function useIncomesData() {
 
     (async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser(supabase);
       if (!user) { mutateLocal(snapshot, false); return; }
       const { error: err } = await supabase
         .from("user_royalties_imports")

@@ -1,7 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
+import { AlertTriangle, Check, Music, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatBytes } from "@/modules/phono/lib/audio-limits";
 import type { ExportItem } from "@/modules/phono/lib/metadata-export";
 
@@ -12,7 +13,10 @@ const LINE = "rgba(245,245,245,0.12)";
 interface MetadataSourceListProps {
   items: ExportItem[];
   overrides: Record<string, File>;
-  /** Nombre d'éléments exclus faute de fichier. */
+  /** Une version cochée entre dans l'export, si elle a un fichier. */
+  isChecked: (key: string) => boolean;
+  onToggleSelected: (key: string, checked: boolean) => void;
+  /** Nombre d'éléments exclus (sans fichier ou décochés). */
   skipped: number;
   /** Nombre d'éléments effectivement inclus dans l'export. */
   includedCount: number;
@@ -52,6 +56,8 @@ function FilePickButton({
 export function MetadataSourceList({
   items,
   overrides,
+  isChecked,
+  onToggleSelected,
   skipped,
   includedCount,
   onSetOverride,
@@ -69,14 +75,33 @@ export function MetadataSourceList({
         const name = it.version?.label
           ? `${it.track.title || "Titre"} — ${it.version.label}`
           : it.track.title || "Titre";
+        const ready = Boolean(ov || it.hosted);
+        const checked = ready && isChecked(it.key);
         return (
           <div
             key={it.key}
-            className="rounded-md border px-3 py-2 text-sm"
-            style={{ borderColor: LINE }}
+            className="rounded-lg border px-3 py-2.5 text-sm transition-colors"
+            style={{
+              borderColor: checked ? "rgba(240,255,0,0.14)" : LINE,
+              background: checked ? "rgba(240,255,0,0.03)" : undefined,
+              opacity: ready && !checked ? 0.55 : 1,
+            }}
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 flex-1 truncate">
+              <span className="flex min-w-0 flex-1 items-center gap-2.5 truncate">
+                {/* Rien à choisir avec un seul élément : la case n'aurait aucun effet utile. */}
+                {items.length > 1 && (
+                  <Checkbox
+                    checked={checked}
+                    disabled={!ready}
+                    onCheckedChange={(v) => onToggleSelected(it.key, v === true)}
+                    aria-label={`Inclure « ${name} » dans l'export`}
+                  />
+                )}
+                <Music
+                  className="h-3.5 w-3.5 shrink-0"
+                  style={{ color: checked ? "#F0FF00" : FAINT }}
+                />
                 {it.trackNumber ? (
                   <span style={{ color: FAINT }}>
                     {String(it.trackNumber).padStart(2, "0")} ·{" "}
@@ -105,7 +130,7 @@ export function MetadataSourceList({
                 </span>
               ) : it.hosted ? (
                 <span className="flex shrink-0 items-center gap-2 text-xs">
-                  <span style={{ color: "#F0FF00" }}>✓</span>
+                  <Check className="h-3.5 w-3.5 shrink-0" style={{ color: "#F0FF00" }} />
                   <span
                     className="max-w-[150px] truncate"
                     style={{ color: MUTED }}
@@ -130,7 +155,11 @@ export function MetadataSourceList({
               )}
             </div>
             {!ov && !it.hosted ? (
-              <p className="mt-1 text-xs" style={{ color: FAINT }}>
+              <p
+                className="mt-1.5 flex items-center gap-1.5 text-xs"
+                style={{ color: FAINT }}
+              >
+                <AlertTriangle className="h-3 w-3 shrink-0" />
                 ignoré, aucun fichier
               </p>
             ) : null}

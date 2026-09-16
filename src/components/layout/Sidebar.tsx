@@ -60,6 +60,7 @@ const groupMusique = [
     sub: [
       { href: "/phono/catalogue", label: "Catalogue" },
       { href: "/phono/sessions-studio", label: "Sessions Studio" },
+      { href: "/phono/liens-ecoute", label: "Liens d'écoute" },
     ],
   },
   {
@@ -138,7 +139,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+      className={`flex items-center gap-2.5 px-2 py-1.5 text-[15px] transition-colors duration-150 ${
         active
           ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
           : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
@@ -196,7 +197,7 @@ function NavGroup({
   if (isComingSoon(href)) {
     return (
       <ComingSoonTooltip>
-        <div className="flex cursor-default items-center gap-2.5 border-l-2 border-transparent px-2 py-1.5 text-[13px] text-[#F5F5F5]/35">
+        <div className="flex cursor-default items-center gap-2.5 border-l-2 border-transparent px-2 py-1.5 text-[15px] text-[#F5F5F5]/35">
           <Icon size={16} className="shrink-0" />
           <span className="flex-1">{label}</span>
           <Lock size={12} className="shrink-0" />
@@ -210,7 +211,7 @@ function NavGroup({
       <button
         type="button"
         onClick={onToggle}
-        className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-[13px] text-left transition-colors duration-150 ${
+        className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-[15px] text-left transition-colors duration-150 ${
           groupActive && !open
             ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
             : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
@@ -229,7 +230,7 @@ function NavGroup({
             if (isComingSoon(item.href)) {
               return (
                 <ComingSoonTooltip key={item.href}>
-                  <div className="flex w-fit cursor-default items-center gap-1.5 py-1 text-[12px] text-[#F5F5F5]/30">
+                  <div className="flex w-fit cursor-default items-center gap-1.5 py-1 text-[13px] text-[#F5F5F5]/30">
                     {item.label}
                     <Lock size={10} className="shrink-0" />
                   </div>
@@ -241,7 +242,7 @@ function NavGroup({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`block py-1 text-[12px] transition-colors duration-150 ${
+                className={`block py-1 text-[13px] transition-colors duration-150 ${
                   subActive
                     ? "text-[#F0FF00] font-medium"
                     : "text-[#F5F5F5]/50 hover:text-[#F5F5F5]"
@@ -259,7 +260,7 @@ function NavGroup({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1 mt-4 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30 first:mt-0">
+    <p className="mb-1 mt-4 px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/30 first:mt-0">
       {children}
     </p>
   );
@@ -339,7 +340,7 @@ export function Sidebar() {
           {/* PROJETS — pivot central */}
           <Link
             href="/projects"
-            className={`my-3 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+            className={`my-3 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[15px] font-semibold transition-colors ${
               pathname.startsWith("/projects")
                 ? "border-[#F0FF00]/40 bg-[#F0FF00]/10 text-[#F0FF00]"
                 : "border-[#F0FF00]/20 bg-[#F0FF00]/5 text-[#F5F5F5] hover:bg-[#F0FF00]/10 hover:text-[#F0FF00]"
@@ -390,19 +391,19 @@ export function Sidebar() {
           {/* Footer */}
           <div className="mt-auto border-t border-[rgba(245,245,245,0.08)] pt-4 space-y-0.5">
             <Link
-              href="/admin/documents"
-              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
-                isActive(pathname, "/admin/documents")
+              href="/drive"
+              className={`flex items-center gap-2.5 px-2 py-1.5 text-[15px] transition-colors duration-150 ${
+                isActive(pathname, "/drive")
                   ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
                   : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"
               }`}
             >
               <FileText size={16} className="shrink-0" />
-              Documents
+              Drive
             </Link>
             <Link
               href="/settings"
-              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors duration-150 ${
+              className={`flex items-center gap-2.5 px-2 py-1.5 text-[15px] transition-colors duration-150 ${
                 isActive(pathname, "/settings")
                   ? "border-l-2 border-[#F0FF00] bg-[#F0FF00]/10 pl-[6px] text-[#F0FF00] font-medium"
                   : "border-l-2 border-transparent text-[#F5F5F5]/65 hover:bg-[rgba(245,245,245,0.05)] hover:text-[#F5F5F5]"

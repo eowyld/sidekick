@@ -1,37 +1,21 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn, focusRing } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ReleaseStatus } from "@/lib/sidekick-store";
-import { RELEASE_STATUSES } from "@/modules/phono/lib/release-status";
+  RELEASE_STATUSES,
+  RELEASE_STATUS_COLOR,
+} from "@/modules/phono/lib/release-status";
 import type { CatalogFilter } from "../CatalogHeader";
-import {
-  effectiveFilterValues,
-  type AudioExtra,
-  type IsrcExtra,
-  type SortKey,
-} from "./track-filters";
-
+import { CATALOG_CONTROL, CatalogSortMenu } from "../CatalogSortMenu";
 
 interface TracksToolbarProps {
   filter: CatalogFilter;
   onFilterChange: (filter: CatalogFilter) => void;
   search: string;
   onSearch: (value: string) => void;
-  sort: SortKey;
-  onSort: (value: SortKey) => void;
-  audioExtra: AudioExtra;
-  setAudioExtra: (value: AudioExtra) => void;
-  isrcExtra: IsrcExtra;
-  setIsrcExtra: (value: IsrcExtra) => void;
   onCreate: () => void;
 }
 
@@ -40,104 +24,103 @@ export function TracksToolbar({
   onFilterChange,
   search,
   onSearch,
-  sort,
-  onSort,
-  audioExtra,
-  setAudioExtra,
-  isrcExtra,
-  setIsrcExtra,
   onCreate,
 }: TracksToolbarProps) {
-  const {
-    status: statusValue,
-    audio: audioValue,
-    isrc: isrcValue,
-  } = effectiveFilterValues(filter, audioExtra, isrcExtra);
-
-  const handleStatus = (v: string) => {
-    if (v === "all") {
-      if (filter.kind === "status") onFilterChange({ kind: "none" });
-    } else {
-      onFilterChange({ kind: "status", status: v as ReleaseStatus });
-    }
-  };
-  const handleAudio = (v: string) => {
-    if (v === "without") {
-      setAudioExtra("all");
-      onFilterChange({ kind: "missing-audio" });
-    } else {
-      setAudioExtra(v as AudioExtra);
-      if (filter.kind === "missing-audio") onFilterChange({ kind: "none" });
-    }
-  };
-  const handleIsrc = (v: string) => {
-    if (v === "missing") {
-      setIsrcExtra("all");
-      onFilterChange({ kind: "missing-isrc" });
-    } else {
-      setIsrcExtra(v as IsrcExtra);
-      if (filter.kind === "missing-isrc") onFilterChange({ kind: "none" });
-    }
-  };
+  const activeStatus = filter.kind === "status" ? filter.status : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input
-        placeholder="Rechercher…"
-        value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        className="h-9 w-full max-w-xs"
-      />
+    // `xl:flex-nowrap` : recherche, filtres et tri tiennent sur une seule ligne
+    // dès que la fenêtre le permet, et se replient proprement en dessous.
+    <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
+      <div className="relative w-full min-w-[180px] max-w-xs shrink xl:w-56">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#F5F5F5]/30"
+        />
+        <Input
+          placeholder="Rechercher un titre, un ISRC…"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          className="h-9 w-full pl-9"
+        />
+      </div>
 
-      <Select value={statusValue} onValueChange={handleStatus}>
-        <SelectTrigger className="h-9 w-[150px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tous les statuts</SelectItem>
-          {RELEASE_STATUSES.map((s) => (
-            <SelectItem key={s.value} value={s.value}>
+      {/*
+        Le statut se filtre en un clic, pas en deux : un Select gris obligeait à
+        ouvrir un menu pour découvrir des options que la ligne affiche déjà en
+        couleur. Chaque pastille reprend la teinte de la pastille de statut des
+        lignes et de la barre de répartition du bandeau — une couleur, un sens.
+      */}
+      <div
+        role="group"
+        aria-label="Filtrer par statut"
+        className="flex flex-wrap items-center gap-1.5"
+      >
+        <button
+          type="button"
+          aria-pressed={activeStatus === null}
+          onClick={() => onFilterChange({ kind: "none" })}
+          className={cn(
+            CATALOG_CONTROL,
+            focusRing,
+            activeStatus === null
+              ? "border-[rgba(245,245,245,0.25)] bg-[rgba(245,245,245,0.08)] text-[#F5F5F5]"
+              : "border-[rgba(245,245,245,0.1)] text-[#F5F5F5]/45 hover:text-[#F5F5F5]/75"
+          )}
+        >
+          Tous
+        </button>
+
+        {RELEASE_STATUSES.map((s) => {
+          const color = RELEASE_STATUS_COLOR[s.value];
+          const active = activeStatus === s.value;
+          return (
+            <button
+              key={s.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() =>
+                onFilterChange(
+                  active ? { kind: "none" } : { kind: "status", status: s.value }
+                )
+              }
+              className={cn(
+                CATALOG_CONTROL,
+                focusRing,
+                "group whitespace-nowrap",
+                !active &&
+                  "border-[rgba(245,245,245,0.1)] text-[#F5F5F5]/45 hover:text-[#F5F5F5]/75"
+              )}
+              style={
+                active
+                  ? {
+                      borderColor: `${color}66`,
+                      background: `${color}1A`,
+                      color,
+                    }
+                  : undefined
+              }
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "h-[7px] w-[7px] shrink-0 rounded-full transition-opacity",
+                  !active && "opacity-45 group-hover:opacity-80"
+                )}
+                style={{
+                  background: color,
+                  boxShadow: active ? `0 0 8px ${color}66` : undefined,
+                }}
+              />
               {s.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            </button>
+          );
+        })}
+      </div>
 
-      <Select value={audioValue} onValueChange={handleAudio}>
-        <SelectTrigger className="h-9 w-[140px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Audio : tous</SelectItem>
-          <SelectItem value="with">Avec audio</SelectItem>
-          <SelectItem value="without">Sans audio</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={isrcValue} onValueChange={handleIsrc}>
-        <SelectTrigger className="h-9 w-[140px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">ISRC : tous</SelectItem>
-          <SelectItem value="present">ISRC renseigné</SelectItem>
-          <SelectItem value="missing">ISRC manquant</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <div className="ml-auto flex items-center gap-2">
-        <Select value={sort} onValueChange={(v) => onSort(v as SortKey)}>
-          <SelectTrigger className="h-9 w-[170px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="date-desc">Date de sortie ↓</SelectItem>
-            <SelectItem value="title-asc">Titre A→Z</SelectItem>
-            <SelectItem value="status">Statut</SelectItem>
-            <SelectItem value="recent">Ajout récent</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button type="button" onClick={onCreate}>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <CatalogSortMenu scope="tracks" />
+        <Button type="button" onClick={onCreate} className="btn-glow">
           <Plus className="mr-1.5 h-4 w-4" />
           Titre
         </Button>

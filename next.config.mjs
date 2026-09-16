@@ -40,8 +40,8 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      { source: "/documents", destination: "/admin/documents", permanent: false },
-      { source: "/drive", destination: "/admin/documents", permanent: false },
+      { source: "/documents", destination: "/drive", permanent: false },
+      { source: "/admin/documents", destination: "/drive", permanent: false },
       {
         source: "/sidekick-landing.html",
         destination: "/?early-access=1",

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import type { DriveFolder, DriveDocument } from "@/lib/drive-db";
 import type { StorageContentsResult } from "@/lib/drive-db";
 import {
   fetchUserFolders,
   fetchUserDocuments,
+  fetchUserStorage,
   getUserStorageUsed,
   insertFolder,
   insertDocument,
@@ -28,6 +29,10 @@ import {
   moveStorageFile
 } from "@/lib/drive-db";
 
+const isAbortError = (error: unknown) =>
+  error instanceof Error &&
+  (error.name === "AbortError" || error.message.toLowerCase().includes("signal is aborted"));
+
 export interface UseDriveDataResult {
   userId: string | null;
   documents: DriveDocument[];
@@ -35,7 +40,8 @@ export interface UseDriveDataResult {
   storageRootFolders: string[];
   storageContents: StorageContentsResult | null;
   isLoadingContents: boolean;
-  loadStorageContents: (path: string) => Promise<void>;
+  /** `silent` recharge sans passer `isLoadingContents` à true (pas de spinner). */
+  loadStorageContents: (path: string, options?: { silent?: boolean }) => Promise<void>;
   clearStorageContents: () => void;
   deleteStorageFolderAtPath: (folderPath: string) => Promise<void>;
   renameStorageFolderAtPath: (folderPath: string, newName: string) => Promise<void>;
@@ -46,7 +52,10 @@ export interface UseDriveDataResult {
   storageUsedBytes: number;
   isLoading: boolean;
   error: string | null;
+  /** Recharge en arrière-plan, sans repasser `isLoading` à true. */
   refetch: () => Promise<void>;
+  /** Recalcule l'espace réel en parcourant le bucket (lent) et recale le compteur. */
+  resyncStorageUsed: () => Promise<void>;
   addFolder: (name: string, parentId?: string | null) => Promise<void>;
   uploadFile: (file: File, folderId?: string | null, onProgress?: (progress: number) => void) => Promise<void>;
   updateDocumentById: (id: string, updates: { title?: string; folderId?: string | null }) => Promise<void>;
@@ -66,53 +75,81 @@ export function useDriveData(): UseDriveDataResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Lit le compteur stocké : une requête. Le recalcul complet passe par
+  // `resyncStorageUsed`, lancé en arrière-plan au premier chargement.
   const refreshStorageUsed = useCallback(async (supabase = createClient()) => {
     if (!userId) return;
-    const used = await getUserStorageUsed(supabase, userId);
+    const used = await fetchUserStorage(supabase, userId);
     setStorageUsedBytes(used);
   }, [userId]);
 
-  const load = useCallback(async () => {
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
+  const resyncStorageUsed = useCallback(async () => {
+    if (!userId) return;
     try {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setUserId(null);
-        setDocuments([]);
-        setDocumentFolders([]);
-        setStorageRootFolders([]);
-        setStorageContents(null);
-        setStorageUsedBytes(0);
-        setIsLoading(false);
-        return;
-      }
-      setUserId(user.id);
-      const [folders, docs, used, rootStorage] = await Promise.all([
-        fetchUserFolders(supabase, user.id),
-        fetchUserDocuments(supabase, user.id),
-        getUserStorageUsed(supabase, user.id),
-        listStorageRootFolders(supabase, user.id)
-      ]);
-      setDocumentFolders(folders);
-      setDocuments(docs);
+      const used = await getUserStorageUsed(createClient(), userId);
       setStorageUsedBytes(used);
-      setStorageRootFolders(rootStorage);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsLoading(false);
+    } catch {
+      // Le compteur stocké reste affiché : un recalcul raté n'est pas bloquant.
     }
+  }, [userId]);
+
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const supabase = createClient();
+    if (!options?.silent) setIsLoading(true);
+    setError(null);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const {
+          data: { user }
+        } = await getSessionUser(supabase);
+        if (!user) {
+          setUserId(null);
+          setDocuments([]);
+          setDocumentFolders([]);
+          setStorageRootFolders([]);
+          setStorageContents(null);
+          setStorageUsedBytes(0);
+          setIsLoading(false);
+          return;
+        }
+        setUserId(user.id);
+        const [folders, docs, used, rootStorage] = await Promise.all([
+          fetchUserFolders(supabase, user.id),
+          fetchUserDocuments(supabase, user.id),
+          fetchUserStorage(supabase, user.id),
+          listStorageRootFolders(supabase, user.id)
+        ]);
+        setDocumentFolders(folders);
+        setDocuments(docs);
+        setStorageUsedBytes(used);
+        setStorageRootFolders(rootStorage);
+        break;
+      } catch (err) {
+        // Requête interrompue (verrou d'auth, réseau coupé) : une seconde
+        // tentative suffit presque toujours, inutile d'afficher l'erreur brute.
+        if (isAbortError(err) && attempt === 0) continue;
+        setError(
+          isAbortError(err)
+            ? "Le chargement du Drive a été interrompu. Recharge la page."
+            : err instanceof Error ? err.message : String(err)
+        );
+        break;
+      }
+    }
+    setIsLoading(false);
   }, []);
 
-  const loadStorageContents = useCallback(async (path: string) => {
-    setIsLoadingContents(true);
+  // Dernier dossier demandé : un rechargement lancé en arrière-plan ne doit pas
+  // écraser la vue si l'utilisateur a changé de dossier entre-temps.
+  const latestContentsPathRef = useRef<string | null>(null);
+
+  const loadStorageContents = useCallback(async (path: string, options?: { silent?: boolean }) => {
+    latestContentsPathRef.current = path;
+    if (!options?.silent) setIsLoadingContents(true);
     try {
       const supabase = createClient();
       const result = await listStorageContents(supabase, path);
+      if (latestContentsPathRef.current !== path) return;
       setStorageContents(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -122,14 +159,36 @@ export function useDriveData(): UseDriveDataResult {
   }, []);
 
   const clearStorageContents = useCallback(() => {
+    latestContentsPathRef.current = null;
     setStorageContents(null);
   }, []);
 
+  // Suppressions Storage optimistes : l'élément disparaît tout de suite de la
+  // vue, et revient si Supabase refuse. Même principe que les autres hooks.
+  const removeFromStorageContents = useCallback((path: string) => {
+    let snapshot: StorageContentsResult | null = null;
+    setStorageContents((prev) => {
+      snapshot = prev;
+      if (!prev) return prev;
+      return {
+        folders: prev.folders.filter((f) => f.path !== path),
+        files: prev.files.filter((f) => f.path !== path)
+      };
+    });
+    return () => setStorageContents(snapshot);
+  }, []);
+
   const deleteStorageFolderAtPath = useCallback(async (folderPath: string) => {
+    const rollback = removeFromStorageContents(folderPath);
     const supabase = createClient();
-    await deleteStorageFolder(supabase, folderPath);
+    try {
+      await deleteStorageFolder(supabase, folderPath);
+    } catch (err) {
+      rollback();
+      throw err;
+    }
     await refreshStorageUsed(supabase);
-  }, [refreshStorageUsed]);
+  }, [refreshStorageUsed, removeFromStorageContents]);
 
   const renameStorageFolderAtPath = useCallback(
     async (folderPath: string, newName: string) => {
@@ -140,10 +199,16 @@ export function useDriveData(): UseDriveDataResult {
   );
 
   const deleteStorageFileAtPath = useCallback(async (filePath: string) => {
+    const rollback = removeFromStorageContents(filePath);
     const supabase = createClient();
-    await deleteStorageFile(supabase, filePath);
+    try {
+      await deleteStorageFile(supabase, filePath);
+    } catch (err) {
+      rollback();
+      throw err;
+    }
     await refreshStorageUsed(supabase);
-  }, [refreshStorageUsed]);
+  }, [refreshStorageUsed, removeFromStorageContents]);
 
   const renameStorageFileAtPath = useCallback(
     async (filePath: string, newFileName: string) => {
@@ -173,7 +238,15 @@ export function useDriveData(): UseDriveDataResult {
     void load();
   }, [load]);
 
-  const refetch = load;
+  // Recalage du compteur une fois par session du Drive, sans bloquer l'affichage.
+  const resyncedForUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!userId || resyncedForUserRef.current === userId) return;
+    resyncedForUserRef.current = userId;
+    void resyncStorageUsed();
+  }, [userId, resyncStorageUsed]);
+
+  const refetch = useCallback(() => load({ silent: true }), [load]);
 
   const addFolder = useCallback(
     async (name: string, parentId?: string | null) => {
@@ -297,6 +370,7 @@ export function useDriveData(): UseDriveDataResult {
     isLoading,
     error,
     refetch,
+    resyncStorageUsed,
     addFolder,
     uploadFile,
     updateDocumentById,

@@ -101,10 +101,10 @@ function AttachContractModal({
         )}
         <div className="flex justify-between items-center pt-2 border-t border-[rgba(245,245,245,0.08)]">
           <Link
-            href="/admin/documents"
+            href="/drive"
             className="flex items-center gap-1.5 text-[12px] text-[#F5F5F5]/40 hover:text-[#F0FF00] transition-colors"
           >
-            <ExternalLink size={12} /> Créer dans Admin
+            <ExternalLink size={12} /> Créer dans le Drive
           </Link>
           <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
         </div>
@@ -248,10 +248,10 @@ export function AdminTab({ project }: { project: Project }) {
                 <Plus size={13} /> Rattacher un contrat existant
               </button>
               <Link
-                href="/admin/documents"
+                href="/drive"
                 className="flex items-center gap-1.5 text-[12px] text-[#F5F5F5]/30 hover:text-[#F5F5F5] transition-colors"
               >
-                <ExternalLink size={12} /> Créer dans Admin
+                <ExternalLink size={12} /> Créer dans le Drive
               </Link>
             </div>
           </>
