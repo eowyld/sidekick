@@ -1,5 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase-server";
-import { getPostHogClient } from "@/lib/posthog-server";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 /**
  * Suggestions IA des Tâches — EN PAUSE avant la bêta.
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (existing?.suggestions) {
-    getPostHogClient().capture({
+    captureServerEvent({
       distinctId: user.id,
       event: "ai_suggestions_served_from_cache",
       properties: { date: today },

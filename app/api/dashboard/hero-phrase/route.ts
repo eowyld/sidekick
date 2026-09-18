@@ -1,6 +1,6 @@
 // app/api/dashboard/hero-phrase/route.ts
 import { createServerSupabase } from "@/lib/supabase-server";
-import { getPostHogClient } from "@/lib/posthog-server";
+import { captureServerEvent } from "@/lib/posthog-server";
 import type { HeroContextInput } from "@/lib/dashboard-hero-context";
 
 /**
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         .toISOString()
         .split("T")[0];
       if (generatedDay === today) {
-        getPostHogClient().capture({
+        captureServerEvent({
           distinctId: user.id,
           event: "dashboard_hero_served_from_cache",
           properties: { date: today, kind: cached.kind },
