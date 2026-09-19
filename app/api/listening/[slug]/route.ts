@@ -8,7 +8,6 @@ import {
   resolveLinkRow,
 } from "@/lib/listening-public";
 import type { PublicListeningLink } from "@/lib/listening-types";
-import { DRIVE_BUCKET } from "@/lib/drive-db";
 
 export async function GET(
   req: NextRequest,
@@ -46,14 +45,13 @@ export async function GET(
     .eq("user_id", row.user_id)
     .maybeSingle();
 
-  let coverUrl: string | undefined;
-  if (row.cover_path) {
-    // Bucket privé : URL signée, valable le temps d'une visite.
-    const { data } = await supabase.storage
-      .from(DRIVE_BUCKET)
-      .createSignedUrl(row.cover_path, 3600);
-    coverUrl = data?.signedUrl;
-  }
+  // Bucket privé, et l'adresse reste sur notre domaine : la pochette est
+  // servie par `/cover`, qui refait les mêmes contrôles à chaque requête.
+  const coverUrl = row.cover_path
+    ? /^(data:|https?:)/.test(row.cover_path)
+      ? row.cover_path
+      : `/api/listening/${encodeURIComponent(slug)}/cover`
+    : undefined;
 
   const payload: PublicListeningLink = {
     slug,
@@ -77,12 +75,24 @@ export async function GET(
     // Aucune URL audio ici : elles sont demandées une par une au moment du play.
     items: (items ?? []).map((i) => {
       const r = i as Record<string, unknown>;
+      const snapshot = r.snapshot as PublicListeningLink["items"][number]["snapshot"];
       return {
         id: r.id as string,
         position: (r.position as number) ?? 0,
         groupLabel: (r.group_label as string) ?? undefined,
-        kind: (r.kind as "track" | "podcast") ?? "track",
-        snapshot: r.snapshot as PublicListeningLink["items"][number]["snapshot"],
+        kind: (r.kind as PublicListeningLink["items"][number]["kind"]) ?? "track",
+        // La couverture principale passe par la route privée du lien. On peut
+        // donc la réutiliser dans la tracklist sans exposer son chemin Storage.
+        snapshot: {
+          ...snapshot,
+          cover: snapshot.cover
+            ? snapshot.cover === row.cover_path
+              ? coverUrl
+              : /^(data:|https?:)/.test(snapshot.cover)
+                ? snapshot.cover
+                : undefined
+            : undefined,
+        },
         durationMs: (r.duration_ms as number) ?? 0,
         peaks: (r.peaks as number[]) ?? [],
       };

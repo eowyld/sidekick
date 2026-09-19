@@ -122,16 +122,16 @@ function TotalRow({ label, amount, isCharge }: { label: string; amount: number; 
 // ─── Inline line editor (shared) ───────────────────────────────────────────────
 
 function LineRead({ label, right, onEdit, onDelete }: {
-  label: string; right: React.ReactNode; onEdit: () => void; onDelete: () => void;
+  label: string; right: React.ReactNode; onEdit?: () => void; onDelete?: () => void;
 }) {
   return (
     <div className="group flex items-center gap-2 pl-7 pr-2 py-1.5 hover:bg-[rgba(245,245,245,0.03)] border-b border-[rgba(245,245,245,0.04)] last:border-0">
       <span className="flex-1 text-[13px] text-[#F5F5F5]/70 truncate min-w-0">{label}</span>
       {right}
-      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-        <button onClick={onEdit} className="text-[#F5F5F5]/30 hover:text-[#F5F5F5] p-0.5"><Pencil size={11} /></button>
-        <button onClick={onDelete} className="text-[#F5F5F5]/20 hover:text-red-400 p-0.5"><Trash2 size={11} /></button>
-      </div>
+      {(onEdit || onDelete) && <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+        {onEdit && <button onClick={onEdit} className="text-[#F5F5F5]/30 hover:text-[#F5F5F5] p-0.5"><Pencil size={11} /></button>}
+        {onDelete && <button onClick={onDelete} className="text-[#F5F5F5]/20 hover:text-red-400 p-0.5"><Trash2 size={11} /></button>}
+      </div>}
     </div>
   );
 }
@@ -649,7 +649,17 @@ function ExpenseCategoryPanel({
         <>
           {expenses.length === 0 && <p className="pl-7 pr-2 py-2 text-[11px] text-[#F5F5F5]/20 italic">Vide</p>}
           {expenses.map(exp =>
-            editingId === exp.id ? (
+            (exp.id.startsWith("studio-session:") || exp.id.startsWith("live-date:")) ? (
+              <LineRead
+                key={exp.id}
+                label={exp.label}
+                right={<>
+                  <span className="rounded bg-[#F0FF00]/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[#F0FF00]/60">Auto</span>
+                  <span className="text-[11px] text-[#F5F5F5]/25 shrink-0">{isoToShort(exp.date)}</span>
+                  <span className="text-[12px] tabular-nums text-red-400/70 shrink-0">{fmt(exp.amount)}</span>
+                </>}
+              />
+            ) : editingId === exp.id ? (
               <div key={exp.id} className="flex items-center gap-1.5 pl-7 pr-2 py-1.5 bg-[rgba(245,245,245,0.04)]">
                 <input defaultValue={exp.label} onBlur={e => onUpdate({ ...exp, label: e.target.value })}
                   className={cn(INPUT, "flex-1 min-w-0")} style={{ width: 0 }} autoFocus
@@ -975,7 +985,7 @@ function RevenuesColumn({
             <div key={rev.id} className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgba(245,245,245,0.04)] last:border-0">
               <span className={cn("shrink-0 text-[9px] px-1 py-0.5 rounded border font-medium",
                 rev.source === "invoice" ? "border-blue-500/30 text-blue-400" : "border-purple-500/30 text-purple-400")}>
-                {rev.source === "invoice" ? "Facture" : "Royalty"}
+                {rev.source === "invoice" ? "Facture" : rev.source === "live" ? "Cachet" : "Royalty"}
               </span>
               <span className="flex-1 text-[13px] text-[#F5F5F5]/60 truncate min-w-0">{rev.label}</span>
               <span className="text-[11px] text-[#F5F5F5]/25 shrink-0">{isoToShort(rev.date)}</span>

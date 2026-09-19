@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Disc3, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,21 +14,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { Album, ReleaseStatus, Track } from "@/lib/sidekick-store";
+import type { Album, Track } from "@/lib/sidekick-store";
 import { albumTracks } from "@/modules/phono/lib/album";
-import { isStatusMoreAdvanced } from "@/modules/phono/lib/release-status";
-import { normalizeTrack } from "@/modules/phono/lib/track";
 import { sortCatalog } from "@/modules/phono/lib/catalog-sort";
 import { CatalogSortMenu } from "../CatalogSortMenu";
 import { usePhonoSort } from "../PhonoSortProvider";
 import { AlbumCard } from "./AlbumCard";
-import { AlbumDialog } from "./AlbumDialog";
+import { AlbumPanel } from "./AlbumPanel";
+import { useAlbumGridColumns } from "./useAlbumGridColumns";
 
 interface AlbumsTabProps {
   albums: Album[];
   tracks: Track[];
   setAlbums: (fn: (prev: Album[]) => Album[]) => void;
-  setTracks: (fn: (prev: Track[]) => Track[]) => void;
   onExportMetadata: (albumId: string) => void;
 }
 
@@ -35,13 +34,14 @@ export function AlbumsTab({
   albums,
   tracks,
   setAlbums,
-  setTracks,
   onExportMetadata,
 }: AlbumsTabProps) {
+  const router = useRouter();
   const { sorts } = usePhonoSort();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Album | null>(null);
+  /** Album déplié en pleine largeur. Un seul à la fois, volontairement. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const columns = useAlbumGridColumns();
 
   // Même fonction de tri que la file du lecteur : parcourir les albums avec les
   // flèches suit l'ordre affiché ici.
@@ -50,48 +50,53 @@ export function AlbumsTab({
     [albums, sorts.albums]
   );
 
-  const openCreate = () => {
-    setEditingAlbum(null);
-    setDialogOpen(true);
-  };
-
-  const openEdit = (album: Album) => {
-    setEditingAlbum(album);
-    setDialogOpen(true);
-  };
-
-  const submitAlbum = (album: Album, statusChanged: boolean) => {
-    setAlbums((prev) => {
-      const exists = prev.some((a) => a.id === album.id);
-      return exists
-        ? prev.map((a) => (a.id === album.id ? album : a))
-        : [album, ...prev];
-    });
-
-    // Publier un album fait avancer ses titres — mais jamais reculer. Un titre
-    // déjà « Publié » ne redevient pas « En production » si l'album change.
-    if (statusChanged) {
-      setTracks((prev) =>
-        prev.map((t) => {
-          if (!(album.trackIds ?? []).includes(t.id)) return t;
-          const current = (normalizeTrack(t).status ??
-            "en_production") as ReleaseStatus;
-          return isStatusMoreAdvanced(album.status, current)
-            ? { ...normalizeTrack(t), status: album.status }
-            : t;
-        })
-      );
-    }
-  };
+  const openCreate = () => router.push("/phono/catalogue/album/nouveau");
+  const openEdit = (album: Album) =>
+    router.push(`/phono/catalogue/album/${album.id}`);
 
   const confirmDelete = (album: Album) => {
     setAlbums((prev) => prev.filter((a) => a.id !== album.id));
-    if (editingAlbum?.id === album.id) {
-      setEditingAlbum(null);
-      setDialogOpen(false);
-    }
+    if (expandedId === album.id) setExpandedId(null);
     setPendingDelete(null);
   };
+
+  /**
+   * Découpage de la liste autour de l'album déplié.
+   *
+   * Le panneau s'insère à la **frontière de sa ligne** : les albums des lignes
+   * précédentes restent au-dessus, ses voisins de ligne repassent en dessous
+   * avec la suite. Sans ce calcul, un panneau en `col-span-full` serait
+   * repoussé par la grille à la ligne suivante et laisserait un trou à côté de
+   * ses voisins.
+   *
+   * Un `expandedId` qui ne correspond plus à rien (album supprimé ailleurs)
+   * vaut « replié » — pas d'état fantôme à nettoyer.
+   */
+  const expandedIndex = expandedId
+    ? visible.findIndex((a) => a.id === expandedId)
+    : -1;
+  const expanded = expandedIndex >= 0 ? visible[expandedIndex] : null;
+  const rowStart = Math.floor(expandedIndex / columns) * columns;
+  const before = expanded ? visible.slice(0, rowStart) : visible;
+  const after = expanded
+    ? visible.slice(rowStart).filter((a) => a.id !== expanded.id)
+    : [];
+
+  const renderGrid = (list: Album[]) => (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {list.map((album) => (
+        <AlbumCard
+          key={album.id}
+          album={album}
+          trackCount={albumTracks(album, tracks).length}
+          onOpen={() => setExpandedId(album.id)}
+          onEdit={() => openEdit(album)}
+          onDelete={() => setPendingDelete(album)}
+          onExportMetadata={() => onExportMetadata(album.id)}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -111,30 +116,24 @@ export function AlbumsTab({
           action={{ label: "Ajouter un album ou EP", onClick: openCreate }}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((album) => (
-            <AlbumCard
-              key={album.id}
-              album={album}
-              trackCount={albumTracks(album, tracks).length}
-              onEdit={() => openEdit(album)}
-              onDelete={() => setPendingDelete(album)}
-              onExportMetadata={() => onExportMetadata(album.id)}
+        <div className="space-y-4">
+          {before.length > 0 ? renderGrid(before) : null}
+
+          {expanded ? (
+            <AlbumPanel
+              key={expanded.id}
+              album={expanded}
+              tracks={tracks}
+              onEdit={() => openEdit(expanded)}
+              onDelete={() => setPendingDelete(expanded)}
+              onExportMetadata={() => onExportMetadata(expanded.id)}
+              onClose={() => setExpandedId(null)}
             />
-          ))}
+          ) : null}
+
+          {after.length > 0 ? renderGrid(after) : null}
         </div>
       )}
-
-      <AlbumDialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingAlbum(null);
-        }}
-        album={editingAlbum}
-        allTracks={tracks}
-        onSubmit={submitAlbum}
-      />
 
       <Dialog
         open={pendingDelete !== null}

@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { Track, TrackVersion } from "@/lib/sidekick-store";
+import { cn } from "@/lib/utils";
 import { audioFormatsHint } from "@/modules/phono/lib/audio-limits";
 import { handleDetachedAudio } from "@/modules/phono/lib/audio-cleanup";
+import { useDriveAudioUsage } from "@/modules/phono/lib/audio-usage";
 import { VersionRow } from "./VersionRow";
 
 interface VersionListProps {
@@ -23,6 +25,31 @@ interface VersionListProps {
   onAddVersion: () => void;
   onRemoveVersion: (versionId: string) => void;
   onExportMetadata: (versionId: string) => void;
+  /**
+   * Versions telles qu'enregistrées en base, avant les modifications en
+   * cours dans le formulaire. Absent depuis le catalogue (`TrackRow`) : là,
+   * chaque version affichée est déjà enregistrée, il n'y a pas de brouillon à
+   * distinguer. Fourni depuis la page de création/édition (`TrackEditForm`,
+   * via `TrackEditPage`) : sert à repérer les versions dont le fichier actuel
+   * n'existe encore nulle part côté serveur. Détacher ou supprimer l'une
+   * d'elles n'a rien à confirmer ni à proposer de garder dans le Drive — rien
+   * n'a encore été enregistré, il n'y a qu'un fichier fraîchement uploadé à
+   * jeter.
+   */
+  savedVersions?: TrackVersion[];
+  /**
+   * Versions retenues sur la sortie en cours d'édition. `undefined` = pas de
+   * contexte de sélection (catalogue, page titre) : aucune case n'est rendue.
+   */
+  selectedVersionIds?: string[];
+  onToggleVersion?: (versionId: string, selected: boolean) => void;
+  /** Masque l'export de métadonnées, qui vit dans le catalogue. */
+  showExport?: boolean;
+  /**
+   * Retrait du décrochement à gauche (`ml-12` + filet). Utile là où la liste
+   * est déjà dans un bloc dédié et n'a rien à quoi se rattacher visuellement.
+   */
+  flush?: boolean;
 }
 
 type Confirm =
@@ -41,6 +68,11 @@ export function VersionList({
   onAddVersion,
   onRemoveVersion,
   onExportMetadata,
+  savedVersions,
+  selectedVersionIds,
+  onToggleVersion,
+  showExport = true,
+  flush = false,
 }: VersionListProps) {
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [deleteFromDrive, setDeleteFromDrive] = useState(false);
@@ -62,6 +94,12 @@ export function VersionList({
   >(null);
   const versions = track.versions ?? [];
   /**
+   * `track` prime sur sa version en base : sur la page d'édition, les versions
+   * du brouillon ne sont pas encore enregistrées, et c'est entre elles que le
+   * même fichier risque le plus d'être rattaché deux fois.
+   */
+  const audioUsage = useDriveAudioUsage(track);
+  /**
    * La note n'apparaît qu'avec l'astérisque qui l'appelle, c'est-à-dire avec un
    * bouton « Ajouter un fichier audio » à l'écran. Le remplacement d'un fichier
    * existant n'affiche donc pas d'astérisque (voir `showFormatsMark` dans
@@ -69,14 +107,25 @@ export function VersionList({
    */
   const showAudioHint = versions.some((v) => !v.audioPath);
 
+  /**
+   * Une version dont le fichier actuel n'a jamais été enregistré : elle ne
+   * figure pas dans `savedVersions`, ou y figure avec un autre `audioPath`
+   * (remplacement en cours de saisie). Sans `savedVersions` (catalogue), tout
+   * est toujours considéré enregistré.
+   */
+  const isUnsaved = (version: TrackVersion): boolean => {
+    if (!savedVersions) return false;
+    const saved = savedVersions.find((v) => v.id === version.id);
+    return !saved || saved.audioPath !== version.audioPath;
+  };
+
   const openConfirm = (next: Confirm) => {
     setDeleteFromDrive(false);
     setConfirm(next);
   };
 
-  const confirmDetach = () => {
-    if (confirm?.kind !== "detach") return;
-    onPatchVersion(confirm.version.id, {
+  const doDetach = (version: TrackVersion, deleteFromDriveNow: boolean) => {
+    onPatchVersion(version.id, {
       audioPath: undefined,
       audioSource: undefined,
       audioName: undefined,
@@ -84,18 +133,27 @@ export function VersionList({
       sizeBytes: undefined,
       peaks: undefined,
     });
-    if (confirm.version.audioSource === "upload") {
-      void handleDetachedAudio([confirm.version.audioPath], deleteFromDrive);
+    if (version.audioSource === "upload") {
+      void handleDetachedAudio([version.audioPath], deleteFromDriveNow);
     }
+  };
+
+  const doDelete = (version: TrackVersion, deleteFromDriveNow: boolean) => {
+    onRemoveVersion(version.id);
+    if (version.audioSource === "upload") {
+      void handleDetachedAudio([version.audioPath], deleteFromDriveNow);
+    }
+  };
+
+  const confirmDetach = () => {
+    if (confirm?.kind !== "detach") return;
+    doDetach(confirm.version, deleteFromDrive);
     setConfirm(null);
   };
 
   const confirmDelete = () => {
     if (confirm?.kind !== "delete") return;
-    onRemoveVersion(confirm.version.id);
-    if (confirm.version.audioSource === "upload") {
-      void handleDetachedAudio([confirm.version.audioPath], deleteFromDrive);
-    }
+    doDelete(confirm.version, deleteFromDrive);
     setConfirm(null);
   };
 
@@ -119,7 +177,14 @@ export function VersionList({
   const showDriveCheckbox = confirm !== null && confirm.version.audioSource === "upload";
 
   return (
-    <div className="ml-12 mt-3 space-y-1.5 border-l border-[rgba(245,245,245,0.08)] pl-4">
+    <div
+      className={cn(
+        "space-y-1.5",
+        flush
+          ? ""
+          : "ml-12 mt-3 border-l border-[rgba(245,245,245,0.08)] pl-4"
+      )}
+    >
       {versions.length === 0 ? (
         <p className="text-xs text-[#F5F5F5]/45">
           Aucune version pour l&apos;instant. Ajoute-en une pour y rattacher un
@@ -134,13 +199,38 @@ export function VersionList({
             replacing={
               replacing?.versionId === version.id ? replacing.mode : null
             }
+            selected={
+              selectedVersionIds
+                ? selectedVersionIds.includes(version.id)
+                : undefined
+            }
+            onToggleSelected={(next) => onToggleVersion?.(version.id, next)}
+            showExport={showExport}
+            audioUsage={audioUsage}
             onPatchVersion={onPatchVersion}
             onExportMetadata={onExportMetadata}
-            onRequestDetach={(v) => openConfirm({ kind: "detach", version: v })}
-            onRequestDelete={(v) => openConfirm({ kind: "delete", version: v })}
-            onRequestReplace={(mode) =>
-              openConfirm({ kind: "replace", version, mode })
+            onRequestDetach={(v) =>
+              isUnsaved(v) ? doDetach(v, true) : openConfirm({ kind: "detach", version: v })
             }
+            onRequestDelete={(v) =>
+              isUnsaved(v) ? doDelete(v, true) : openConfirm({ kind: "delete", version: v })
+            }
+            onRequestReplace={(mode) => {
+              if (isUnsaved(version)) {
+                // Remplacement direct, sans confirmation : l'ancien fichier
+                // (déjà non enregistré) est supprimé du Drive dès que le
+                // nouveau est choisi.
+                setReplacing({
+                  versionId: version.id,
+                  mode,
+                  oldAudioPath:
+                    version.audioSource === "upload" ? version.audioPath : undefined,
+                  deleteFromDrive: true,
+                });
+                return;
+              }
+              openConfirm({ kind: "replace", version, mode });
+            }}
             onReplacingDone={() => {
               if (replacing?.versionId === version.id && replacing.oldAudioPath) {
                 void handleDetachedAudio([replacing.oldAudioPath], replacing.deleteFromDrive);
@@ -203,7 +293,7 @@ export function VersionList({
                     className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
                   >
                     Supprimer aussi le fichier du Drive. Sans cette case, il
-                    est conservé dans Drive → Phono → depuis-catalogue.
+                    reste dans Drive → Phono → Catalogue.
                   </Label>
                 </div>
               ) : null}
@@ -238,7 +328,7 @@ export function VersionList({
                     className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
                   >
                     Supprimer aussi le fichier du Drive. Sans cette case, il
-                    est conservé dans Drive → Phono → depuis-catalogue.
+                    reste dans Drive → Phono → Catalogue.
                   </Label>
                 </div>
               ) : null}
@@ -275,8 +365,8 @@ export function VersionList({
                     className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
                   >
                     Supprimer aussi l&apos;ancien fichier du Drive une fois le
-                    nouveau choisi. Sans cette case, il est conservé dans Drive
-                    → Phono → depuis-catalogue.
+                    nouveau choisi. Sans cette case, il reste dans Drive
+                    → Phono → Catalogue.
                   </Label>
                 </div>
               ) : null}

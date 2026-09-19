@@ -19,7 +19,12 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-9 w-full items-center justify-between rounded-md border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.88)] px-3 py-2 text-sm text-[#F5F5F5] ring-offset-[#101010] placeholder:text-[#F5F5F5]/45 focus:outline-none focus:ring-2 focus:ring-[#F0FF00]/70 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+      // Calqué sur `Input` — même hauteur, même surface, même bordure, même
+      // anneau de focus. Le déclencheur portait jusqu'ici un bleu ardoise
+      // (`rgba(15,23,42,0.88)`) et des angles arrondis hérités d'un thème par
+      // défaut : c'était la seule teinte froide du produit, et un Select posé
+      // à côté d'un Input ne ressemblait pas à un champ du même formulaire.
+      "flex h-9 w-full items-center justify-between rounded-none border border-[rgba(245,245,245,0.12)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-sm text-[#F5F5F5] shadow-sm transition-[border-color,box-shadow] duration-200 data-[placeholder]:text-[#F5F5F5]/40 focus-visible:outline-none focus-visible:border-[#F0FF00]/40 focus-visible:ring-[3px] focus-visible:ring-[#F0FF00]/20 disabled:cursor-not-allowed disabled:opacity-60",
       className
     )}
     {...props}

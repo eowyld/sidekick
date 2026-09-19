@@ -15,7 +15,7 @@ interface LiveSectionProps {
 
 export function LiveSection({ project }: LiveSectionProps) {
   const router = useRouter();
-  const { tourDates, rehearsals } = useLiveData();
+  const { tourDates, rehearsals, productions } = useLiveData();
   const { updateLinks } = useProjectLinks(project.id);
   const [linkDateOpen, setLinkDateOpen] = useState(false);
   const [linkRepetOpen, setLinkRepetOpen] = useState(false);
@@ -37,6 +37,13 @@ export function LiveSection({ project }: LiveSectionProps) {
         <span className="text-[11px] text-[#F5F5F5]/30">
           {totalDates + linkedRehearsals.length} élément{totalDates + linkedRehearsals.length !== 1 ? "s" : ""}
         </span>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {(project.objectives?.filter(o => o.startsWith("live_"))?.length ? project.objectives.filter(o => o.startsWith("live_")) : ["live_show"]).map(objective => <Button key={objective} size="xs" variant="secondary" onClick={() => router.push(`/live/spectacles/nouveau?projectId=${project.id}&kind=${objective === "live_dj_set" ? "dj" : objective === "live_tour" ? "tour" : "show"}`)}><Plus size={12} className="mr-1" />{objective === "live_dj_set" ? "Créer le DJ set" : objective === "live_tour" ? "Créer la tournée" : "Créer le spectacle"}</Button>)}
+        </div>
+        {productions.filter(p => p.projectId === project.id).map(p => <Button key={p.id} variant="ghost" size="sm" onClick={() => router.push(`/live/spectacles/${p.id}`)}>{p.title}<ExternalLink size={12} className="ml-2" /></Button>)}
       </div>
 
       {/* Progression dates */}
@@ -63,7 +70,7 @@ export function LiveSection({ project }: LiveSectionProps) {
             <Button size="xs" variant="ghost" onClick={() => setLinkDateOpen(true)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
               <Link size={10} className="mr-1" /> Lier
             </Button>
-            <Button size="xs" variant="ghost" onClick={() => router.push(`/live/representations?projectId=${project.id}`)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
+            <Button size="xs" variant="ghost" onClick={() => router.push(`/live/representations/nouvelle?projectId=${project.id}`)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
               <Plus size={10} className="mr-1" /> Créer
             </Button>
           </div>
@@ -75,7 +82,7 @@ export function LiveSection({ project }: LiveSectionProps) {
             {linkedTourDates.map((d) => (
               <div
                 key={d.id}
-                onClick={() => router.push("/live/representations")}
+                onClick={() => router.push(`/live/representations/${d.id}`)}
                 className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[rgba(245,245,245,0.06)] hover:bg-[rgba(245,245,245,0.04)] cursor-pointer transition-colors"
               >
                 <div className="flex-1 min-w-0">
@@ -97,7 +104,7 @@ export function LiveSection({ project }: LiveSectionProps) {
             <Button size="xs" variant="ghost" onClick={() => setLinkRepetOpen(true)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
               <Link size={10} className="mr-1" /> Lier
             </Button>
-            <Button size="xs" variant="ghost" onClick={() => router.push(`/live/repetitions?projectId=${project.id}`)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
+            <Button size="xs" variant="ghost" onClick={() => router.push(`/live/repetitions/nouvelle?projectId=${project.id}`)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
               <Plus size={10} className="mr-1" /> Créer
             </Button>
           </div>
@@ -109,7 +116,7 @@ export function LiveSection({ project }: LiveSectionProps) {
             {linkedRehearsals.map((r) => (
               <div
                 key={r.id}
-                onClick={() => router.push("/live/repetitions")}
+                onClick={() => router.push(`/live/repetitions/${r.id}`)}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)] cursor-pointer hover:bg-[rgba(245,245,245,0.06)] transition-colors"
               >
                 <p className="text-[12px] text-[#F5F5F5]/70">{(r.label as string) || r.date}</p>

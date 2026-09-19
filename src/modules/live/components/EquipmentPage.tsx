@@ -1,610 +1,225 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { usePostHog } from "posthog-js/react";
+import { useState } from "react";
+import { Boxes, CheckCircle2, ClipboardList, Package, Pencil, Plus, Trash2, Wrench } from "lucide-react";
+import { toast } from "sonner";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTitle
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
-import { ClipboardList, Plus, Pencil, Trash2, List, Package } from "lucide-react";
-import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
-import { mutate } from "swr";
-import { Checkbox } from "@/components/ui/checkbox";
-
-const CONDITION_OPTIONS = [
-  "A réparer",
-  "Moyen",
-  "Bon",
-  "Neuf"
-] as const;
-
-type Condition = (typeof CONDITION_OPTIONS)[number];
-
-type TabId = "inventaire" | "liste";
-
+import { EmptyState } from "@/components/ui/empty-state";
+import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
+import { Choice, LiveHeader, Segments, TextField } from "./shared/LiveUI";
+const conditions = ["Neuf", "Bon", "Moyen", "A réparer"];
+const colors: Record<string, string> = { Neuf: "#34D399", Bon: "#38BDF8", Moyen: "#FB923C", "A réparer": "#FB7185" };
 export function EquipmentPage() {
-  const posthog = usePostHog();
-  const { equipmentInventory: inventory, setEquipmentInventory: setInventory, equipmentLists: lists, setEquipmentLists: setLists, loading, error } = useLiveData();
-  const [activeTab, setActiveTab] = useState<TabId>("inventaire");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  const [listDialogOpen, setListDialogOpen] = useState(false);
-  const [editingListId, setEditingListId] = useState<string | null>(null);
-  const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
-  const [listForm, setListForm] = useState<{
-    name: string;
-    description: string;
-    selectedIds: string[];
-  }>({ name: "", description: "", selectedIds: [] });
-
-  const [form, setForm] = useState<{
-    name: string;
-    quantity: string;
-    condition: string;
-    comment: string;
-  }>({
-    name: "",
-    quantity: "1",
-    condition: "Bon",
-    comment: ""
-  });
-
-  const openAdd = () => {
-    setForm({
-      name: "",
-      quantity: "1",
-      condition: "Bon",
-      comment: ""
-    });
-    setEditingId(null);
-    setDialogOpen(true);
-  };
-
-  const openEdit = (item: EquipmentInventoryItem) => {
-    setForm({
-      name: item.name,
-      quantity: String(item.quantity),
-      condition: item.condition,
-      comment: item.comment ?? ""
-    });
-    setEditingId(item.id);
-    setDialogOpen(true);
-  };
-
-  const saveItem = () => {
-    const name = form.name.trim();
-    const quantity = Math.max(0, parseInt(form.quantity, 10) || 0);
-    const condition = form.condition;
-    const comment = form.comment.trim() || undefined;
-
-    if (editingId !== null) {
-      setInventory((prev) =>
-        prev.map((item) =>
-          item.id === editingId
-            ? { ...item, name: name || "Sans nom", quantity, condition, comment }
-            : item
-        )
-      );
-    } else {
-      posthog?.capture("equipment_item_added", { module: "live" });
-      posthog?.capture("item_created", { module: "live" });
-      setInventory((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), name: name || "Sans nom", quantity, condition, comment }
-      ]);
-    }
-    setDialogOpen(false);
-  };
-
-  const deleteItem = (id: string) => {
-    setInventory((prev) => prev.filter((item) => item.id !== id));
-    setDeleteConfirmId(null);
-  };
-
-  const openAddList = () => {
-    setListForm({ name: "", description: "", selectedIds: [] });
-    setEditingListId(null);
-    setListDialogOpen(true);
-  };
-
-  const openEditList = (list: EquipmentList) => {
-    setListForm({
-      name: list.name,
-      description: list.description,
-      selectedIds: [...list.itemIds]
-    });
-    setEditingListId(list.id);
-    setListDialogOpen(true);
-  };
-
-  const toggleListItem = (itemId: string) => {
-    setListForm((prev) =>
-      prev.selectedIds.includes(itemId)
-        ? { ...prev, selectedIds: prev.selectedIds.filter((id) => id !== itemId) }
-        : { ...prev, selectedIds: [...prev.selectedIds, itemId] }
-    );
-  };
-
-  const saveList = () => {
-    const name = listForm.name.trim();
-    if (!name) return;
-    if (editingListId !== null) {
-      setLists((prev) =>
-        prev.map((l) =>
-          l.id === editingListId
-            ? {
-                ...l,
-                name,
-                description: listForm.description.trim(),
-                itemIds: listForm.selectedIds
-              }
-            : l
-        )
-      );
-    } else {
-      posthog?.capture("equipment_list_created", { module: "live" });
-      posthog?.capture("item_created", { module: "live" });
-      setLists((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), name, description: listForm.description.trim(), itemIds: listForm.selectedIds }
-      ]);
-    }
-    setListDialogOpen(false);
-  };
-
-  const deleteList = (id: string) => {
-    setLists((prev) => prev.filter((l) => l.id !== id));
-    setDeleteListConfirmId(null);
-  };
-
-  const getItemsForList = (itemIds: string[]) =>
-    itemIds
-      .map((id) => inventory.find((i) => i.id === id))
-      .filter((i): i is EquipmentInventoryItem => i != null);
-
-  if (loading) return <PageLoader />;
-  if (error) return (
-    <PageError
-      title="Impossible de charger ton inventaire"
-      description="Vérifie ta connexion ou réessaie dans quelques instants."
-      onRetry={() => mutate("user_live")}
-    />
-  );
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold tracking-tight">
-          Matériel
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Inventaire et liste de ton matériel.
+    const live = useLiveData();
+    const { equipmentInventory: inventory, equipmentLists: lists } = live;
+    const [tab, setTab] = useState("inventory");
+    const [search, setSearch] = useState("");
+    const [condition, setCondition] = useState("");
+    const [item, setItem] = useState<EquipmentInventoryItem | null>(null);
+    const [list, setList] = useState<EquipmentList | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [remove, setRemove] = useState<{
+        id: string;
+        kind: "item" | "list";
+    } | null>(null);
+    const saveItem = async () => { if (!item)
+        return; if (!item.name.trim() || !Number.isInteger(item.quantity) || item.quantity < 1) {
+        toast.error("Renseigne un nom et une quantité entière supérieure à zéro.");
+        return;
+    } setSaving(true); if (await live.setEquipmentInventory(prev => prev.some(i => i.id === item.id) ? prev.map(i => i.id === item.id ? item : i) : [...prev, item])) {
+        setItem(null);
+        toast.success("Matériel enregistré");
+    } setSaving(false); };
+    const saveList = async () => { if (!list)
+        return; if (!list.name.trim()) {
+        toast.error("Donne un nom à la liste.");
+        return;
+    } setSaving(true); if (await live.setEquipmentLists(prev => prev.some(l => l.id === list.id) ? prev.map(l => l.id === list.id ? list : l) : [...prev, list])) {
+        setList(null);
+        toast.success("Liste enregistrée");
+    } setSaving(false); };
+    const used = remove?.kind === "item" ? lists.some(l => l.itemIds.includes(remove.id)) : remove?.kind === "list" && (live.productions.some(p => p.equipmentListIds.includes(remove.id)) || live.tourDates.some(d => d.details?.equipmentListIds?.includes(remove.id)) || live.rehearsals.some(r => r.details?.equipmentListIds?.includes(remove.id)));
+    const confirmRemove = async () => { if (!remove)
+        return; setSaving(true); const ok = remove.kind === "item" ? await live.setEquipmentInventory(prev => prev.filter(i => i.id !== remove.id)) : await live.setEquipmentLists(prev => prev.filter(l => l.id !== remove.id)); if (ok)
+        setRemove(null); setSaving(false); };
+    if (live.loading)
+        return <PageLoader />;
+    if (live.error && !item && !list && !remove)
+        return <PageError title="Impossible de charger le matériel" description={live.error} onRetry={() => mutate("user_live")}/>;
+    const shown = inventory.filter(i => i.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) && (!condition || i.condition === condition));
+    const shownLists = lists.filter(l => l.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+    return <div>
+    <LiveHeader title="Matériel" description="Ton équipement, tes listes, tes départs sans oubli." actions={<Button onClick={() => tab === "inventory" ? setItem({ id: crypto.randomUUID(), name: "", quantity: 1, condition: "Bon", comment: "" }) : setList({ id: crypto.randomUUID(), name: "", description: "", itemIds: [] })}>
+        <Plus size={14} className="mr-2"/>
+        {tab === "inventory" ? "Ajouter du matériel" : "Nouvelle liste"}
+        </Button>}/>
+    <div className="mb-6 grid grid-cols-3 gap-4">
+        {[{ label: "références", value: inventory.length, Icon: Boxes, color: "#34D399" }, { label: "listes prêtes à utiliser", value: lists.length, Icon: ClipboardList, color: "#A78BFA" }, { label: "à réparer", value: inventory.filter(i => i.condition === "A réparer").length, Icon: Wrench, color: "#FB923C" }].map(({ label, value, Icon, color }) => <div key={label} className="rounded-xl border border-[#F5F5F5]/10 p-5" style={{ background: `linear-gradient(130deg, ${color}10, rgba(44,44,46,.4))` }}>
+        <div className="flex items-center justify-between">
+        <Icon size={19} style={{ color }}/>
+        <span className="text-3xl font-light tabular-nums">
+        {value}
+        </span>
+        </div>
+        <p className="mt-4 text-xs text-[#F5F5F5]/50">
+        {label}
         </p>
-      </div>
-
-      {/* Onglets */}
-      <div className="border-b">
-        <nav className="flex gap-1" aria-label="Onglets">
-          <button
-            type="button"
-            onClick={() => setActiveTab("inventaire")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === "inventaire"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Package className="h-4 w-4" />
-            Inventaire
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("liste")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === "liste"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <List className="h-4 w-4" />
-            Liste de matériel
-          </button>
-        </nav>
-      </div>
-
-      {/* Contenu Inventaire */}
-      {activeTab === "inventaire" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={openAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              Ajouter du matériel
-            </Button>
-          </div>
-          <div className="rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium">Nom</th>
-                  <th className="px-4 py-3 text-left font-medium">Quantité</th>
-                  <th className="px-4 py-3 text-left font-medium">État</th>
-                  <th className="px-4 py-3 text-left font-medium">Commentaire</th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventory.length === 0 ? (
-                  <tr>
-                    <td colSpan={5}>
-                      <EmptyState
-                        icon={Package}
-                        title="Ton inventaire est vide"
-                        description="Référence tout ton matériel (instruments, pédaliers, câbles, backline) pour le retrouver vite."
-                        action={{ label: "Ajouter du matériel", onClick: openAdd }}
-                      />
-                    </td>
-                  </tr>
-                ) : (
-                  inventory.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b last:border-0 hover:bg-muted/30"
-                    >
-                      <td className="px-4 py-3 font-medium">{item.name}</td>
-                      <td className="px-4 py-3">{item.quantity}</td>
-                      <td className="px-4 py-3">{item.condition}</td>
-                      <td className="max-w-[200px] px-4 py-3 text-muted-foreground">
-                        {item.comment || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Modifier"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Supprimer"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleteConfirmId(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Contenu Liste de matériel */}
-      {activeTab === "liste" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={openAddList}>
-              <List className="mr-2 h-4 w-4" />
-              Créer une liste
-            </Button>
-          </div>
-          {lists.length === 0 ? (
-            <EmptyState
-              icon={ClipboardList}
-              title="Aucune liste de matériel"
-              description="Crée des listes pour préparer tes dates et créer tes fiches techniques : tournée été, résidence, plateau solo…"
-              action={{ label: "Créer une liste", onClick: openAddList }}
-            />
-          ) : (
-            <div className="space-y-4">
-              {lists.map((list) => {
-                const items = getItemsForList(list.itemIds);
-                return (
-                  <div
-                    key={list.id}
-                    className="rounded-md border bg-muted/20 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold">{list.name}</h3>
-                        {list.description && (
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {list.description}
-                          </p>
-                        )}
-                        {items.length > 0 && (
-                          <ul className="mt-3 space-y-2 text-sm">
-                            {items.map((item) => (
-                              <li
-                                key={item.id}
-                                className="flex items-center justify-between gap-3 rounded-md border bg-background/60 px-3 py-2"
-                              >
-                                <span className="font-semibold">{item.name}</span>
-                                <div className="flex items-center gap-3">
-                                  <span className="tabular-nums text-muted-foreground">
-                                    Qté : {item.quantity}
-                                  </span>
-                                  <span
-                                    className={
-                                      item.condition === "A réparer"
-                                        ? "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
-                                        : item.condition === "Moyen"
-                                          ? "rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
-                                          : item.condition === "Bon"
-                                            ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
-                                            : "rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400"
-                                    }
-                                  >
-                                    {item.condition}
-                                  </span>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {items.length === 0 && (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            Aucun matériel sélectionné.
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Modifier"
-                          onClick={() => openEditList(list)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Supprimer"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteListConfirmId(list.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Dialog Ajouter / Modifier */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogTitle>
-            {editingId !== null ? "Modifier le matériel" : "Ajouter du matériel"}
-          </DialogTitle>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Nom</label>
-              <Input
-                value={form.name}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="ex. Ampli guitare"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Quantité</label>
-              <Input
-                type="number"
-                min={0}
-                value={form.quantity}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, quantity: e.target.value }))
-                }
-                placeholder="1"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">État</label>
-              <Select
-                value={form.condition}
-                onValueChange={(value: Condition) =>
-                  setForm((prev) => ({ ...prev, condition: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONDITION_OPTIONS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Commentaire</label>
-              <Textarea
-                value={form.comment}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, comment: e.target.value }))
-                }
-                placeholder="Commentaire..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={saveItem}>Enregistrer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmation suppression */}
-      <Dialog
-        open={deleteConfirmId !== null}
-        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogTitle>Supprimer ce matériel ?</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Cette action est irréversible.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
-              Annuler
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                deleteConfirmId !== null && deleteItem(deleteConfirmId)
-              }
-            >
-              Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Créer / Modifier une liste */}
-      <Dialog open={listDialogOpen} onOpenChange={setListDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogTitle>
-            {editingListId !== null
-              ? "Modifier la liste"
-              : "Créer une liste"}
-          </DialogTitle>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Nom</label>
-              <Input
-                value={listForm.name}
-                onChange={(e) =>
-                  setListForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="ex. Tournée été"
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Description</label>
-              <Textarea
-                value={listForm.description}
-                onChange={(e) =>
-                  setListForm((prev) => ({
-                    ...prev,
-                    description: e.target.value
-                  }))
-                }
-                placeholder="Description de la liste..."
-                rows={2}
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Sélectionner du matériel (inventaire)
-              </label>
-              {inventory.length === 0 ? (
-                <p className="rounded-md border border-dashed py-4 text-center text-sm text-muted-foreground">
-                  Aucun matériel dans l’inventaire. Ajoute-en dans l’onglet
-                  Inventaire.
-                </p>
-              ) : (
-                <div className="max-h-[200px] space-y-2 overflow-y-auto rounded-md border p-3">
-                  {inventory.map((item) => (
-                    <label
-                      key={item.id}
-                      className="flex cursor-pointer items-center gap-3 rounded p-2 hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={listForm.selectedIds.includes(item.id)}
-                        onCheckedChange={() => toggleListItem(item.id)}
-                      />
-                      <span className="text-sm">
-                        {item.name} — Qté : {item.quantity}, État :{" "}
-                        {item.condition}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setListDialogOpen(false)}
-            >
-              Annuler
-            </Button>
-            <Button
-              onClick={saveList}
-              disabled={!listForm.name.trim()}
-            >
-              {editingListId !== null ? "Enregistrer" : "Créer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmation suppression liste */}
-      <Dialog
-        open={deleteListConfirmId !== null}
-        onOpenChange={(open) => !open && setDeleteListConfirmId(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogTitle>Supprimer cette liste ?</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Cette action est irréversible.
-          </p>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteListConfirmId(null)}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                deleteListConfirmId !== null &&
-                deleteList(deleteListConfirmId)
-              }
-            >
-              Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>)}
     </div>
-  );
+    <Segments value={tab} onChange={setTab} items={[{ id: "inventory", label: "Inventaire", count: inventory.length }, { id: "lists", label: "Listes de matériel", count: lists.length }]}/>
+    <div className="my-5 flex items-end gap-3">
+    <Input aria-label="Rechercher du matériel ou une liste" placeholder="Rechercher…" className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)}/>
+        {tab === "inventory" && <div className="w-44">
+        <Choice label="État" optional value={condition} onChange={setCondition} options={conditions.map(value => ({ value, label: value === "A réparer" ? "À réparer" : value }))}/>
+        </div>}
+    </div>
+        {tab === "inventory" ? <div className="overflow-hidden rounded-xl border border-[#F5F5F5]/10">
+        <table className="w-full text-left text-sm">
+        <thead className="bg-[#F5F5F5]/[.03] text-[10px] uppercase tracking-widest text-[#F5F5F5]/45">
+        <tr>
+        <th className="px-5 py-3">Matériel</th>
+        <th className="px-4 py-3">Quantité</th>
+        <th className="px-4 py-3">État</th>
+        <th className="px-4 py-3">Listes</th>
+        <th className="px-4 py-3">
+        <span className="sr-only">Actions</span>
+        </th>
+        </tr>
+        </thead>
+        <tbody>
+            {shown.map(i => <tr key={i.id} className="border-t border-[#F5F5F5]/[.06] bg-[rgba(44,44,46,.3)] transition-colors hover:bg-[rgba(44,44,46,.7)]">
+            <td className="px-5 py-4">
+            <button className="text-left font-medium hover:text-[#F0FF00]" onClick={() => setItem({ ...i })}>
+            {i.name}
+            </button>
+                {i.comment && <p className="mt-1 max-w-sm truncate text-xs text-[#F5F5F5]/45">
+                {i.comment}
+                </p>}
+            </td>
+            <td className="px-4 py-4 tabular-nums text-[#F5F5F5]/65">
+            {i.quantity}
+            </td>
+            <td className="px-4 py-4">
+            <span className="rounded-md px-2 py-1 text-[11px]" style={{ color: colors[i.condition] ?? "#888888", background: `${colors[i.condition] ?? "#888888"}12` }}>
+            {i.condition === "A réparer" ? "À réparer" : i.condition}
+            </span>
+            </td>
+            <td className="px-4 py-4 text-xs text-[#F5F5F5]/50">
+            {lists.filter(l => l.itemIds.includes(i.id)).map(l => l.name).join(", ") || "—"}
+            </td>
+            <td className="px-4 py-4">
+            <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="xs" aria-label={`Modifier ${i.name}`} onClick={() => setItem({ ...i })}>
+            <Pencil size={13}/>
+            </Button>
+            <Button variant="ghost" size="xs" aria-label={`Supprimer ${i.name}`} onClick={() => setRemove({ id: i.id, kind: "item" })}>
+            <Trash2 size={13}/>
+            </Button>
+            </div>
+            </td>
+            </tr>)}
+        </tbody>
+        </table>
+        {!shown.length && <EmptyState icon={Package} title="Aucun matériel à afficher" description="Ajoute tes instruments, ton backline ou ton équipement DJ, puis compose tes listes."/>}
+        </div> : <div className="grid gap-4 lg:grid-cols-2">
+            {shownLists.map(l => <div key={l.id} className="rounded-xl border border-[#F5F5F5]/10 bg-[rgba(44,44,46,.45)] p-5">
+            <div className="flex items-start justify-between">
+            <ClipboardList size={20} className="text-violet-400"/>
+            <div className="flex gap-1">
+            <Button size="xs" variant="ghost" aria-label={`Modifier ${l.name}`} onClick={() => setList({ ...l, itemIds: [...l.itemIds] })}>
+            <Pencil size={13}/>
+            </Button>
+            <Button size="xs" variant="ghost" aria-label={`Supprimer ${l.name}`} onClick={() => setRemove({ id: l.id, kind: "list" })}>
+            <Trash2 size={13}/>
+            </Button>
+            </div>
+            </div>
+            <button className="mt-4 text-base font-semibold hover:text-[#F0FF00]" onClick={() => setList({ ...l, itemIds: [...l.itemIds] })}>
+            {l.name}
+            </button>
+            <p className="mt-1 text-xs text-[#F5F5F5]/50">
+            {l.description || "Une liste à emporter sur scène."}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+            {inventory.filter(i => l.itemIds.includes(i.id)).map(i => <span key={i.id} className="rounded-md border border-[#F5F5F5]/10 px-2 py-1 text-[11px] text-[#F5F5F5]/60">{i.name} × {i.quantity}</span>)}
+            </div>
+            <p className="mt-5 flex items-center gap-1.5 text-[10px] text-emerald-300/80"><CheckCircle2 size={12}/>Checklist disponible sur chaque date</p>
+            </div>)}
+        {!shownLists.length && <EmptyState icon={ClipboardList} title="Prépare ta première liste" description="Un set acoustique, un DJ set, une tournée : compose des listes réutilisables pour chaque configuration."/>}
+        </div>}
+    <Dialog open={!!item} onOpenChange={open => !open && !saving && setItem(null)}>
+    <DialogContent>
+    <DialogHeader>
+    <DialogTitle>
+    {inventory.some(i => i.id === item?.id) ? "Modifier le matériel" : "Ajouter du matériel"}
+    </DialogTitle>
+    </DialogHeader>
+        {item && <div className="space-y-4">
+        <TextField label="Nom" value={item.name} onChange={name => setItem({ ...item, name })} required/>
+        <div className="grid grid-cols-2 gap-4">
+        <TextField label="Quantité" type="number" min="1" value={String(item.quantity)} onChange={quantity => setItem({ ...item, quantity: Number(quantity) })}/>
+        <Choice label="État" value={item.condition} onChange={condition => setItem({ ...item, condition })} options={conditions.map(value => ({ value, label: value }))}/>
+        </div>
+        <TextField label="Notes" area value={item.comment ?? ""} onChange={comment => setItem({ ...item, comment })}/>
+        </div>}
+        {live.error && <p role="alert" className="text-xs text-rose-300">
+        {live.error}
+        </p>}
+    <DialogFooter>
+    <Button variant="outline" onClick={() => setItem(null)} disabled={saving}>Annuler</Button>
+    <Button disabled={saving} onClick={() => void saveItem()}>Enregistrer</Button>
+    </DialogFooter>
+    </DialogContent>
+    </Dialog>
+    <Dialog open={!!list} onOpenChange={open => !open && !saving && setList(null)}>
+    <DialogContent>
+    <DialogHeader>
+    <DialogTitle>Liste de matériel</DialogTitle>
+    </DialogHeader>
+        {list && <div className="space-y-4">
+        <TextField label="Nom de la liste" value={list.name} onChange={name => setList({ ...list, name })} required/>
+        <TextField label="Description" value={list.description} onChange={description => setList({ ...list, description })}/>
+        <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#F5F5F5]/10 p-3">
+            {inventory.map(i => <label key={i.id} className="flex cursor-pointer items-center gap-3 px-1 py-2 text-sm">
+            <Checkbox checked={list.itemIds.includes(i.id)} onCheckedChange={checked => setList({ ...list, itemIds: checked ? [...list.itemIds, i.id] : list.itemIds.filter(id => id !== i.id) })}/>
+            <span className="flex-1">
+            {i.name}
+            </span>
+            <span className="text-xs text-[#F5F5F5]/50">× {i.quantity}</span>
+            </label>)}
+        {!inventory.length && <p className="text-xs text-[#F5F5F5]/50">Ajoute d’abord du matériel à ton inventaire.</p>}
+        </div>
+        </div>}
+        {live.error && <p role="alert" className="text-xs text-rose-300">
+        {live.error}
+        </p>}
+    <DialogFooter>
+    <Button variant="outline" onClick={() => setList(null)} disabled={saving}>Annuler</Button>
+    <Button disabled={saving} onClick={() => void saveList()}>Enregistrer</Button>
+    </DialogFooter>
+    </DialogContent>
+    </Dialog>
+    <Dialog open={!!remove} onOpenChange={open => !open && setRemove(null)}>
+    <DialogContent>
+    <DialogHeader>
+    <DialogTitle>Supprimer {remove?.kind === "item" ? "ce matériel" : "cette liste"} ?</DialogTitle>
+    <DialogDescription>
+    {used ? "Cet élément est encore utilisé. Retire ses associations avant de le supprimer." : "Cette suppression est définitive."}
+    </DialogDescription>
+    </DialogHeader>
+        {live.error && <p role="alert" className="text-xs text-rose-300">
+        {live.error}
+        </p>}
+    <DialogFooter>
+    <Button variant="outline" onClick={() => setRemove(null)}>Annuler</Button>
+    <Button variant="destructive" disabled={saving || !!used} onClick={() => void confirmRemove()}>Supprimer</Button>
+    </DialogFooter>
+    </DialogContent>
+    </Dialog>
+    </div>;
 }

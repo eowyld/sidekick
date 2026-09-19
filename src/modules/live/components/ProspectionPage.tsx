@@ -1,6 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { LiveHeader } from "./shared/LiveUI";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import {
   Archive,
   ArrowUpDown,
@@ -780,18 +782,8 @@ export function ProspectionPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40">Live</p>
-          <h1 className="text-xl font-bold tracking-tight text-[#F5F5F5]">Prospection</h1>
-          <p className="mt-1 text-sm text-[#F5F5F5]/55">Tableau optimisé démarchage, suivi multi-canal et lecture réelle du momentum.</p>
-        </div>
-        <Button onClick={startCreate} size="sm" className="shrink-0 gap-1.5">
-          <Plus className="h-4 w-4" />
-          Ajouter
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <LiveHeader title="Prospection" description="Trouve tes prochaines scènes et garde le fil de chaque échange." actions={<Button onClick={startCreate} size="sm"><Plus size={14} className="mr-2"/>Ajouter un prospect</Button>} />
 
       <div className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)]">
         <div className="flex flex-col gap-3 border-b border-[rgba(245,245,245,0.08)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -927,6 +919,7 @@ export function ProspectionPage() {
                                         Archiver
                                       </Button>
                                     )}
+                                    <Button asChild size="sm" variant="secondary"><Link href={`/live/representations/nouvelle?prospectId=${entry.id}`}>Créer une date</Link></Button>
                                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); startEdit(entry); }} className="gap-1.5 text-[#F5F5F5]/60 hover:text-[#F5F5F5]">
                                       <Pencil className="h-3.5 w-3.5" />
                                       Modifier
@@ -1432,12 +1425,12 @@ export function ProspectionPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Importer un contact</DialogTitle>
-            <DialogDescription>Remplis automatiquement le nom, l'email, l'Instagram et le téléphone.</DialogDescription>
+            <DialogDescription>Remplis automatiquement le nom, l’email, l’Instagram et le téléphone.</DialogDescription>
           </DialogHeader>
           {contactsLoading ? (
             <p className="px-2 py-6 text-center text-sm text-[#F5F5F5]/50">Chargement des contacts…</p>
           ) : contactsError ? (
-            <p className="px-2 py-6 text-center text-sm text-[#F5F5F5]/50">Impossible de charger les contacts pour l'import.</p>
+            <p className="px-2 py-6 text-center text-sm text-[#F5F5F5]/50">Impossible de charger les contacts pour l’import.</p>
           ) : importableContacts.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-[#F5F5F5]/50">Aucun contact disponible.</p>
           ) : (

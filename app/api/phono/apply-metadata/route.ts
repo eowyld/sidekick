@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
-import { promises as fs } from "fs";
+import { promises as fs, createReadStream } from "fs";
+import { Readable } from "stream";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import ffmpegStatic from "ffmpeg-static";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { DRIVE_BUCKET } from "@/lib/drive-db";
 
@@ -12,20 +14,25 @@ export const runtime = "nodejs";
 
 const execFileAsync = promisify(execFile);
 
-const FFMPEG = process.env.FFMPEG_PATH?.trim() || "/usr/local/bin/ffmpeg";
+/**
+ * Le binaire vient de `ffmpeg-static`, donc de `node_modules` : il part dans le
+ * bundle de la fonction et existe en production. L'ancien chemin en dur
+ * `/usr/local/bin/ffmpeg` (un ffmpeg installé par Homebrew sur la machine de
+ * développement) n'existe pas sur Vercel, où il n'y a pas de machine à
+ * provisionner — c'est ce qui rendait l'export impossible en ligne.
+ * `FFMPEG_PATH` reste prioritaire pour surcharger en local.
+ */
+const FFMPEG =
+  process.env.FFMPEG_PATH?.trim() || ffmpegStatic || "/usr/local/bin/ffmpeg";
 
 /**
- * Écriture des métadonnées dans les fichiers audio — désactivée par défaut.
+ * Écriture des métadonnées dans les fichiers audio.
  *
- * La route dépend d'un binaire ffmpeg installé sur la machine, absent de
- * l'environnement de production : la fonctionnalité y est cassée depuis
- * toujours. Elle acceptait par ailleurs des fichiers de n'importe qui, sans
- * authentification.
- *
- * Le code reste en place et fonctionne en local en posant
- * `PHONO_METADATA_ENABLED=true` (et `FFMPEG_PATH` si besoin).
+ * Activée par défaut : le binaire est désormais embarqué. `PHONO_METADATA_ENABLED=false`
+ * reste un coupe-circuit si l'export devait poser problème en production, sans
+ * redéploiement.
  */
-const METADATA_ENABLED = process.env.PHONO_METADATA_ENABLED === "true";
+const METADATA_ENABLED = process.env.PHONO_METADATA_ENABLED !== "false";
 
 type IncomingMetadata = {
   title?: string;
@@ -128,6 +135,9 @@ export async function POST(req: NextRequest) {
   const inputPath = path.join(tmpDir, `${id}-input${ext || ".audio"}`);
   const outputPath = path.join(tmpDir, `${id}-output${ext || ".audio"}`);
   let coverPath: string | null = null;
+  // Passe à `true` dès que la sortie part en flux : sa suppression est alors
+  // portée par la fin du flux, plus par le `finally`.
+  let streamingOutput = false;
 
   try {
     const arrayBuf = await audioBlob.arrayBuffer();
@@ -225,28 +235,54 @@ export async function POST(req: NextRequest) {
 
     await execFileAsync(FFMPEG, args);
 
-    const outBytes = await fs.readFile(outputPath);
     const outName =
       metadata.title?.trim() ||
       sourceName.replace(/\.[^.]+$/, "") ||
       `audio-${id.slice(0, 8)}`;
 
-    return new Response(outBytes as unknown as BodyInit, {
+    // Réponse en flux, et non `fs.readFile` + `new Response(Buffer)`.
+    // Le corps d'une réponse de fonction Vercel est plafonné à 4,5 Mo quand il
+    // est tamponné (413 FUNCTION_PAYLOAD_TOO_LARGE au-delà) ; une réponse en
+    // flux échappe à ce plafond. Aucun fichier audio réel ne passe sous
+    // 4,5 Mo : un MP3 320 kbps de 4 minutes pèse ~9,6 Mo, un WAV 24 bits ~64 Mo.
+    const { size } = await fs.stat(outputPath);
+    const nodeStream = createReadStream(outputPath);
+    // Le fichier temporaire ne peut être supprimé qu'une fois le flux drainé —
+    // le `finally` ci-dessous s'exécute, lui, dès que la réponse est *rendue*.
+    // L'effacer là reviendrait à servir du vide.
+    streamingOutput = true;
+    nodeStream.on("close", () => {
+      void fs.unlink(outputPath).catch(() => {});
+    });
+
+    return new Response(Readable.toWeb(nodeStream) as unknown as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": audioBlob.type || "application/octet-stream",
+        "Content-Length": String(size),
         "Content-Disposition": `attachment; filename="${outName}${ext || ""}"`,
       },
     });
   } catch (err) {
-    console.error("ffmpeg metadata error:", err);
-    return new Response(
-      "Erreur lors de l'application des métadonnées au fichier audio.",
+    // `execFile` range le vrai motif dans `stderr` : sans le journaliser, un
+    // échec en production ne laisse qu'un 500 muet, impossible à relier à une
+    // cause. Le détail ne sort au client qu'en dehors de la production.
+    const e = err as NodeJS.ErrnoException & { stderr?: string };
+    const detail = e?.stderr?.trim() || e?.message || String(err);
+    console.error("ffmpeg metadata error:", { code: e?.code, detail });
+    return Response.json(
+      {
+        error: "metadata_failed",
+        detail:
+          process.env.NODE_ENV === "production"
+            ? "Erreur lors de l'application des métadonnées au fichier audio."
+            : detail,
+      },
       { status: 500 }
     );
   } finally {
     try { await fs.unlink(inputPath); } catch {}
-    try { await fs.unlink(outputPath); } catch {}
+    if (!streamingOutput) { try { await fs.unlink(outputPath); } catch {} }
     if (coverPath) { try { await fs.unlink(coverPath); } catch {} }
   }
 }

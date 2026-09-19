@@ -20,6 +20,22 @@ const config = [
   },
   ...coreWebVitals,
   ...typescript,
+  {
+    // Le champ date natif (`<input type="date">`) rend un contrôle du système,
+    // clair, au format de la locale du navigateur et impossible à styler : il
+    // jurait dans le design sombre. `DatePicker` (src/components/ui) est le
+    // seul sélecteur de date du produit.
+    files: ["**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name='type'][value.value='date']",
+          message: "Champ date natif interdit — utilise <DatePicker /> (@/components/ui/date-picker).",
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

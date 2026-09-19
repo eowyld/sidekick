@@ -176,7 +176,9 @@ export function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] p-0 text-[#F5F5F5] shadow-lg"
+        // `#171717` : la surface des menus et popovers du produit. Même bleu
+        // ardoise résiduel que le Select, et il s'ouvrait juste à côté.
+        className="w-auto border border-[rgba(245,245,245,0.1)] bg-[#171717] p-0 text-[#F5F5F5] shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
         align="start"
       >
         <div className="p-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePostHog } from "posthog-js/react";
+import { useRouter } from "next/navigation";
 import { Mic, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +25,7 @@ import { formatTracklistForCopy, normalizeMix } from "@/modules/phono/lib/mix";
 import { sortCatalog } from "@/modules/phono/lib/catalog-sort";
 import { CatalogSortMenu } from "../CatalogSortMenu";
 import { usePhonoSort } from "../PhonoSortProvider";
-import { MixDialog } from "./MixDialog";
+import { MixAudioDialog } from "./MixAudioDialog";
 import { MixRow } from "./MixRow";
 
 interface MixesTabProps {
@@ -37,11 +37,17 @@ const strip = (s: string) =>
   s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 export function MixesTab({ mixes, setMixes }: MixesTabProps) {
-  const posthog = usePostHog();
+  const router = useRouter();
   const { sorts } = usePhonoSort();
   const [search, setSearch] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingMix, setEditingMix] = useState<Mix | null>(null);
+  /** Mix dont la tracklist est dépliée. Un seul à la fois, volontairement. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  /**
+   * Mix dont on change le fichier audio. Gardé par id et non par objet : le
+   * dialogue doit montrer l'état courant du mix après chaque écriture, pas
+   * l'instantané qui était là à l'ouverture.
+   */
+  const [audioMixId, setAudioMixId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Mix | null>(null);
   const [deleteFromDrive, setDeleteFromDrive] = useState(false);
 
@@ -59,26 +65,15 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
     return sortCatalog(rows, sorts.mixes);
   }, [normalized, search, sorts.mixes]);
 
-  const openCreate = () => {
-    setEditingMix(null);
-    setDialogOpen(true);
-  };
+  const patchMix = (id: string, patch: Partial<Mix>) =>
+    setMixes((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
-  const submitMix = (mix: Mix) => {
-    setMixes((prev) => {
-      const exists = prev.some((m) => m.id === mix.id);
-      if (exists) return prev.map((m) => (m.id === mix.id ? mix : m));
-      posthog?.capture("item_created", { module: "phono" });
-      return [mix, ...prev];
-    });
-  };
+  const openCreate = () => router.push("/phono/catalogue/mix/nouveau");
+  const openEdit = (mix: Mix) => router.push(`/phono/catalogue/mix/${mix.id}`);
 
   const confirmDelete = (mix: Mix) => {
     setMixes((prev) => prev.filter((m) => m.id !== mix.id));
-    if (editingMix?.id === mix.id) {
-      setEditingMix(null);
-      setDialogOpen(false);
-    }
+    if (expandedId === mix.id) setExpandedId(null);
     setPendingDelete(null);
     if (mix.audioPath && mix.audioSource === "upload") {
       void handleDetachedAudio([mix.audioPath], deleteFromDrive);
@@ -134,25 +129,27 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
             <MixRow
               key={mix.id}
               mix={mix}
-              onEdit={() => {
-                setEditingMix(mix);
-                setDialogOpen(true);
-              }}
+              expanded={expandedId === mix.id}
+              onToggleExpand={() =>
+                setExpandedId((id) => (id === mix.id ? null : mix.id))
+              }
+              onEdit={() => openEdit(mix)}
               onDelete={() => setPendingDelete(mix)}
               onCopyTracklist={() => copyTracklist(mix)}
+              onAttachAudio={() => setAudioMixId(mix.id)}
             />
           ))}
         </div>
       )}
 
-      <MixDialog
-        open={dialogOpen}
+      <MixAudioDialog
+        mix={normalized.find((m) => m.id === audioMixId) ?? null}
         onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingMix(null);
+          if (!open) setAudioMixId(null);
         }}
-        mix={editingMix}
-        onSubmit={submitMix}
+        onPatch={(patch) => {
+          if (audioMixId) patchMix(audioMixId, patch);
+        }}
       />
 
       <Dialog
@@ -185,8 +182,8 @@ export function MixesTab({ mixes, setMixes }: MixesTabProps) {
                 htmlFor="delete-mix-from-drive"
                 className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
               >
-                Supprimer aussi le fichier du Drive. Sans cette case, il est
-                conservé dans Drive → Phono → depuis-catalogue.
+                Supprimer aussi le fichier du Drive. Sans cette case, il reste
+                dans Drive → Phono → Catalogue.
               </Label>
             </div>
           ) : null}

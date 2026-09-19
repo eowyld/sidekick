@@ -1,11 +1,20 @@
 // app/api/phono/signed-audio/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { DRIVE_BUCKET } from "@/lib/drive-db";
+import { DRIVE_BUCKET, driveFileHref } from "@/lib/drive-db";
 
-/** Durée de vie d'une URL de lecture. Assez longue pour un titre, assez courte
- *  pour qu'une URL qui fuite ne serve pas indéfiniment. */
-const SIGNED_URL_TTL_SECONDS = 3600;
+/**
+ * Donne au lecteur l'adresse de lecture d'un fichier du Drive.
+ *
+ * L'adresse rendue est celle de `/api/drive/file`, sur notre domaine : elle ne
+ * porte aucune URL Supabase et ne périme pas, c'est la session qui décide.
+ * La route reste utile malgré ça — elle vérifie le propriétaire et l'existence
+ * du fichier avant la lecture, ce qui donne un message clair plutôt qu'un
+ * lecteur muet.
+ */
+
+/** Horizon rendu au cache du client. La session expire bien avant. */
+const URL_LIFETIME_MS = 12 * 3600 * 1000;
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
@@ -33,16 +42,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   }
 
+  // Existence vérifiée sans signer quoi que ce soit : `list` sur le dossier
+  // parent suffit, et l'erreur remonte ici plutôt que dans le lecteur.
+  const lastSlash = audioPath.lastIndexOf("/");
+  const folder = audioPath.slice(0, lastSlash);
+  const fileName = audioPath.slice(lastSlash + 1);
   const { data, error } = await supabase.storage
     .from(DRIVE_BUCKET)
-    .createSignedUrl(audioPath, SIGNED_URL_TTL_SECONDS);
+    .list(folder, { search: fileName, limit: 100 });
 
-  if (error || !data?.signedUrl) {
+  if (error || !data?.some((entry) => entry.name === fileName)) {
     return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
   }
 
   return NextResponse.json({
-    url: data.signedUrl,
-    expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+    url: driveFileHref(audioPath),
+    expiresAt: Date.now() + URL_LIFETIME_MS,
   });
 }

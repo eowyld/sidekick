@@ -127,6 +127,33 @@ a {
   }
 }
 
+/*
+  Dépliage d'un album dans le catalogue (AlbumPanel) : le détail se déroule
+  depuis la gauche, là où était la pochette cliquée. Le décalage horizontal
+  plutôt que vertical est ce qui fait lire le geste comme un dépliage sur le
+  côté, et non comme une insertion de ligne.
+*/
+@keyframes album-panel-unroll {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.album-panel-unroll {
+  animation: album-panel-unroll 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-panel-unroll {
+    animation: none;
+  }
+}
+
 /* Halo néon décoratif (SectionGlow) : rotation lente d'une barre de lumière. */
 @keyframes glow-orbit {
   to {

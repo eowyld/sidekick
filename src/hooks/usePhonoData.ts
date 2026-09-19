@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
+import { toast } from "sonner";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Track, Album, Mix, TrackGuest } from "@/lib/sidekick-store";
 import { normalizeTrackGuests } from "@/modules/phono/lib/track";
@@ -9,9 +10,28 @@ import { normalizeTrackGuests } from "@/modules/phono/lib/track";
 // ─── Local session type (SessionsStudioPage) ─────────────────────────────────
 
 export type SessionParticipant = {
-  id: number;
+  id: string | number;
+  contactId?: string;
   name: string;
   role: string;
+  instrument?: string;
+  stageName?: string;
+  email?: string;
+  phone?: string;
+  arrivalTime?: string;
+  departureTime?: string;
+  trackIds?: string[];
+  isPerformer?: boolean;
+};
+
+export type SessionProducer = {
+  name?: string;
+  legalName?: string;
+  label?: string;
+  address?: string;
+  siret?: string;
+  email?: string;
+  phone?: string;
 };
 
 export type StudioSession = {
@@ -19,11 +39,20 @@ export type StudioSession = {
   title: string;
   date: string;
   time: string;
+  endTime?: string;
   location: string;
   address?: string;
   sessionType: string;
   sessionTypeOther?: string;
   participants: SessionParticipant[];
+  status: string;
+  albumIds?: string[];
+  trackIds?: string[];
+  mixIds?: string[];
+  studioCost?: number;
+  otherCosts?: number;
+  presenceEnabled?: boolean;
+  producer?: SessionProducer;
   note?: string;
 };
 
@@ -105,6 +134,7 @@ function albumToRow(a: Album, userId: string): Record<string, unknown> {
     release_date: a.releaseDate ?? "",
     upc_ean: a.upcEan ?? "",
     track_ids: a.trackIds ?? [],
+    track_versions: a.trackVersions ?? {},
     label: a.label ?? null,
     genre: a.genre ?? null,
     editor: a.editor ?? null,
@@ -125,6 +155,7 @@ function rowToAlbum(row: Record<string, unknown>): Album {
     releaseDate: (row.release_date as string) ?? "",
     upcEan: (row.upc_ean as string) ?? "",
     trackIds: (row.track_ids as string[]) ?? [],
+    trackVersions: (row.track_versions as Record<string, string[]>) ?? {},
     label: (row.label as string) ?? undefined,
     genre: (row.genre as string) ?? undefined,
     editor: (row.editor as string) ?? undefined,
@@ -185,11 +216,20 @@ function sessionToRow(s: StudioSession, userId: string): Record<string, unknown>
     title: s.title,
     date: s.date,
     time: s.time,
+    end_time: s.endTime ?? "",
     location: s.location,
     address: s.address ?? null,
     session_type: s.sessionType,
     session_type_other: s.sessionTypeOther ?? null,
     participants: s.participants ?? [],
+    status: s.status ?? "planned",
+    album_ids: s.albumIds ?? [],
+    track_ids: s.trackIds ?? [],
+    mix_ids: s.mixIds ?? [],
+    studio_cost: s.studioCost ?? 0,
+    other_costs: s.otherCosts ?? 0,
+    presence_enabled: s.presenceEnabled ?? false,
+    producer: s.producer ?? {},
     note: s.note ?? null,
   };
 }
@@ -200,11 +240,20 @@ function rowToSession(row: Record<string, unknown>): StudioSession {
     title: row.title as string,
     date: row.date as string,
     time: row.time as string,
+    endTime: (row.end_time as string) ?? "",
     location: row.location as string,
     address: (row.address as string) ?? undefined,
     sessionType: row.session_type as string,
     sessionTypeOther: (row.session_type_other as string) ?? undefined,
     participants: (row.participants as SessionParticipant[]) ?? [],
+    status: (row.status as StudioSession["status"]) ?? "planned",
+    albumIds: (row.album_ids as string[]) ?? [],
+    trackIds: (row.track_ids as string[]) ?? [],
+    mixIds: (row.mix_ids as string[]) ?? [],
+    studioCost: Number(row.studio_cost ?? 0),
+    otherCosts: Number(row.other_costs ?? 0),
+    presenceEnabled: Boolean(row.presence_enabled),
+    producer: (row.producer as SessionProducer) ?? {},
     note: (row.note as string) ?? undefined,
   };
 }
@@ -260,6 +309,9 @@ function makeOptimisticSetter<T extends { id: string }>(
       const supabase = createClient();
       const { data: { user } } = await getSessionUser(supabase);
       if (!user) {
+        toast.error("Session expirée", {
+          description: "Reconnecte-toi pour enregistrer tes modifications.",
+        });
         mutate(KEY, (current: PhonoData | undefined) => ({ ...(current ?? FALLBACK), [slice]: snapshot }), false);
         return;
       }
@@ -301,7 +353,15 @@ function makeOptimisticSetter<T extends { id: string }>(
       const results = await Promise.all(ops);
       const firstError = results.find((r) => r.error);
       if (firstError?.error) {
-        // Rollback
+        // Rollback. Le signaler, et pas seulement en console : sans ce toast,
+        // un refus de Postgres se traduisait à l'écran par une saisie qui
+        // disparaît toute seule, indiscernable d'un bug d'interface. C'est ce
+        // qui a masqué pendant une journée une migration non appliquée au
+        // projet cloud (colonnes manquantes sur `user_phono_sessions`).
+        console.error(`[phono/${slice}] écriture refusée`, firstError.error);
+        toast.error("Enregistrement impossible", {
+          description: firstError.error.message,
+        });
         mutate(KEY, (current: PhonoData | undefined) => ({ ...(current ?? FALLBACK), [slice]: snapshot }), false);
       } else {
         // Revalidate from server

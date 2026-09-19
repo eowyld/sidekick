@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  ChevronRight,
   Copy,
+  FileAudio,
   ListMusic,
   MoreHorizontal,
   Pause,
@@ -27,6 +29,7 @@ import {
 import { mixFormatLabel, tracklistDuration } from "@/modules/phono/lib/mix";
 import { mixQueueItem } from "@/modules/phono/lib/player-queue";
 import { usePhonoPlayer } from "../audio/PhonoPlayerProvider";
+import { MixTracklistPanel } from "./MixTracklistPanel";
 
 /**
  * Colonne de méta : micro-libellé en capitales espacées au-dessus de sa valeur.
@@ -52,18 +55,33 @@ function Meta({
 
 interface MixRowProps {
   mix: Mix;
+  /** Tracklist dépliée sous la ligne. */
+  expanded: boolean;
+  onToggleExpand: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onCopyTracklist: () => void;
+  /** Ouvre le rattachement du fichier audio, sans quitter le catalogue. */
+  onAttachAudio: () => void;
 }
 
 /**
- * Ligne de catalogue en **lecture seule** pour l'onglet Mixes. Jumelle de
- * `TrackRow` / `AlbumCard` : toute la ligne ouvre l'édition, le menu `⋯` stoppe
- * la propagation pour ne pas la déclencher au passage.
+ * Ligne de catalogue en **lecture seule** pour l'onglet Mixes.
  *
+ * Jumelle de `TrackRow` : cliquer la ligne déplie la tracklist, d'où l'on peut
+ * sauter à n'importe quel titre du set ; l'édition passe par la page dédiée
+ * (`MixEditPage`), atteinte par le menu `⋯`. Le menu stoppe la propagation pour
+ * ne pas déplier la ligne au passage.
  */
-export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) {
+export function MixRow({
+  mix,
+  expanded,
+  onToggleExpand,
+  onEdit,
+  onDelete,
+  onCopyTracklist,
+  onAttachAudio,
+}: MixRowProps) {
   const { current, isPlaying, play } = usePhonoPlayer();
   const playingHere = current?.versionId === mix.id && isPlaying;
   const status = mix.status ?? "en_production";
@@ -77,7 +95,7 @@ export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) 
     if (e.target !== e.currentTarget) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onEdit();
+      onToggleExpand();
     }
   };
 
@@ -85,23 +103,30 @@ export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) 
     <div
       className={cn(
         "card-hover group/row rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.5)]",
-        "px-4 py-3 hover:border-[rgba(245,245,245,0.18)]"
+        "px-4 py-3 hover:border-[rgba(245,245,245,0.18)]",
+        expanded && "border-[rgba(245,245,245,0.18)]"
       )}
     >
       <div
         role="button"
         tabIndex={0}
-        aria-label={`${mix.title || "Sans titre"} — éditer`}
-        onClick={onEdit}
+        aria-expanded={expanded}
+        aria-label={`${mix.title || "Sans titre"} — ${expanded ? "replier" : "déplier"} la tracklist`}
+        onClick={onToggleExpand}
         onKeyDown={handleKeyDown}
         className={cn(
           "flex cursor-pointer items-center gap-3.5 rounded-lg outline-none",
           focusRingInset
         )}
       >
-        {/* Gouttière alignée sur le chevron de `TrackRow` : les pochettes des
-            deux onglets démarrent alors au même x. */}
-        <span aria-hidden className="h-3.5 w-3.5 shrink-0" />
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-[#F5F5F5]/25 transition-transform duration-200",
+            "group-hover/row:text-[#F5F5F5]/50",
+            expanded && "rotate-90 text-[#F5F5F5]/50"
+          )}
+        />
 
         {/*
           Comme sur `TrackRow`, la pochette porte la lecture : survoler révèle
@@ -188,9 +213,21 @@ export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) 
           </Meta>
         </div>
 
+        {/*
+          La durée est celle du dernier timecode de la tracklist, pas celle du
+          fichier : c'est la seule qui existe tant qu'aucun audio n'est
+          rattaché. Déplier la ligne rend chaque timecode cliquable.
+        */}
         <div className="hidden w-[110px] shrink-0 sm:block">
           <Meta label="Tracklist">
-            <span className="text-[11px] tabular-nums text-[#F5F5F5]/60">
+            <span
+              className={cn(
+                "text-[11px] tabular-nums transition-colors",
+                count > 0
+                  ? "text-[#F5F5F5]/60 group-hover/row:text-[#F0FF00]"
+                  : "text-[#F5F5F5]/60"
+              )}
+            >
               {count}
               <span className="text-[#F5F5F5]/30">
                 {" "}
@@ -235,6 +272,10 @@ export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) 
               <Pencil className="mr-2 h-3.5 w-3.5" />
               Éditer
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onAttachAudio}>
+              <FileAudio className="mr-2 h-3.5 w-3.5" />
+              {mix.audioPath ? "Remplacer le fichier audio" : "Ajouter un fichier audio"}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={onCopyTracklist}>
               <Copy className="mr-2 h-3.5 w-3.5" />
               Copier la tracklist
@@ -246,6 +287,10 @@ export function MixRow({ mix, onEdit, onDelete, onCopyTracklist }: MixRowProps) 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {expanded ? (
+        <MixTracklistPanel mix={mix} onAttachAudio={onAttachAudio} />
+      ) : null}
     </div>
   );
 }

@@ -46,6 +46,7 @@ const groupMusique = [
     href: "/live",
     sub: [
       { href: "/live", label: "Vue d'ensemble" },
+      { href: "/live/spectacles", label: "Spectacles & tournées" },
       { href: "/live/representations", label: "Représentations" },
       { href: "/live/repetitions", label: "Répétitions" },
       { href: "/live/prospection", label: "Prospection" },
@@ -59,8 +60,8 @@ const groupMusique = [
     href: "/phono/catalogue",
     sub: [
       { href: "/phono/catalogue", label: "Catalogue" },
-      { href: "/phono/sessions-studio", label: "Sessions Studio" },
       { href: "/phono/liens-ecoute", label: "Liens d'écoute" },
+      { href: "/phono/sessions-studio", label: "Sessions studio" },
     ],
   },
   {

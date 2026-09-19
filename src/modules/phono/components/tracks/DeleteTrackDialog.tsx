@@ -76,7 +76,7 @@ export function DeleteTrackDialog({
               className="cursor-pointer text-xs font-normal text-[#F5F5F5]/70"
             >
               Supprimer aussi le ou les fichiers du Drive. Sans cette case, ils
-              sont conservés dans Drive → Phono → depuis-catalogue.
+              restent dans Drive → Phono → Catalogue.
             </Label>
           </div>
         ) : null}

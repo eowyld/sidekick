@@ -22,6 +22,17 @@ const nextConfig = {
     root: path.resolve(__dirname)
   },
   skipTrailingSlashRedirect: true,
+  // `ffmpeg-static` déduit le chemin de son binaire de `__dirname`. Bundlé, ce
+  // `__dirname` est réécrit en un jeton `/ROOT/` et le spawn échoue en ENOENT.
+  // Le laisser externe préserve un `require` réel depuis `node_modules`.
+  serverExternalPackages: ["ffmpeg-static"],
+  // `ffmpeg-static` construit le chemin de son binaire à l'exécution
+  // (`path.join(__dirname, "ffmpeg")`), ce que l'analyse statique de Next ne
+  // voit pas : sans cette ligne, la fonction part en production sans son
+  // binaire. Ça ne concerne que cette route, les autres ne l'embarquent pas.
+  outputFileTracingIncludes: {
+    "/api/phono/apply-metadata": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   async rewrites() {
     return [
       {

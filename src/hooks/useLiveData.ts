@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { LiveDetails, LiveProduction } from "@/modules/live/lib/live-model";
+import { emptyTechnical } from "@/modules/live/lib/live-model";
+import { migrateLiveDetails } from "@/modules/live/lib/migrate-live-details";
 import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { TourDate, TimetableItem } from "@/modules/live/data/defaultRepresentations";
@@ -8,6 +11,7 @@ import type { TourDate, TimetableItem } from "@/modules/live/data/defaultReprese
 export type { TourDate, TimetableItem };
 
 export type RehearsalItem = {
+  details?: LiveDetails;
   id: string;
   label?: string;
   date: string;
@@ -67,6 +71,7 @@ export type ProspectionEntry = {
 };
 
 type LiveData = {
+  productions: LiveProduction[];
   tourDates: TourDate[];
   rehearsals: RehearsalItem[];
   inventory: EquipmentInventoryItem[];
@@ -77,6 +82,7 @@ type LiveData = {
 const KEY = "user_live";
 
 const EMPTY: LiveData = {
+  productions: [],
   tourDates: [],
   rehearsals: [],
   inventory: [],
@@ -90,6 +96,7 @@ function tourDateToRow(d: TourDate, userId: string): Record<string, unknown> {
   return {
     id: String(d.id),
     user_id: userId,
+    details: d.details ?? {},
     city: d.city,
     venue: d.venue,
     date: d.date,
@@ -109,6 +116,7 @@ function tourDateToRow(d: TourDate, userId: string): Record<string, unknown> {
 
 function rowToTourDate(row: Record<string, unknown>): TourDate {
   return {
+    details: (row.details as LiveDetails) ?? {},
     id: row.id as number,
     city: row.city as string,
     venue: row.venue as string,
@@ -131,6 +139,7 @@ function rehearsalToRow(r: RehearsalItem, userId: string): Record<string, unknow
   return {
     id: String(r.id),
     user_id: userId,
+    details: r.details ?? {},
     label: r.label ?? null,
     date: r.date,
     time: r.time,
@@ -146,6 +155,7 @@ function rehearsalToRow(r: RehearsalItem, userId: string): Record<string, unknow
 function rowToRehearsal(row: Record<string, unknown>): RehearsalItem {
   return {
     id: row.id as string,
+    details: (row.details as LiveDetails) ?? {},
     label: (row.label as string) ?? undefined,
     date: row.date as string,
     time: row.time as string,
@@ -174,7 +184,7 @@ function rowToInventoryItem(row: Record<string, unknown>): EquipmentInventoryIte
     id: row.id as string,
     name: row.name as string,
     quantity: row.quantity as number,
-    condition: row.condition as string,
+    condition: ({ bon: "Bon", neuf: "Neuf", moyen: "Moyen", "à réparer": "A réparer", "a réparer": "A réparer" } as Record<string, string>)[String(row.condition).toLocaleLowerCase()] ?? String(row.condition),
     comment: (row.comment as string) ?? undefined,
   };
 }
@@ -261,15 +271,20 @@ async function fetchLiveData(): Promise<LiveData> {
   const { data: { user } } = await getSessionUser(supabase);
   if (!user) return EMPTY;
 
-  const [td, rh, inv, lists, pro] = await Promise.all([
+  const [td, rh, inv, lists, pro, productions] = await Promise.all([
     supabase.from("user_tour_dates").select("*").order("date"),
     supabase.from("user_rehearsals").select("*").order("date"),
     supabase.from("user_equipment_inventory").select("*").order("name"),
     supabase.from("user_equipment_lists").select("*").order("name"),
     supabase.from("user_live_prospection").select("*").order("venue_name"),
+    supabase.from("user_live_productions").select("*" ).order("created_at"),
   ]);
 
+  const failed = [td, rh, inv, lists, pro, productions].find(result => result.error);
+  if (failed?.error) throw new Error("Impossible de charger tes données Live. Réessaie dans quelques instants.");
+  await migrateLiveDetails(supabase, user.id, td.data ?? [], rh.data ?? []);
   return {
+    productions: (productions.data ?? []).map(row => ({ setlist: [], preparation: {}, equipmentListIds: [], technical: emptyTechnical(), ...row.data, id: row.id, title: row.title, kind: row.kind } as LiveProduction)),
     tourDates: td.error ? [] : (td.data ?? []).map(rowToTourDate),
     rehearsals: rh.error ? [] : (rh.data ?? []).map(rowToRehearsal),
     inventory: inv.error ? [] : (inv.data ?? []).map(rowToInventoryItem),
@@ -280,82 +295,56 @@ async function fetchLiveData(): Promise<LiveData> {
 
 // ─── Generic optimistic setter factory ───────────────────────────────────────
 
+// Serialize writes to the same slice: a failed save must not roll back a later edit.
+const mutationQueues = new Map<string, Promise<boolean>>();
+
 function makeOptimisticSetter<T extends { id: string | number }>(
   table: string,
   toRow: (item: T, userId: string) => Record<string, unknown>,
   slice: keyof LiveData,
   setError: (msg: string | null) => void
 ) {
-  return (fn: (prev: T[]) => T[]) => {
+  const execute = async (fn: (prev: T[]) => T[]): Promise<boolean> => {
     let snapshot: T[] = [];
     let next: T[] = [];
-
-    mutate(
-      KEY,
-      (current: LiveData | undefined) => {
-        const cur = current ?? EMPTY;
-        snapshot = cur[slice] as unknown as T[];
-        next = fn(snapshot);
-        return { ...cur, [slice]: next };
-      },
-      false
-    );
-
-    (async () => {
-      setError(null);
+    await mutate(KEY, (current: LiveData | undefined) => {
+      const cur = current ?? EMPTY;
+      snapshot = cur[slice] as unknown as T[];
+      next = fn(snapshot);
+      return { ...cur, [slice]: next };
+    }, false);
+    setError(null);
+    try {
       const supabase = createClient();
       const { data: { user } } = await getSessionUser(supabase);
-      if (!user) {
-        setError("Not authenticated");
-        mutate(KEY, (cur: LiveData | undefined) => ({ ...(cur ?? EMPTY), [slice]: snapshot }), false);
-        return;
-      }
-
-      const prevMap = new Map(snapshot.map((e) => [String(e.id), e]));
-      const nextMap = new Map(next.map((e) => [String(e.id), e]));
-
-      const toInsert = next.filter((e) => !prevMap.has(String(e.id)));
-      const toUpdate = next.filter((e) => {
-        const old = prevMap.get(String(e.id));
-        return old && JSON.stringify(old) !== JSON.stringify(e);
-      });
-      const toDelete = snapshot.filter((e) => !nextMap.has(String(e.id))).map((e) => String(e.id));
-
-      const ops: Array<PromiseLike<{ error: { message: string } | null }>> = [];
-
-      if (toInsert.length > 0) {
-        ops.push(
-          Promise.resolve(
-            supabase.from(table).insert(toInsert.map((e) => toRow(e, user.id)))
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
-        );
-      }
-
-      for (const e of toUpdate) {
-        ops.push(
-          Promise.resolve(
-            supabase.from(table).update(toRow(e, user.id)).eq("id", String(e.id)).eq("user_id", user.id)
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
-        );
-      }
-
-      if (toDelete.length > 0) {
-        ops.push(
-          Promise.resolve(
-            supabase.from(table).delete().in("id", toDelete).eq("user_id", user.id)
-          ).then(({ error }) => ({ error: error ? { message: error.message } : null }))
-        );
-      }
-
-      const results = await Promise.all(ops);
-      const firstError = results.find((r) => r.error);
-      if (firstError?.error) {
-        setError(firstError.error.message);
-        mutate(KEY, (cur: LiveData | undefined) => ({ ...(cur ?? EMPTY), [slice]: snapshot }), false);
-      } else {
-        mutate(KEY);
-      }
-    })();
+      if (!user) throw new Error("Ta session a expiré. Reconnecte-toi pour enregistrer.");
+      const prevMap = new Map(snapshot.map(e => [String(e.id), e]));
+      const nextMap = new Map(next.map(e => [String(e.id), e]));
+      const inserts = next.filter(e => !prevMap.has(String(e.id)));
+      const updates = next.filter(e => prevMap.has(String(e.id)) && JSON.stringify(prevMap.get(String(e.id))) !== JSON.stringify(e));
+      const deletes = snapshot.filter(e => !nextMap.has(String(e.id))).map(e => String(e.id));
+      // One batch per operation; existing rows are never upserted over another user's ID.
+      if (inserts.length) { const { error } = await supabase.from(table).insert(inserts.map(e => toRow(e, user.id))); if (error) throw error; }
+      for (const item of updates) { const { error } = await supabase.from(table).update(toRow(item, user.id)).eq("id", String(item.id)).eq("user_id", user.id); if (error) throw error; }
+      if (deletes.length) { const { error } = await supabase.from(table).delete().in("id", deletes).eq("user_id", user.id); if (error) throw error; }
+      void mutate(KEY);
+      void mutate(key => typeof key === "string" && key.startsWith("budget:"));
+      return true;
+    } catch {
+      setError("L’enregistrement a échoué. Tes modifications sont conservées dans le formulaire : réessaie.");
+      await mutate(KEY, (cur: LiveData | undefined) => ({ ...(cur ?? EMPTY), [slice]: snapshot }), false);
+      return false;
+    }
+  };
+  return (fn: (prev: T[]) => T[]): Promise<boolean> => {
+    const previous = mutationQueues.get(table);
+    const pending = (previous ? previous.catch(() => false).then(() => execute(fn)) : execute(fn))
+      .catch(() => { setError("L’enregistrement a échoué. Réessaie."); return false; });
+    mutationQueues.set(table, pending);
+    void pending.finally(() => {
+      if (mutationQueues.get(table) === pending) mutationQueues.delete(table);
+    });
+    return pending;
   };
 }
 
@@ -390,7 +379,12 @@ export function useLiveData() {
     "user_live_prospection", prospectionToRow, "prospection", setError
   );
 
+  const setProductions = makeOptimisticSetter<LiveProduction>(
+    "user_live_productions", (item, userId) => ({ id: item.id, user_id: userId, title: item.title, kind: item.kind, data: item }), "productions", setError
+  );
   return {
+    productions: allData.productions,
+    setProductions,
     tourDates: allData.tourDates,
     setTourDates,
     rehearsals: allData.rehearsals,

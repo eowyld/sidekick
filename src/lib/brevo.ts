@@ -1,7 +1,22 @@
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
-/** Expéditeur par défaut — doit être un expéditeur vérifié côté Brevo. */
-const DEFAULT_FROM = process.env.BREVO_FROM?.trim() || "eliott.matton@gmail.com";
+/**
+ * Expéditeur par défaut. **Doit être un expéditeur vérifié côté Brevo**, sinon
+ * rien ne part.
+ *
+ * 🔴 Le piège, rencontré le 18/09 : Brevo **accepte** l'appel API (2xx, avec un
+ * `messageId`) puis rejette l'envoi de façon asynchrone si l'expéditeur n'est
+ * pas validé. `sendEmail` renvoie donc `{ ok: true }`, aucune erreur n'apparaît
+ * nulle part, et le message n'arrive jamais. Le motif ne se lit que dans les
+ * événements du compte : « Sending has been rejected because the sender you
+ * used … is not valid ».
+ *
+ * La valeur de repli est l'adresse technique du domaine, authentifiée
+ * SPF/DKIM — jamais une adresse personnelle, qui ne sera jamais vérifiée côté
+ * Brevo et qui casserait les trois envois de l'app d'un coup.
+ */
+const DEFAULT_FROM =
+  process.env.BREVO_FROM?.trim() || "no-reply@sidekickartists.com";
 
 /** Le contenu vient parfois de l'utilisateur : jamais interprété comme du HTML. */
 export function escapeHtml(value: string): string {
@@ -60,6 +75,16 @@ export async function sendEmail(args: {
       console.error("[brevo] envoi refusé", response.status, detail);
       return { ok: false, reason: "send_failed", detail };
     }
+
+    // Un 2xx veut dire « accepté », pas « remis » : le rejet éventuel arrive
+    // ensuite, hors de cette requête. On trace le `messageId` pour pouvoir
+    // relier un message manquant à son événement côté Brevo.
+    const accepted = (await response.json().catch(() => null)) as
+      | { messageId?: string }
+      | null;
+    console.info(
+      `[brevo] accepté pour ${args.to} (${accepted?.messageId ?? "sans messageId"}), expéditeur ${DEFAULT_FROM}`
+    );
 
     return { ok: true };
   } catch (error) {

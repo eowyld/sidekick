@@ -63,7 +63,7 @@ export interface InvoiceEditDialogProps {
     client?: string;
     number?: string;
   };
-  onSave: (invoice: Invoice) => void;
+  onSave: (invoice: Invoice) => void | boolean | Promise<void | boolean>;
 }
 
 export function InvoiceEditDialog({
@@ -174,7 +174,11 @@ export function InvoiceEditDialog({
       lines: prev.lines.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
     }));
 
-  const handleSave = () => {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const handleSave = async () => {
+    if (saving) return;
     const number = form.number.trim();
     const client = form.client.trim();
     if (!number || !client) return;
@@ -201,14 +205,20 @@ export function InvoiceEditDialog({
       notes: form.notes.trim() || undefined,
     };
 
-    onSave(mergeEncaissementDate(invoice, saved));
-    onOpenChange(false);
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const result = await onSave(mergeEncaissementDate(invoice, saved));
+      if (result === false) setSaveError(true);
+      else onOpenChange(false);
+    } catch { setSaveError(true); }
+    finally { setSaving(false); }
   };
 
   const { totalHT, totalTTC } = computeTotals(form.lines);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={value => { if (!saving) onOpenChange(value); }}>
       <DialogContent className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -388,16 +398,17 @@ export function InvoiceEditDialog({
           </div>
         </div>
 
+        {saveError && <p role="alert" className="text-sm text-rose-300">L’enregistrement a échoué. Tes informations sont conservées : réessaie.</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
           <Button
             type="button"
             onClick={handleSave}
-            disabled={!form.number.trim() || !form.client.trim()}
+            disabled={saving || !form.number.trim() || !form.client.trim()}
           >
-            Enregistrer
+            {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>

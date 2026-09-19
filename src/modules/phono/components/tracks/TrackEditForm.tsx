@@ -43,6 +43,8 @@ interface TrackEditFormProps {
   dateInvalid: boolean;
   /** Le titre tel que `VersionList` doit le voir : état du formulaire, pas la donnée serveur. */
   draftTrack: Track;
+  /** Versions telles qu'enregistrées en base — voir `VersionList`. */
+  savedVersions: TrackVersion[];
   onPatchVersion: (versionId: string, patch: Partial<TrackVersion>) => void;
   onAddVersion: () => void;
   onRemoveVersion: (versionId: string) => void;
@@ -77,6 +79,7 @@ export function TrackEditForm({
   patch,
   dateInvalid,
   draftTrack,
+  savedVersions,
   onPatchVersion,
   onAddVersion,
   onRemoveVersion,
@@ -182,6 +185,7 @@ export function TrackEditForm({
         <div className="mt-4">
           <VersionList
             track={draftTrack}
+            savedVersions={savedVersions}
             onPatchVersion={onPatchVersion}
             onAddVersion={onAddVersion}
             onRemoveVersion={onRemoveVersion}

@@ -153,8 +153,10 @@ export function TrackAlbumField({
     const album = onCreateAlbum(title);
     setCreating(false);
     setNewTitle("");
-    // Un album qui vient de naître n'a ni label, ni éditeur, ni distribution :
-    // rien à hériter, jamais de conflit possible.
+    // `onCreateAlbum` copie déjà label, éditeur et distribution depuis ce
+    // titre : l'album qui vient de naître dit exactement la même chose que le
+    // titre sur ces trois champs, rien à patcher ici, jamais de conflit
+    // possible.
     onChange(album.id, {});
   }
 

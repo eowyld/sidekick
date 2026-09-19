@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePhonoData } from "@/hooks/usePhonoData";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useProjectsData } from "@/hooks/useProjectsData";
 import { pruneOrphanAudio } from "@/modules/phono/lib/audio-gc";
 import { migratePhonoAudioFolder } from "@/lib/migrate-phono-audio-folder";
 import { normalizeTrack } from "@/modules/phono/lib/track";
@@ -40,8 +41,20 @@ export function CatalogPage() {
     error,
   } = usePhonoData();
 
-  const { data } = useSidekickData();
-  const [tab, setTab] = useState<TabKey>("tracks");
+  // Lecture seule : les pastilles de projet sur une ligne de titre. Le
+  // chargement des projets n'a pas à retarder le catalogue — tant qu'il n'a
+  // pas répondu, les pastilles sont simplement absentes.
+  const { projects } = useProjectsData();
+
+  // L'onglet d'arrivée peut être imposé par l'URL : les pages d'édition de
+  // titre et d'album y renvoient pour ne pas éjecter l'artiste de l'onglet
+  // d'où il vient. L'état reste local ensuite, cliquer un onglet ne réécrit
+  // pas l'URL.
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<TabKey>(
+    tabParam === "albums" || tabParam === "mixes" ? tabParam : "tracks"
+  );
   const [filter, setFilter] = useState<CatalogFilter>({ kind: "none" });
   const [exportTarget, setExportTarget] = useState<MetadataExportTarget | null>(
     null
@@ -173,7 +186,7 @@ export function CatalogPage() {
           setTracks={setTracks}
           filter={filter}
           onFilterChange={setFilter}
-          projects={data.projects?.projects ?? []}
+          projects={projects}
           onExportMetadata={(trackId, versionId) =>
             setExportTarget(
               versionId
@@ -189,7 +202,6 @@ export function CatalogPage() {
           albums={albums}
           tracks={tracks}
           setAlbums={setAlbums}
-          setTracks={setTracks}
           onExportMetadata={(albumId) =>
             setExportTarget({ kind: "album", albumId })
           }

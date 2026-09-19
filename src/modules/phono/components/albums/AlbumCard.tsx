@@ -19,6 +19,7 @@ import { toDisplayDate } from "@/lib/date-format";
 import type { Album } from "@/lib/sidekick-store";
 import { cn } from "@/lib/utils";
 import { albumTypeLabel } from "@/modules/phono/lib/album";
+import { Meta } from "./Meta";
 import {
   RELEASE_STATUS_COLOR,
   releaseStatusLabel,
@@ -27,38 +28,27 @@ import {
 interface AlbumCardProps {
   album: Album;
   trackCount: number;
+  /** Clic sur la carte : déplie le panneau de l'album, en pleine largeur. */
+  onOpen: () => void;
+  /** Entrée « Éditer » du menu ⋯ — la page d'édition, elle, reste à sa place. */
   onEdit: () => void;
   onDelete: () => void;
   onExportMetadata: () => void;
 }
 
-/** Micro-libellé en capitales espacées au-dessus de sa valeur — signature du produit. */
-function Meta({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-[#F5F5F5]/25">
-        {label}
-      </p>
-      <div className="truncate">{children}</div>
-    </div>
-  );
-}
-
 /**
  * Carte de release en **lecture seule** pour la grille de l'onglet Albums.
  *
- * Toute la carte est cliquable et ouvre l'édition (`onEdit`) ; les actions du
- * menu `⋯` stoppent la propagation pour ne pas déclencher l'édition au passage.
+ * Toute la carte est cliquable et **déplie** l'album sur place (`onOpen`) —
+ * consulter une sortie et écouter sa tracklist est ce qu'on vient faire ici
+ * dix fois pour une modification. L'édition passe par le menu `⋯`, ou par le
+ * bouton « Modifier » de l'en-tête du panneau déplié. Les actions du menu
+ * stoppent la propagation pour ne pas déplier au passage.
  */
 export function AlbumCard({
   album,
   trackCount,
+  onOpen,
   onEdit,
   onDelete,
   onExportMetadata,
@@ -75,7 +65,7 @@ export function AlbumCard({
     if (e.target !== e.currentTarget) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onEdit();
+      onOpen();
     }
   };
 
@@ -83,8 +73,11 @@ export function AlbumCard({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${album.title || "Sans titre"} — éditer`}
-      onClick={onEdit}
+      aria-label={`${album.title || "Sans titre"} — voir le détail`}
+      // Toujours `false` : la carte *est* la forme repliée de l'album — quand
+      // il se déplie, elle cède la place au panneau et ne rend plus rien.
+      aria-expanded={false}
+      onClick={onOpen}
       onKeyDown={handleKeyDown}
       className={cn(
         "card-hover group cursor-pointer rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.5)] p-3",

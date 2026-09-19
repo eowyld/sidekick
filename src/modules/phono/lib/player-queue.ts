@@ -1,4 +1,5 @@
 import type { Album, Mix, Track, TrackVersion } from "@/lib/sidekick-store";
+import { albumTrackVersions } from "./album";
 import { sortCatalog, type SortKey } from "./catalog-sort";
 
 /**
@@ -73,6 +74,22 @@ export function trackQueueItem(
   return versionItem(track, version);
 }
 
+/**
+ * Entrée d'une version **écoutée depuis un album**.
+ *
+ * Même fonction, même clé que celles produites par `buildPlayerQueue` pour le
+ * bloc des albums : lancer une piste depuis la tracklist d'un album fait donc
+ * enchaîner « suivant » sur la piste d'après *de cet album*, et non sur la
+ * version suivante du bloc des titres.
+ */
+export function albumQueueItem(
+  album: Album,
+  track: Track,
+  version: TrackVersion
+): PlayerQueueItem | null {
+  return versionItem(track, version, album);
+}
+
 export function mixQueueItem(mix: Mix): PlayerQueueItem | null {
   if (!mix.audioPath) return null;
   return {
@@ -121,13 +138,15 @@ export function buildPlayerQueue(
     for (const trackId of album.trackIds ?? []) {
       const track = byId.get(trackId);
       if (!track) continue;
-      // Un album fait entendre le titre, pas toutes ses déclinaisons : on
-      // retient la première version pourvue d'un fichier, dans l'ordre où
-      // l'artiste les a rangées.
-      const version = (track.versions ?? []).find((v) => v.audioPath);
-      if (!version) continue;
-      const item = versionItem(track, version, album);
-      if (item) items.push(item);
+      // Un album fait entendre les versions que l'artiste y a retenues, dans
+      // l'ordre où il les a rangées — deux déclinaisons d'un même titre y
+      // comptent pour deux pistes. `albumTrackVersions` retombe sur la
+      // première version pourvue d'un fichier pour les albums enregistrés
+      // avant ce choix, ce qui était exactement le comportement d'ici.
+      for (const version of albumTrackVersions(album, track)) {
+        const item = versionItem(track, version, album);
+        if (item) items.push(item);
+      }
     }
   }
 

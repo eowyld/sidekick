@@ -117,11 +117,18 @@ export function TracksTab({
     const inAlbums = albums.filter((a) => (a.trackIds ?? []).includes(track.id));
     if (inAlbums.length > 0) {
       setAlbums((prev) =>
-        prev.map((a) =>
-          (a.trackIds ?? []).includes(track.id)
-            ? { ...a, trackIds: a.trackIds.filter((id) => id !== track.id) }
-            : a
-        )
+        prev.map((a) => {
+          if (!(a.trackIds ?? []).includes(track.id)) return a;
+          // La sélection de versions part avec le titre : une clé laissée
+          // derrière ne se verrait nulle part mais s'accumulerait en base.
+          const trackVersions = { ...(a.trackVersions ?? {}) };
+          delete trackVersions[track.id];
+          return {
+            ...a,
+            trackIds: a.trackIds.filter((id) => id !== track.id),
+            trackVersions,
+          };
+        })
       );
     }
     if (expandedId === track.id) setExpandedId(null);

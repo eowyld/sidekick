@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { DRIVE_BUCKET } from "@/lib/drive-db";
+import { streamStorageFile } from "@/lib/storage-stream";
 
 /**
  * GET /api/drive/file?path=… — ouvre un fichier du bucket `drive`.
  *
  * Le bucket est privé : aucun fichier n'a d'adresse permanente. Chaque
- * ouverture passe par ici, vérifie la session et le propriétaire, puis
- * redirige vers une URL signée qui expire au bout d'une minute. Un lien copié
- * depuis l'app ne fonctionne donc que pour son titulaire connecté, et une URL
- * signée interceptée ne sert plus passé ce délai.
+ * ouverture passe par ici, qui vérifie la session et le propriétaire, puis
+ * sert les octets depuis notre domaine. L'URL signée est consommée côté
+ * serveur et n'est jamais donnée au navigateur : c'est `sidekickartists.com`
+ * qui s'affiche dans la barre d'adresse, pas le projet Supabase.
  *
  * Utilisable tel quel en `href` ou en `src` : même origine, donc le cookie de
- * session suit, et le navigateur suit la redirection.
+ * session suit.
  */
-
-const SIGNED_URL_TTL_SECONDS = 60;
 
 export async function GET(request: Request) {
   const supabase = await createServerSupabase();
@@ -39,16 +37,9 @@ export async function GET(request: Request) {
 
   const download = url.searchParams.get("download") === "1";
   const fileName = path.split("/").pop() ?? "fichier";
-  const { data, error } = await supabase.storage
-    .from(DRIVE_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS, download ? { download: fileName } : undefined);
 
-  if (error || !data?.signedUrl) {
-    return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
-  }
-
-  const response = NextResponse.redirect(data.signedUrl, 302);
-  response.headers.set("Cache-Control", "private, no-store");
-  response.headers.set("Referrer-Policy", "no-referrer");
-  return response;
+  return streamStorageFile(supabase, path, {
+    downloadName: download ? fileName : undefined,
+    range: request.headers.get("range"),
+  });
 }

@@ -8,6 +8,7 @@ import { useProjectMarketingData } from "@/hooks/useProjectMarketingData";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -108,11 +109,11 @@ function AddKeyDateForm({ onAdd }: { onAdd: (kd: Omit<KeyDate, "id">) => void })
           <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
         ))}
       </select>
-      <Input
+      <DatePicker
         value={date}
-        onChange={(e) => setDate(e.target.value)}
-        type="date"
-        className="bg-[#101010] border-[rgba(245,245,245,0.12)] text-[#F5F5F5] text-xs h-8 w-36"
+        onChange={setDate}
+        size="sm"
+        className="w-36 border-[rgba(245,245,245,0.12)] bg-[#101010] text-xs"
       />
       <Button size="sm" onClick={handleAdd} disabled={!label.trim() || !date}>Ajouter</Button>
       <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Annuler</Button>

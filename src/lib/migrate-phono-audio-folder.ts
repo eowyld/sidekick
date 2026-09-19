@@ -58,10 +58,21 @@ export async function migratePhonoAudioFolder(): Promise<void> {
     const names = (files ?? []).filter((f) => f.name && f.metadata).map((f) => f.name);
 
     for (const name of names) {
-      const { error } = await supabase.storage
-        .from(DRIVE_BUCKET)
-        .move(`${oldFolder}/${name}`, `${user.id}/${NEW_PREFIX}/${name}`);
-      if (error) return; // état intermédiaire toléré : on réessaiera au prochain chargement
+      const from = `${oldFolder}/${name}`;
+      const to = `${user.id}/${NEW_PREFIX}/${name}`;
+      // `list` matche le préfixe sans tenir compte de la casse, `move` résout
+      // la clé exactement : un fichier déjà rangé sous `Phono/Catalogue`
+      // ressort du listage de `phono/catalogue`, et le déplacer reviendrait à
+      // le déplacer sur lui-même. Sans ce garde, `move` répond `NoSuchKey` et
+      // la migration ressortait ici à chaque chargement, sans jamais poser son
+      // drapeau ni atteindre la répercussion en base.
+      if (from.toLowerCase() === to.toLowerCase()) continue;
+
+      const { error } = await supabase.storage.from(DRIVE_BUCKET).move(from, to);
+      // Source absente : un run précédent l'a déjà déplacée, il n'y a rien à
+      // faire. Toute autre erreur laisse le drapeau non posé, on réessaiera au
+      // prochain chargement.
+      if (error && !/not found/i.test(error.message)) return;
     }
   }
 

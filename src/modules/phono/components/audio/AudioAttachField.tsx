@@ -13,6 +13,7 @@ import {
   audioUploadError,
 } from "@/modules/phono/lib/audio-limits";
 import type { AudioAttachment } from "@/lib/sidekick-store";
+import type { DriveAudioUsage } from "@/modules/phono/lib/audio-usage";
 import { cn, focusRing } from "@/lib/utils";
 import { DrivePickerDialog } from "./DrivePickerDialog";
 
@@ -50,6 +51,19 @@ interface AudioAttachFieldProps {
    * Sans effet sur un fichier rattaché depuis le Drive, qui garde son nom.
    */
   fileBaseName?: string;
+  /**
+   * Relevé des fichiers déjà rattachés ailleurs dans le catalogue, transmis
+   * tel quel au sélecteur du Drive. Opaque ici : ce composant ne connaît que
+   * `AudioAttachment` et n'a pas à savoir ce qu'est une version ou un mix.
+   */
+  usage?: DriveAudioUsage;
+  /**
+   * Fichier à retirer du relevé. Par défaut celui déjà rattaché. À préciser
+   * quand l'appelant présente une pièce jointe vidée de sa référence — c'est
+   * le cas d'un remplacement dans `VersionRow`, où le fichier en place n'est
+   * plus dans `attachment` mais n'a pas à s'annoncer « déjà relié ».
+   */
+  excludePath?: string;
 }
 
 /** Assemble « Artiste - Titre (Version) » en ignorant les parties vides. */
@@ -119,6 +133,8 @@ export function AudioAttachField({
   autoOpen,
   showFormatsMark = true,
   fileBaseName,
+  usage,
+  excludePath,
 }: AudioAttachFieldProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
@@ -352,6 +368,8 @@ export function AudioAttachField({
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           onPick={(file) => void attachFromDrive(file)}
+          usage={usage}
+          excludePath={excludePath ?? attachment.audioPath}
         />
       )}
     </div>

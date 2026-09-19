@@ -29,7 +29,7 @@ export interface MissionEditDialogProps {
     date?: string;
     employer?: string;
   };
-  onSave: (mission: IntermittenceMission) => void;
+  onSave: (mission: IntermittenceMission) => void | boolean | Promise<void | boolean>;
 }
 
 export function MissionEditDialog({
@@ -69,7 +69,11 @@ export function MissionEditDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const handleSave = () => {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const handleSave = async () => {
+    if (saving) return;
     if (!form.date || !form.employer) return;
 
     const saved: IntermittenceMission = {
@@ -84,12 +88,18 @@ export function MissionEditDialog({
       notes: form.notes.trim(),
     };
 
-    onSave(saved);
-    onOpenChange(false);
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const result = await onSave(saved);
+      if (result === false) setSaveError(true);
+      else onOpenChange(false);
+    } catch { setSaveError(true); }
+    finally { setSaving(false); }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={value => { if (!saving) onOpenChange(value); }}>
       <DialogContent className="border-[rgba(245,245,245,0.18)] bg-[rgba(44,44,46,0.84)] text-[#F5F5F5]">
         <DialogHeader>
           <DialogTitle>
@@ -191,16 +201,17 @@ export function MissionEditDialog({
           </div>
         </div>
 
+        {saveError && <p role="alert" className="text-sm text-rose-300">L’enregistrement a échoué. Tes informations sont conservées : réessaie.</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
           <Button
             type="button"
             onClick={handleSave}
-            disabled={!form.date || !form.employer.trim()}
+            disabled={saving || !form.date || !form.employer.trim()}
           >
-            Enregistrer
+            {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>

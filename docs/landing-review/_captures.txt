@@ -1,0 +1,47 @@
+Captures de la landing SIDEKICK — dev local, thème sombre, animations désactivées.
+Découpées par section : une capture pleine page ferait 1440×7929 (desktop) et
+390×13095 (mobile), illisible une fois redimensionnée.
+
+⚠️  DATÉES DU 03/09 — À RE-CAPTURER. Le rendu a changé depuis (cf. 03-CHANGELOG.md).
+    Sections dont la capture est périmée :
+      - 01-hero          : nouveau H1 « TOUTE TA CARRIÈRE. / UN SEUL ENDROIT. » + ligne fondateur
+      - 06-preuve-produit : réécrite → « FAIT POUR LA RÉALITÉ DU MARCHÉ FRANÇAIS » (3 faits, plus de grille de 6)
+      - 07-roadmap       : badges « En développement » par carte retirés
+      - 09-inscription   : réécrite → « QUI EST DERRIÈRE / JE SUIS ARTISTE. COMME TOI. »
+      - footer           : 4 colonnes (ajout « Légal »), ligne engagement données
+      - nav / méga-menu  : familles Organisation / Artistique / Business ; lien FAQ
+      - mobile-01-hero   : recadrage dashboard mobile refait (zone « ce qui est urgent »)
+    Les autres sections (modules, comparatif, showcase, pain points, tarifs) sont
+    quasi inchangées visuellement (focus clavier + titres h3 = pas de diff perçue).
+
+DESKTOP — viewport 1440×900, deviceScaleFactor 2
+  desktop-nav.png                  navigation sticky
+  desktop-01-hero.png              hero + capture du tableau de bord
+  desktop-02-modules.png           grille des 10 modules (#modules)
+  desktop-03-comparatif.png        table interactive des coûts (#comparatif)
+  desktop-04-showcase-modules.png  Live / Revenus / Édition en détail
+  desktop-05-pain-points.png       trois situations reconnaissables
+  desktop-06-preuve-produit.png    3 chiffres + 6 capacités
+  desktop-07-roadmap.png           en développement (#roadmap)
+  desktop-08-pricing.png           tarifs (#pricing)
+  desktop-09-inscription.png       dernier CTA (#inscription)
+  desktop-footer.png               pied de page
+
+MOBILE — viewport 390×844, deviceScaleFactor 2, isMobile
+  mobile-nav.png                   navigation (menu burger fermé)
+  mobile-01-hero.png
+  mobile-02-modules.png
+  mobile-03-comparatif.png
+  mobile-04a-live.png              showcase découpé en 3 : le bloc unique
+  mobile-04b-revenus.png           faisait 390×2845, trop élancé pour être lu
+  mobile-04c-edition.png
+  mobile-05-pain-points.png
+  mobile-06-preuve-produit.png
+  mobile-07-roadmap.png
+  mobile-08-pricing.png
+  mobile-09-inscription.png
+  mobile-footer.png
+
+Non capturé : le méga-menu « Modules » de la nav et les panneaux de détail des
+modules (ouverts au clic). Leur contenu texte est dans 01-COPY-DECK.md, annexe
+« Détail des modules ».

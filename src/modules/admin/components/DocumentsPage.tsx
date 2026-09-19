@@ -32,8 +32,9 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { Plus, FolderOpen, FileText, ChevronRight, Home, RefreshCw, Lock, Loader2, CheckCircle2, AlertCircle, X, ArrowLeft } from "lucide-react";
+import { Plus, FolderOpen, FileText, ChevronRight, Home, RefreshCw, Lock, CheckCircle2, ArrowLeft } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
+import { useDriveUpload } from "./DriveUploadProvider";
 
 const HIDDEN_STORAGE_FILES = ["_dossier_vide", ".emptyfolderplaceholder"];
 
@@ -129,7 +130,9 @@ export function DocumentsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
+  // L'envoi vit dans le provider du layout : il continue, vignette de
+  // progression comprise, même si on quitte le Drive en cours de route.
+  const { isUploading: uploading, startUpload } = useDriveUpload();
 
   const [contextMenu, setContextMenu] = useState<{
     type: "folder" | "document";
@@ -158,21 +161,7 @@ export function DocumentsPage() {
   const [uploadFileName, setUploadFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadBrowserPath, setUploadBrowserPath] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isLoadingAllFolders, setIsLoadingAllFolders] = useState(false);
-  const [uploadToast, setUploadToast] = useState<{
-    open: boolean;
-    status: "uploading" | "success" | "error";
-    progress: number;
-    message: string;
-    fileName: string;
-  }>({
-    open: false,
-    status: "uploading",
-    progress: 0,
-    message: "",
-    fileName: ""
-  });
   const [lockedTemplatePaths, setLockedTemplatePaths] = useState<string[]>(DEFAULT_LOCKED_TEMPLATE_PATHS);
   const [catalogAudioPaths, setCatalogAudioPaths] = useState<Set<string>>(new Set());
   const [allAvailableFolders, setAllAvailableFolders] = useState<{ id: string; name: string; path: string }[]>([]);
@@ -181,7 +170,6 @@ export function DocumentsPage() {
   const loadingPathRef = useRef<string | null>(null);
   const globalSearchUserIdRef = useRef<string | null>(null);
   const globalSearchTimeoutRef = useRef<number | null>(null);
-  const uploadToastTimeoutRef = useRef<number | null>(null);
 
   const invalidateGlobalSearch = useCallback(() => {
     globalSearchUserIdRef.current = null;
@@ -607,24 +595,6 @@ export function DocumentsPage() {
     return () => window.removeEventListener("mousedown", handleMouseDown);
   }, [movePopover]);
 
-  useEffect(() => {
-    if (!uploading) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [uploading]);
-
-  useEffect(() => {
-    return () => {
-      if (uploadToastTimeoutRef.current) {
-        window.clearTimeout(uploadToastTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleRenameSubmit = async () => {
     if (!renameTarget || !renameValue.trim()) return;
     setSubmitError(null);
@@ -771,7 +741,6 @@ export function DocumentsPage() {
     if (!uploadFileName.trim()) {
       setUploadFileName(stripExtension(file.name));
     }
-    setUploadProgress(0);
     setSubmitError(null);
     setSubmitSuccess(null);
 
@@ -796,8 +765,6 @@ export function DocumentsPage() {
 
     setSubmitError(null);
     setSubmitSuccess(null);
-    setUploading(true);
-    setUploadProgress(0);
 
     const uploadSourceFile = selectedFile;
     const uploadNameBase = stripExtension(uploadFileName.trim()) || "fichier";
@@ -811,15 +778,7 @@ export function DocumentsPage() {
           (storageRootFolderId ? `${storageRootFolderId}/${uploadDestinationPath}` : null))
         : storageRootFolderId;
     if (!targetFolderId) {
-      setUploading(false);
       setSubmitError("Dossier de destination introuvable.");
-      setUploadToast({
-        open: true,
-        status: "error",
-        progress: 0,
-        message: "Dossier de destination introuvable.",
-        fileName: uploadFinalName
-      });
       return;
     }
 
@@ -827,61 +786,26 @@ export function DocumentsPage() {
     setSelectedFile(null);
     setUploadFileName("");
     setUploadBrowserPath("");
-    setUploadToast({
-      open: true,
-      status: "uploading",
-      progress: 0,
-      message: "Importation en cours…",
-      fileName: uploadFinalName
+
+    await startUpload({
+      fileName: uploadFinalName,
+      run: (onProgress) => uploadFileToDrive(fileToUpload, targetFolderId, onProgress),
+      onSuccess: () => {
+        // Si on a quitté le Drive entre-temps ces rafraîchissements ne portent
+        // sur rien : la page recharge son contenu à la prochaine visite.
+        void (async () => {
+          if (isStorageView && storagePath) {
+            await loadStorageContents(storagePath, { silent: true });
+          }
+          void refetch();
+          invalidateGlobalSearch();
+        })();
+        posthog?.capture("file_added", { module: "drive" });
+        posthog?.capture("item_created", { module: "drive" });
+        setSubmitSuccess("Fichier ajouté avec succès.");
+      },
+      onError: (message) => setSubmitError(message)
     });
-
-    try {
-      await uploadFileToDrive(fileToUpload, targetFolderId, (progress: number) => {
-        setUploadProgress(progress);
-        setUploadToast((prev) => ({
-          ...prev,
-          open: true,
-          status: "uploading",
-          progress
-        }));
-      });
-
-      if (isStorageView && storagePath) {
-        await loadStorageContents(storagePath, { silent: true });
-      }
-      void refetch();
-      invalidateGlobalSearch();
-
-      posthog?.capture("file_added", { module: "drive" });
-      posthog?.capture("item_created", { module: "drive" });
-      setSubmitSuccess("Fichier ajouté avec succès.");
-      setUploadToast({
-        open: true,
-        status: "success",
-        progress: 100,
-        message: "Fichier importé avec succès.",
-        fileName: uploadFinalName
-      });
-      if (uploadToastTimeoutRef.current) {
-        window.clearTimeout(uploadToastTimeoutRef.current);
-      }
-      uploadToastTimeoutRef.current = window.setTimeout(() => {
-        setUploadToast((prev) => ({ ...prev, open: false }));
-      }, 5000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSubmitError(message);
-      setUploadToast({
-        open: true,
-        status: "error",
-        progress: 0,
-        message,
-        fileName: uploadFinalName
-      });
-      setUploadProgress(0);
-    } finally {
-      setUploading(false);
-    }
   };
 
 
@@ -1070,7 +994,6 @@ export function DocumentsPage() {
                       setSelectedFile(null);
                       setUploadFileName("");
                       setUploadBrowserPath(relativePath);
-                      setUploadProgress(0);
                       setSubmitError(null);
                       setSubmitSuccess(null);
                     }}
@@ -1234,42 +1157,7 @@ export function DocumentsPage() {
         </CardContent>
       </Card>
 
-      {uploadToast.open && (
-        <div className="fixed bottom-4 right-4 z-[100] w-[360px] rounded-lg border border-[rgba(245,245,245,0.2)] bg-[rgba(15,23,42,0.96)] p-3 text-[#F5F5F5] shadow-2xl backdrop-blur">
-          <div className="mb-2 flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              {uploadToast.status === "uploading" ? (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-              ) : uploadToast.status === "success" ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-              )}
-              <p className="truncate text-sm font-medium">{uploadToast.fileName}</p>
-            </div>
-            {uploadToast.status !== "uploading" && (
-              <button
-                type="button"
-                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                onClick={() => setUploadToast((prev) => ({ ...prev, open: false }))}
-                aria-label="Fermer la notification"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <p className="mb-2 text-xs text-muted-foreground">{uploadToast.message}</p>
-          {uploadToast.status === "uploading" && (
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Progression</span>
-                <span>{uploadToast.progress}%</span>
-              </div>
-              <Progress value={uploadToast.progress} className="h-2" />
-            </div>
-          )}
-        </div>
-      )}
+      {/* La vignette de progression de l'import est rendue par `DriveUploadProvider`, dans le layout. */}
 
       {contextMenu && (
         <div
@@ -1462,7 +1350,6 @@ export function DocumentsPage() {
             setSelectedFile(null);
             setUploadFileName("");
             setUploadBrowserPath("");
-            setUploadProgress(0);
           }
         }
       }}>
@@ -1583,7 +1470,6 @@ export function DocumentsPage() {
                   setSelectedFile(null);
                   setUploadFileName("");
                   setUploadBrowserPath("");
-                  setUploadProgress(0);
                   setSubmitError(null);
                   setSubmitSuccess(null);
                 }

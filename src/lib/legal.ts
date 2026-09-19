@@ -6,7 +6,7 @@
  * fichier. Une adresse ou un numéro RCS ne s'écrit jamais en dur dans une page :
  * c'est comme ça qu'on finit avec trois versions différentes du siège social.
  *
- * Reste à renseigner avant l'ouverture du 21/09 : le médiateur de la
+ * Reste à renseigner avant l'ouverture du 24/09 : le médiateur de la
  * consommation. Voir `docs/legal/README.md`.
  */
 
@@ -54,9 +54,9 @@ export const LEGAL_MEDIATOR = {
 
 /** Date d'entrée en vigueur des versions en ligne. À changer à chaque révision. */
 export const LEGAL_UPDATED = {
-  cgu: "21 septembre 2026",
-  confidentialite: "21 septembre 2026",
-  mentions: "21 septembre 2026",
+  cgu: "24 septembre 2026",
+  confidentialite: "24 septembre 2026",
+  mentions: "24 septembre 2026",
 } as const;
 
 /** Âge minimum pour créer un compte. */

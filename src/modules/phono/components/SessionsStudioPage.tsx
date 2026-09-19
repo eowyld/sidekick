@@ -1,688 +1,213 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AudioWaveform, CalendarDays, Plus, Search } from "lucide-react";
+import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  MapPin,
-  Plus,
-  Pencil,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  AudioWaveform,
-} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { usePhonoData } from "@/hooks/usePhonoData";
-import type { StudioSession } from "@/hooks/usePhonoData";
-import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
-import { mutate } from "swr";
-import { frToIso, isoToFr } from "@/lib/date-format";
-import type { PhonoRole } from "@/lib/sidekick-store";
+import { PageLoader } from "@/components/ui/page-loader";
+import { usePhonoData, type StudioSession } from "@/hooks/usePhonoData";
+import { cn, focusRing } from "@/lib/utils";
+import {
+  isSessionPast,
+  monthKeyLabel,
+  sessionMonthKey,
+  sessionTimestamp,
+} from "@/modules/phono/lib/session";
+import { SessionsHeader } from "./sessions/SessionsHeader";
+import { SessionRow, type SessionThumb } from "./sessions/SessionRow";
 
-type SessionType = "prise" | "essai" | "mix" | "mastering" | "autre";
+type Scope = "all" | "upcoming" | "past";
 
-type SessionParticipantRole = PhonoRole;
-type ParticipantRole = SessionParticipantRole | "musicien" | "chanteur";
-
-type ParticipantEntry = {
-  id: number;
-  name: string;
-  role: ParticipantRole;
-};
-
-type SessionItem = StudioSession;
-
-const SESSION_TYPES: { value: SessionType; label: string }[] = [
-  { value: "prise", label: "Prise" },
-  { value: "essai", label: "Essai" },
-  { value: "mix", label: "Mix" },
-  { value: "mastering", label: "Mastering" },
-  { value: "autre", label: "Autre" },
+const SCOPES: Array<[Scope, string]> = [
+  ["all", "Toutes"],
+  ["upcoming", "À venir"],
+  ["past", "Passées"],
 ];
-
-const PARTICIPANT_ROLES: { value: ParticipantRole; label: string }[] = [
-  { value: "artiste_principal", label: "Artiste principal" },
-  { value: "artiste_secondaire", label: "Artiste secondaire" },
-  { value: "musicien_interprete", label: "Musicien interprète" },
-  { value: "chanteur_interprete", label: "Chanteur interprète" },
-  { value: "beatmaker", label: "Beatmaker" },
-  { value: "directeur_musical", label: "Directeur artistique" },
-  { value: "realisateur", label: "Réalisateur" },
-  { value: "compositeur", label: "Compositeur" },
-  { value: "ingenieur_mixage", label: "Ingé Mixage" },
-  { value: "ingenieur_mastering", label: "Ingé Mastering" },
-];
-
-function normalizeParticipantRole(role: ParticipantRole): SessionParticipantRole {
-  if (role === "musicien") return "musicien_interprete";
-  if (role === "chanteur") return "chanteur_interprete";
-  if (role === "ingenieur_du_son") return "ingenieur_mixage";
-  return role;
-}
-
-function sessionTypeLabel(type: SessionType, other?: string): string {
-  if (type === "autre" && other?.trim()) return other.trim();
-  return SESSION_TYPES.find((t) => t.value === type)?.label ?? type;
-}
-
-function participantRoleLabel(role: ParticipantRole): string {
-  const normalized = normalizeParticipantRole(role);
-  return PARTICIPANT_ROLES.find((r) => r.value === normalized)?.label ?? normalized;
-}
-
-function parseFrDate(frDate: string): Date | null {
-  if (!frDate) return null;
-  const parts = frDate.split("/");
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts;
-  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
-  return isNaN(date.getTime()) ? null : date;
-}
-
-function isSessionPast(dateStr: string): boolean {
-  const d = parseFrDate(dateStr);
-  if (!d) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime() < today.getTime();
-}
-
-function buildGoogleMapsUrl(location: string, address?: string): string {
-  const query = (address || location || "").trim();
-  if (!query) return "https://www.google.com/maps";
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-}
 
 export function SessionsStudioPage() {
-  const { sessions, setSessions, loading, error } = usePhonoData();
+  const router = useRouter();
+  const { sessions, albums, tracks, mixes, loading, error } = usePhonoData();
+  const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<Scope>("all");
 
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  const [form, setForm] = useState<{
-    title: string;
-    date: string;
-    time: string;
-    location: string;
-    address: string;
-    sessionType: SessionType;
-    sessionTypeOther: string;
-    participants: ParticipantEntry[];
-    note: string;
-  }>({
-    title: "",
-    date: "",
-    time: "",
-    location: "",
-    address: "",
-    sessionType: "prise",
-    sessionTypeOther: "",
-    participants: [],
-    note: "",
-  });
-
-  const [openSection, setOpenSection] = useState<"past" | "upcoming" | null>(
-    "upcoming"
+  const filtered = useMemo(
+    () =>
+      sessions
+        .filter((s) => {
+          if (scope === "upcoming" && isSessionPast(s)) return false;
+          if (scope === "past" && !isSessionPast(s)) return false;
+          return `${s.title} ${s.location} ${s.participants
+            .map((p) => p.name)
+            .join(" ")}`
+            .toLowerCase()
+            .includes(query.trim().toLowerCase());
+        })
+        // Les sessions passées se lisent de la plus récente à la plus ancienne,
+        // celles à venir dans l'ordre où elles arrivent.
+        .sort((a, b) =>
+          scope === "past"
+            ? sessionTimestamp(b) - sessionTimestamp(a)
+            : sessionTimestamp(a) - sessionTimestamp(b)
+        ),
+    [sessions, query, scope]
   );
 
-  const pastSessions = useMemo(
-    () => sessions.filter((s) => isSessionPast(s.date)),
-    [sessions]
-  );
-  const upcomingSessions = useMemo(
-    () => sessions.filter((s) => !isSessionPast(s.date)),
-    [sessions]
-  );
-
-  const toggleSection = (section: "past" | "upcoming") => {
-    setOpenSection((prev) => (prev === section ? null : section));
-  };
-
-  const openAdd = () => {
-    setForm({
-      title: "",
-      date: "",
-      time: "",
-      location: "",
-      address: "",
-      sessionType: "prise",
-      sessionTypeOther: "",
-      participants: [],
-      note: "",
-    });
-    setEditingId(null);
-    setAddDialogOpen(true);
-  };
-
-  const openEdit = (s: SessionItem) => {
-    setForm({
-      title: s.title ?? "",
-      date: s.date ? frToIso(s.date) : "",
-      time: s.time ?? "",
-      location: s.location ?? "",
-      address: s.address ?? "",
-      sessionType: (s.sessionType ?? "prise") as SessionType,
-      sessionTypeOther: s.sessionTypeOther ?? "",
-      participants: s.participants?.length
-        ? s.participants.map((p) => ({
-            ...p,
-            role: normalizeParticipantRole(p.role as ParticipantRole),
-          }))
-        : [],
-      note: s.note ?? "",
-    });
-    setEditingId(s.id);
-    setAddDialogOpen(true);
-  };
-
-  const saveSession = () => {
-    const defaultDate = new Date();
-    const frDefault =
-      String(defaultDate.getDate()).padStart(2, "0") +
-      "/" +
-      String(defaultDate.getMonth() + 1).padStart(2, "0") +
-      "/" +
-      defaultDate.getFullYear();
-    const date = form.date.trim() ? isoToFr(form.date.trim()) : frDefault;
-    const time = form.time.trim() || "14:00";
-
-    const payload = {
-      title: form.title.trim() || "",
-      date,
-      time,
-      location: form.location.trim() || "",
-      address: form.address.trim() || undefined,
-      sessionType: form.sessionType,
-      sessionTypeOther:
-        form.sessionType === "autre" ? form.sessionTypeOther.trim() : undefined,
-      participants: form.participants,
-      note: form.note.trim() || undefined,
-    };
-
-    if (editingId !== null) {
-      setSessions((prev) =>
-        prev.map((s) => (s.id === editingId ? { ...s, ...payload } : s))
-      );
-    } else {
-      setSessions((prev) => [{ id: crypto.randomUUID(), ...payload }, ...prev]);
+  /**
+   * Découpage en mois, dans l'ordre déjà décidé par le tri : on parcourt la
+   * liste triée et on ouvre un groupe à chaque changement de mois, plutôt que
+   * de regrouper puis retrier — les deux ordres ne peuvent pas diverger.
+   */
+  const months = useMemo(() => {
+    const groups: Array<{ key: string; sessions: StudioSession[] }> = [];
+    for (const session of filtered) {
+      const key = sessionMonthKey(session);
+      const current = groups[groups.length - 1];
+      if (current && current.key === key) current.sessions.push(session);
+      else groups.push({ key, sessions: [session] });
     }
-    setAddDialogOpen(false);
-  };
+    return groups;
+  }, [filtered]);
 
-  const deleteSession = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    setDeleteConfirmId(null);
-  };
+  /** Pochettes des éléments de catalogue liés, résolues une fois pour la liste. */
+  const thumbsBySession = useMemo(() => {
+    const byId = new Map<string, SessionThumb>();
+    for (const a of albums) byId.set(a.id, { id: a.id, title: a.title, cover: a.cover });
+    for (const t of tracks) byId.set(t.id, { id: t.id, title: t.title, cover: t.cover });
+    for (const m of mixes) byId.set(m.id, { id: m.id, title: m.title, cover: m.cover });
 
-  const addParticipant = () => {
-    setForm((prev) => ({
-      ...prev,
-      participants: [
-        ...prev.participants,
-        {
-          id: Date.now(),
-          name: "",
-          role: "artiste_principal",
-        },
-      ],
-    }));
-  };
-
-  const updateParticipant = (index: number, patch: Partial<ParticipantEntry>) => {
-    setForm((prev) => {
-      const next = [...prev.participants];
-      next[index] = { ...next[index], ...patch };
-      return { ...prev, participants: next };
-    });
-  };
-
-  const removeParticipant = (index: number) => {
-    setForm((prev) => ({
-      ...prev,
-      participants: prev.participants.filter((_, i) => i !== index),
-    }));
-  };
+    const map = new Map<string, SessionThumb[]>();
+    for (const s of sessions) {
+      const ids = [
+        ...(s.albumIds ?? []),
+        ...(s.trackIds ?? []),
+        ...(s.mixIds ?? []),
+      ];
+      map.set(
+        s.id,
+        ids
+          .map((id) => byId.get(id))
+          .filter((thumb): thumb is SessionThumb => thumb !== undefined)
+      );
+    }
+    return map;
+  }, [sessions, albums, tracks, mixes]);
 
   if (loading) return <PageLoader />;
-  if (error) return (
-    <PageError
-      title="Impossible de charger tes sessions studio"
-      description="Vérifie ta connexion ou réessaie dans quelques instants."
-      onRetry={() => mutate("user_phono")}
-    />
-  );
+  if (error)
+    return (
+      <PageError
+        title="Impossible de charger tes sessions studio"
+        description="Vérifie ta connexion ou réessaie dans quelques instants."
+        onRetry={() => mutate("user_phono")}
+      />
+    );
 
-  const tableHeaders = (
-    <tr className="border-b bg-muted/50">
-      <th className="px-4 py-3 text-left font-medium">Titre</th>
-      <th className="px-4 py-3 text-left font-medium">Type</th>
-      <th className="px-4 py-3 text-left font-medium">Date</th>
-      <th className="px-4 py-3 text-left font-medium">Heure</th>
-      <th className="px-4 py-3 text-left font-medium">Lieu</th>
-      <th className="px-4 py-3 text-left font-medium">Participants</th>
-      <th className="px-4 py-3 text-left font-medium">Note</th>
-      <th className="px-4 py-3 text-right font-medium">Actions</th>
-    </tr>
-  );
-
-  const renderRow = (s: SessionItem) => (
-    <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30">
-      <td className="px-4 py-3 font-medium">{s.title || "—"}</td>
-      <td className="px-4 py-3 text-sm">
-        {sessionTypeLabel(s.sessionType as SessionType, s.sessionTypeOther)}
-      </td>
-      <td className="px-4 py-3">{s.date}</td>
-      <td className="px-4 py-3">{s.time}</td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-1">
-          {s.location || "—"}
-          {(s.location || s.address) && (
-            <a
-              href={buildGoogleMapsUrl(s.location, s.address)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground"
-              title="Voir sur Google Maps"
-            >
-              <MapPin className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        {s.participants?.length ? (
-          <div className="space-y-0.5 text-xs">
-            {s.participants.map((p) => (
-              <div key={p.id}>{p.name || "—"}</div>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="max-w-[200px] px-4 py-3 text-muted-foreground">
-        {s.note || "—"}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Modifier"
-            onClick={() => openEdit(s)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Supprimer"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setDeleteConfirmId(s.id)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
+  const openSession = (id: string) =>
+    router.push(`/phono/sessions-studio/${id}`);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="mb-1 text-2xl font-semibold tracking-tight">
-            Sessions Studio
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gestion des sessions d&apos;enregistrement en studio : type, titre,
-            participants et notes.
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F5F5F5]/40">
+            Phono
           </p>
+          <h1 className="text-xl font-bold tracking-tight text-[#F5F5F5]">
+            Sessions studio
+          </h1>
         </div>
-        <Button onClick={openAdd} className="shrink-0">
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter une session
+        <Button onClick={() => router.push("/phono/sessions-studio/nouvelle")}>
+          <Plus size={16} />
+          Planifier une session
         </Button>
       </div>
 
       {sessions.length === 0 ? (
         <EmptyState
           icon={AudioWaveform}
-          title="Aucune session studio"
-          description="Sessions à venir, sessions passées, studio, intervenants, morceaux enregistrés : garde l'historique de ton activité studio et récupère tes droits voisins."
-          action={{ label: "Planifier une session", onClick: openAdd }}
+          title="Ton studio est encore silencieux"
+          description="Planifie une session, rattache les morceaux enregistrés et prépare une fiche de présence exploitable pour tes droits voisins."
+          action={{
+            label: "Planifier une session",
+            onClick: () => router.push("/phono/sessions-studio/nouvelle"),
+          }}
         />
       ) : (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader
-            className="cursor-pointer"
-            onClick={() => toggleSection("past")}
-          >
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                {openSection === "past" ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
-                Passées
-              </CardTitle>
-            </div>
-          </CardHeader>
-          {openSection === "past" && (
-            <CardContent className="pt-0">
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead>{tableHeaders}</thead>
-                  <tbody>
-                    {pastSessions.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-4 py-6 text-center text-muted-foreground"
-                        >
-                          Aucune session passée.
-                        </td>
-                      </tr>
-                    ) : (
-                      pastSessions.map(renderRow)
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          )}
-        </Card>
+        <>
+          <SessionsHeader sessions={sessions} onOpenSession={openSession} />
 
-        <Card>
-          <CardHeader
-            className="cursor-pointer"
-            onClick={() => toggleSection("upcoming")}
-          >
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                {openSection === "upcoming" ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
-                A venir
-                {upcomingSessions.length > 0 && (
-                  <span className="rounded-full bg-muted px-1.5 text-xs font-normal">
-                    {upcomingSessions.length}
-                  </span>
-                )}
-              </CardTitle>
-            </div>
-          </CardHeader>
-          {openSection === "upcoming" && (
-            <CardContent className="pt-0">
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead>{tableHeaders}</thead>
-                  <tbody>
-                    {upcomingSessions.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-4 py-6 text-center text-muted-foreground"
-                        >
-                          Aucune session à venir.{" "}
-                          <Button
-                            onClick={openAdd}
-                            variant="link"
-                            className="h-auto p-0"
-                          >
-                            Ajouter une session
-                          </Button>
-                        </td>
-                      </tr>
-                    ) : (
-                      upcomingSessions.map(renderRow)
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-      )}
-
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingId !== null
-                ? "Modifier la session"
-                : "Nouvelle session"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Type de session</Label>
-              <Select
-                value={form.sessionType}
-                onValueChange={(v: SessionType) =>
-                  setForm((prev) => ({ ...prev, sessionType: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SESSION_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.sessionType === "autre" && (
-                <Input
-                  value={form.sessionTypeOther}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      sessionTypeOther: e.target.value,
-                    }))
-                  }
-                  placeholder="Précisez le type"
-                  className="mt-2"
-                />
-              )}
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Titre</Label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative max-w-sm flex-1">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F5F5F5]/30"
+                size={15}
+              />
               <Input
-                value={form.title}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, title: e.target.value }))
-                }
-                placeholder="ex. Session voix chœur"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Rechercher une session, un studio…"
+                className="pl-9"
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Date</Label>
-                <DatePicker
-                  value={form.date}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, date: value }))
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Heure</Label>
-                <Input
-                  type="time"
-                  value={form.time}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, time: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Lieu (optionnel)</Label>
-              <Input
-                value={form.location}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, location: e.target.value }))
-                }
-                placeholder="ex. Studio Bleu"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Adresse (optionnel, pour la carte)</Label>
-              <Input
-                value={form.address}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, address: e.target.value }))
-                }
-                placeholder="Adresse complète pour Google Maps"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label>Participants</Label>
-                <Button
+            <div className="flex rounded-lg border border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)] p-1">
+              {SCOPES.map(([value, label]) => (
+                <button
+                  key={value}
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={addParticipant}
+                  onClick={() => setScope(value)}
+                  aria-pressed={scope === value}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs transition",
+                    focusRing,
+                    scope === value
+                      ? "bg-[rgba(245,245,245,0.1)] text-[#F5F5F5]"
+                      : "text-[#F5F5F5]/40 hover:text-[#F5F5F5]/70"
+                  )}
                 >
-                  <Plus className="mr-1 h-3 w-3" />
-                  Ajouter
-                </Button>
-              </div>
-              <div className="space-y-2 rounded-md border bg-muted/20 p-2">
-                {form.participants.length === 0 ? (
-                  <p className="py-2 text-center text-sm text-muted-foreground">
-                    Aucun participant
-                  </p>
-                ) : (
-                  form.participants.map((p, i) => (
-                    <div key={p.id} className="flex w-full flex-nowrap items-center gap-2">
-                      <div className="basis-1/2 min-w-0">
-                        <Input
-                          value={p.name}
-                          onChange={(e) =>
-                            updateParticipant(i, { name: e.target.value })
-                          }
-                          placeholder="Nom"
-                          className="h-8 w-full"
-                        />
-                      </div>
-                      <div className="basis-1/2 min-w-0">
-                        <Select
-                          value={normalizeParticipantRole(p.role)}
-                          onValueChange={(v: ParticipantRole) =>
-                            updateParticipant(i, { role: v })
-                          }
-                        >
-                          <SelectTrigger className="h-8 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PARTICIPANT_ROLES.map((r) => (
-                              <SelectItem key={r.value} value={r.value}>
-                                {r.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeParticipant(i)}
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={form.note}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, note: e.target.value }))
-                }
-                placeholder="Note personnelle"
-                rows={3}
-              />
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={saveSession}>
-              {editingId !== null ? "Enregistrer" : "Ajouter"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog
-        open={deleteConfirmId !== null}
-        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogTitle>Supprimer cette session ?</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Cette action est irréversible.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
-              Annuler
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                deleteConfirmId !== null && deleteSession(deleteConfirmId)
-              }
-            >
-              Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {months.length > 0 ? (
+            <div className="space-y-6">
+              {months.map(({ key, sessions: group }) => (
+                <section key={key || "sans-date"}>
+                  <div className="mb-2 flex items-center gap-3">
+                    <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#F5F5F5]/35">
+                      {monthKeyLabel(key)}
+                    </h2>
+                    <span className="text-[10px] tabular-nums text-[#F5F5F5]/25">
+                      {group.length}
+                    </span>
+                    <span className="h-px flex-1 bg-[rgba(245,245,245,0.07)]" />
+                  </div>
+                  <div className="space-y-2">
+                    {group.map((s) => (
+                      <SessionRow
+                        key={s.id}
+                        session={s}
+                        thumbs={thumbsBySession.get(s.id) ?? []}
+                        onOpen={() => openSession(s.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[rgba(245,245,245,0.1)] py-12 text-center text-sm text-[#F5F5F5]/35">
+              <CalendarDays className="mx-auto mb-3" size={22} />
+              Aucune session ne correspond à cette vue.
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

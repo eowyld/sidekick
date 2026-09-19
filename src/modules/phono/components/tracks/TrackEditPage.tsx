@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { ArrowLeft } from "lucide-react";
 import { usePhonoData } from "@/hooks/usePhonoData";
+import {
+  UNSAVED_CHANGES_MESSAGE,
+  useUnsavedChangesGuard,
+} from "@/hooks/useUnsavedChangesGuard";
 import { useProjectsData } from "@/hooks/useProjectsData";
 import { PageError } from "@/components/ui/page-error";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -26,6 +30,7 @@ import {
   suggestedVersionLabel,
 } from "@/modules/phono/lib/track";
 import { newAlbumId } from "@/modules/phono/lib/album";
+import { handleDetachedAudio } from "@/modules/phono/lib/audio-cleanup";
 import { isValidDateFr, toDisplayDate } from "@/lib/date-format";
 import { cn, focusRing } from "@/lib/utils";
 import { TrackEditAside } from "./TrackEditAside";
@@ -208,16 +213,32 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
     if (Object.keys(fieldPatch).length > 0) patch(fieldPatch);
   };
 
+  /**
+   * Crée un album depuis le titre en cours d'édition.
+   *
+   * Il hérite de ce que le titre sait déjà et qui a un sens au niveau de la
+   * sortie : artiste, statut, genre, distribution, label, éditeur, pochette —
+   * symétrique de `handleCreateTrack` côté `AlbumEditPage`. Seule la date de
+   * sortie ne suit pas : un titre en cours d'écriture n'en a le plus souvent
+   * pas encore, et un album fraîchement créé n'a pas de raison d'en hériter
+   * une qui n'existe pas — contrairement à l'autre sens, où un album déjà
+   * daté fixe une date de sortie cohérente pour un titre qui vient de naître.
+   */
   const handleCreateAlbum = (title: string): Album => {
     const album: Album = {
       id: newAlbumId(),
       title,
       type: "single",
-      status: "en_production",
+      status: form.status,
       artist: form.mainArtist || "",
       releaseDate: "",
       upcEan: "",
       trackIds: [],
+      label: form.label,
+      genre: form.genre,
+      editor: form.editor,
+      distribution: form.distribution,
+      cover: form.cover,
       notes: "",
     };
     setAlbums((prev) => [album, ...prev]);
@@ -231,18 +252,44 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
   const dirty =
     JSON.stringify(form) !== JSON.stringify(initialForm) || albumId !== initialAlbumId;
 
-  // Quitter avec une saisie non enregistrée, c'est perdre le travail : le
-  // fichier audio déjà déposé, lui, sera ramassé par `pruneOrphanAudio`.
+  // Quitter avec une saisie non enregistrée, c'est perdre le travail :
+  // fermeture de l'onglet comme clic sur un lien de la sidebar. Même garde-fou
+  // que la page album, une seule implémentation pour les deux.
+  useUnsavedChangesGuard(dirty);
+
+  /**
+   * Nettoyage à la sortie de la page, quel que soit le chemin emprunté pour
+   * en sortir (Annuler, lien de la sidebar confirmé ci-dessus, retour
+   * navigateur…) : un fichier tout juste uploadé mais jamais enregistré ne
+   * doit pas traîner. Passe par une ref plutôt que par `unsavedUploadedPaths`
+   * directement dans les dépendances : la fonction de nettoyage d'un effet
+   * monté une seule fois capturerait sinon le formulaire vide du tout premier
+   * rendu, jamais son état au moment réel du départ.
+   *
+   * `committedRef` court-circuite ce nettoyage après un enregistrement
+   * réussi : `handleSubmit` navigue aussitôt vers le catalogue, démontant
+   * cette page comme n'importe quel départ — sans ce garde, le fichier tout
+   * juste sauvegardé (donc « différent de `initialForm` », le seul signal
+   * dont dispose `unsavedUploadedPaths`) serait supprimé du Drive juste après
+   * avoir été validé.
+   */
+  const unsavedUploadedPathsRef = useRef<() => string[]>(() => []);
+  const committedRef = useRef(false);
   useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+    return () => {
+      if (committedRef.current) return;
+      const orphaned = unsavedUploadedPathsRef.current();
+      if (orphaned.length > 0) void handleDetachedAudio(orphaned, true);
+    };
+  }, []);
 
   const handleSubmit = () => {
     if (!canSubmit || saving) return;
     setSaving(true);
+    // Marqué avant même l'écriture : la navigation qui suit démonte cette
+    // page comme n'importe quel départ, et le nettoyage au démontage ne doit
+    // pas confondre un fichier qu'on vient de sauvegarder avec un abandon.
+    committedRef.current = true;
 
     const fields = {
       title: form.title.trim(),
@@ -309,9 +356,42 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
     router.push("/phono/catalogue");
   };
 
+  /**
+   * Fichiers uploadés pendant cette session d'édition mais jamais enregistrés.
+   *
+   * `AudioAttachField` téléverse dès le choix du fichier, avant tout
+   * enregistrement du formulaire : abandonner la page laisse ces fichiers
+   * dans `Phono/Catalogue` sans qu'aucune version en base ne les référence.
+   * `pruneOrphanAudio` finit par les ramasser, mais seulement après son
+   * sursis d'1h — pensé pour un dialogue resté ouvert, pas pour un abandon
+   * explicite où l'intention de l'artiste est déjà connue. On compare à
+   * `initialForm` (l'état chargé, avant toute saisie) plutôt qu'à `track` :
+   * une version dont l'`audioPath` n'a pas changé depuis le chargement était
+   * déjà enregistrée, ce n'est pas cette session qui l'a mise en ligne.
+   */
+  const unsavedUploadedPaths = () => {
+    const initialByVersionId = new Map(
+      initialForm.versions.map((v) => [v.id, v])
+    );
+    const paths: string[] = [];
+    for (const v of form.versions) {
+      if (v.audioSource !== "upload" || !v.audioPath) continue;
+      const before = initialByVersionId.get(v.id);
+      if (!before || before.audioPath !== v.audioPath) paths.push(v.audioPath);
+    }
+    return paths;
+  };
+  // Toujours à jour pour l'effet de nettoyage au démontage, déclaré plus haut
+  // (avant que cette fonction existe) avec des dépendances vides. Un effet,
+  // pas une écriture directe en cours de rendu : React l'interdit pour un ref.
+  useEffect(() => {
+    unsavedUploadedPathsRef.current = unsavedUploadedPaths;
+  });
+
   const handleCancel = () => {
-    if (dirty && !window.confirm("Abandonner les modifications non enregistrées ?"))
-      return;
+    if (dirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    // Le nettoyage lui-même a lieu au démontage (effet ci-dessus), commun à
+    // toutes les sorties de page — inutile de le dupliquer ici.
     router.push("/phono/catalogue");
   };
 
@@ -338,7 +418,11 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
     <div>
       <button
         type="button"
-        onClick={() => router.push("/phono/catalogue")}
+        // Même chemin que le bouton « Annuler » du pied de page : confirmation
+        // si des modifications sont en attente, et nettoyage d'un éventuel
+        // fichier audio téléversé puis abandonné. Un `router.push` direct ici
+        // contournait les deux, silencieusement.
+        onClick={handleCancel}
         className={cn(
           "mb-4 inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-xs text-[#F5F5F5]/70 transition-colors hover:text-[#F5F5F5]",
           focusRing
@@ -361,6 +445,7 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
           patch={patch}
           dateInvalid={dateInvalid}
           draftTrack={draftTrack}
+          savedVersions={track?.versions ?? []}
           onPatchVersion={patchVersion}
           onAddVersion={addVersion}
           onRemoveVersion={removeVersion}

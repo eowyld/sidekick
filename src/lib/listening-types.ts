@@ -19,7 +19,7 @@ export interface ListeningItemSnapshot {
   cover?: string;
 }
 
-export type ListeningItemKind = "track" | "podcast";
+export type ListeningItemKind = "track" | "mix" | "podcast";
 
 export interface ListeningItem {
   id: string;

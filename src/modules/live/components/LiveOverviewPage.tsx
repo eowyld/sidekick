@@ -1,5 +1,7 @@
 "use client";
 
+import { LiveHeader, Jump } from "./shared/LiveUI";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { mutate } from "swr";
@@ -11,7 +13,6 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { useLiveData } from "@/hooks/useLiveData";
 import type { TourStatus } from "@/modules/live/data/defaultRepresentations";
 import { STATUS_META, PIPELINE_ORDER, CONCERT_COLOR, REHEARSAL_COLOR } from "@/modules/live/data/statusMeta";
-import { cn } from "@/lib/utils";
 import "leaflet/dist/leaflet.css";
 
 // ─── Helpers dates ──────────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export function LiveOverviewPage() {
         [r.venue && r.organisateur ? r.venue : null, r.city].filter(Boolean).join(" · ") || "Concert",
       date: r.date,
       status: r.status,
-      href: "/live/representations",
+      href: `/live/representations/${r.id}`,
     }));
     const rehs: UpcomingEvent[] = upcomingRehearsals.map((r) => ({
       key: `rehearsal-${r.id}`,
@@ -161,7 +162,7 @@ export function LiveOverviewPage() {
       title: r.label || [`Répétition`, r.location || r.city].filter(Boolean).join(" – "),
       subtitle: [r.location || r.city, r.time].filter(Boolean).join(" · ") || "Répétition",
       date: r.date,
-      href: "/live/repetitions",
+      href: `/live/repetitions/${r.id}`,
     }));
     return [...concerts, ...rehs].sort(
       (a, b) => (parseDate(a.date)?.getTime() ?? 0) - (parseDate(b.date)?.getTime() ?? 0)
@@ -195,7 +196,7 @@ export function LiveOverviewPage() {
               place || "France"
             )}&limit=5`
           );
-          const data: Array<any> = await resp.json();
+          const data: Array<{ lat: string; lon: string; address?: { city?: string; town?: string; village?: string } }> = await resp.json();
           if (data && data.length > 0) {
             let best = data[0];
             if (targetCity) {
@@ -284,8 +285,8 @@ export function LiveOverviewPage() {
 
       // Nettoyer marqueurs / tracés précédents (garder le fond de carte)
       map.eachLayer((layer: unknown) => {
-        const anyLayer = layer as any;
-        if (!anyLayer.getAttribution) map!.removeLayer(layer as any);
+        const tileLayer = layer as { getAttribution?: () => string };
+        if (!tileLayer.getAttribution) map!.removeLayer(layer);
       });
 
       const latlngs: [number, number][] = [];
@@ -330,20 +331,21 @@ export function LiveOverviewPage() {
 
   if (upcomingEvents.length === 0)
     return (
-      <EmptyState
+      <div><LiveHeader title="Vue d’ensemble" actions={<Jump href="/live/spectacles">Préparer un spectacle</Jump>} /><EmptyState
         icon={CalendarClock}
         title="Rien de prévu pour le moment"
         description="Ajoute une représentation ou une répétition pour voir ta tournée s’organiser ici."
-      />
+      /><div className="flex justify-center"><Jump href="/live/representations/nouvelle">Ajouter une date</Jump><Jump href="/live/repetitions/nouvelle">Planifier une répétition</Jump></div></div>
     );
 
   return (
     <div className="space-y-6">
+      <LiveHeader title="Vue d’ensemble" description="Tes prochaines scènes, tes répétitions et les pistes à suivre." actions={<Jump href="/live/spectacles">Spectacles & tournées</Jump>} />
       {/* ─── Pipeline : dates à venir par statut ─────────────────────── */}
       <section className="rounded-xl border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.5)] p-5">
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h2 className="text-sm font-medium text-[#F5F5F5]">Tournée à venir</h2>
+            <h2 className="text-sm font-medium text-[#F5F5F5]">Dates à venir</h2>
             <p className="text-xs text-[#F5F5F5]/45">Répartition de tes dates par statut</p>
           </div>
           <Link

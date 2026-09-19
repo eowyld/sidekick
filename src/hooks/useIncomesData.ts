@@ -243,10 +243,10 @@ function makeUpdater<T extends { id: string }>(
     const next = fn(snapshot[sliceKey] as unknown as T[]);
     mutateLocal({ ...snapshot, [sliceKey]: next }, false);
 
-    (async () => {
+    return (async (): Promise<boolean> => {
       const supabase = createClient();
       const { data: { user } } = await getSessionUser(supabase);
-      if (!user) { mutateLocal(snapshot, false); return; }
+      if (!user) { mutateLocal(snapshot, false); return false; }
 
       const prevMap = new Map((snapshot[sliceKey] as unknown as T[]).map((e) => [e.id, e]));
       const nextMap = new Map(next.map((e) => [e.id, e]));
@@ -286,10 +286,14 @@ function makeUpdater<T extends { id: string }>(
       const firstError = results.find((r) => r.error);
       if (firstError?.error) {
         mutateLocal(snapshot, false);
-      } else {
-        mutateGlobal(KEY);
+        return false;
       }
-    })();
+      mutateGlobal(KEY);
+      return true;
+    })().catch(() => {
+      mutateLocal(snapshot, false);
+      return false;
+    });
   };
 }
 

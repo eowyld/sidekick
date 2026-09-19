@@ -115,7 +115,14 @@ export async function pruneOrphanAudio(): Promise<number> {
       if (!f.metadata) return false;
       if (referenced.has(`${prefix}/${f.name}`)) return false;
       const created = f.created_at ? Date.parse(f.created_at) : NaN;
-      return !Number.isFinite(created) || created < cutoff;
+      // Âge inconnu (`created_at` absent ou non parsable) : on s'abstient,
+      // on ne le traite jamais comme expiré. L'inverse a déjà supprimé sans
+      // sursis un fichier tout juste posé — la seule métadonnée qui protège
+      // un dialogue encore ouvert s'est retrouvée absente en pratique, et
+      // « âge inconnu » se comportait comme « déjà expiré » plutôt que comme
+      // « à revérifier au prochain passage ».
+      if (!Number.isFinite(created)) return false;
+      return created < cutoff;
     })
     .map((f) => `${prefix}/${f.name}`);
 

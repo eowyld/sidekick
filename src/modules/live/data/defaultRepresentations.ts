@@ -1,3 +1,5 @@
+import type { LiveDetails } from "@/modules/live/lib/live-model";
+
 /** Début / fin de la représentation (calendrier global) ; étapes optionnelles entre les deux. */
 export type TimetableSlotKind =
   | "representation_start"
@@ -85,6 +87,7 @@ export type TourStatus =
   | "En option";
 
 export type TourDate = {
+  details?: LiveDetails;
   id: number;
   city: string;
   venue: string;

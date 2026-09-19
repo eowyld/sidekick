@@ -457,6 +457,17 @@ export interface Album {
   releaseDate: string;
   upcEan: string;
   trackIds: string[];
+  /**
+   * Versions retenues pour chaque titre de l'album, dans l'ordre d'écoute.
+   *
+   * Un album porte couramment deux déclinaisons d'un même titre (Master et
+   * Radio Edit) : d'où une liste par titre, pas un identifiant unique. Une
+   * clé absente signifie « album d'avant cette donnée » et déclenche le repli
+   * historique (première version pourvue d'un fichier) ; une liste vide est au
+   * contraire un choix explicite de n'en inclure aucune. Toujours lu par
+   * `albumTrackVersions`, jamais à la main.
+   */
+  trackVersions?: Record<string, string[]>;
   label?: string;
   genre?: string;
   editor?: string;
@@ -476,6 +487,13 @@ export interface Session {
 export interface MixTracklistItem {
   id: string;
   artist: string;
+  /**
+   * Titre du morceau joué, séparé de l'artiste.
+   *
+   * Les tracklists saisies avant cette séparation portent « Artiste – Titre »
+   * dans `artist` seul : `normalizeMix` les redécoupe à la lecture.
+   */
+  title: string;
   label: string;
   /** Timecode `M:SS` ou `H:MM:SS`. */
   time: string;
@@ -488,6 +506,11 @@ export interface MixTracklistItem {
  * la tracklist, qui détermine la répartition des droits vers les ayants droit
  * des titres joués — c'est le format exigé par Mixcloud, Resident Advisor et
  * la SACEM.
+ */
+/**
+ * `mix` et `podcast` ne sont plus proposés : le catalogue s'en tient à « Live »
+ * et « DJ set ». Ils restent dans le type pour les mixes enregistrés avant,
+ * que `normalizeMix` ramène sur `dj_set` (voir `MIX_FORMATS`).
  */
 export type MixFormat = "dj_set" | "live_set" | "mix" | "podcast";
 

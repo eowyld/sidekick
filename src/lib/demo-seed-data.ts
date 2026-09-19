@@ -1,3 +1,4 @@
+import { emptyTechnical } from "@/modules/live/lib/live-model";
 import type { Sector } from "@/hooks/usePreferencesData";
 
 /**
@@ -312,10 +313,23 @@ export function royaltyRows(): SeedRow[] {
 /** Tables peuplées seulement si le secteur correspondant est coché. */
 export function sectorRows(sector: Sector) {
   if (sector === "live") {
+    const setlist = [
+      { id: "demo-set-1", title: "Vertige", artist: DEMO_ARTIST, duration: "3:40", note: "Ouverture, lumière progressive." },
+      { id: "demo-set-2", title: "Premières Lueurs", artist: DEMO_ARTIST, duration: "4:15", note: "Enchaîner sans pause." },
+      { id: "demo-set-3", title: "À contretemps", artist: DEMO_ARTIST, duration: "3:50", note: "Final, interaction public." },
+    ];
+    const technical = { ...emptyTechnical(), team: "Chant, guitare, claviers / machines", sound: "2 micros voix, 2 DI stéréo, 2 retours de scène", contact: "Contact régie à confirmer", stage: "Espace 5 × 4 m minimum", supplied: "Guitare, pédalier et machines", provided: "Diffusion, micros et retours" };
     return {
+      user_live_productions: [
+        { id: "demo-live-show", title: "Premières Lueurs — Live", kind: "show", data: { description: "Un live entre chanson et textures électroniques.", setlist, technical, equipmentListIds: ["demo-live-kit"], preparation: { concept: "done", setlist: "done", team: "done", technical: "done" } } },
+        { id: "demo-live-dj", title: "Afterglow — DJ set", kind: "dj", data: { description: "Une progression house et electronica pour la fin de soirée.", setlist: [], technical: emptyTechnical(), equipmentListIds: [], preparation: { concept: "done" } } },
+        { id: "demo-live-tour", title: "La tournée des premières lueurs", kind: "tour", data: { description: "Trois villes pour faire vivre le spectacle.", productionId: "demo-live-show", setlist: [], technical, equipmentListIds: ["demo-live-kit"], preparation: { booking: "done" } } },
+      ] as SeedRow[],
+      user_equipment_lists: [{ id: "demo-live-kit", name: "Configuration concert", description: "Le nécessaire pour le spectacle Premières Lueurs", item_ids: ["demo-equip-1", "demo-equip-2", "demo-equip-3"] }] as SeedRow[],
       user_tour_dates: [
         {
           id: "demo-date-1",
+          details: { productionId: "demo-live-show", tourId: "demo-live-tour", setlist, technical, equipmentListIds: ["demo-live-kit"], preparation: { schedule: "done", transport: "done", technical: "done", payment: "done" }, transports: [{ id: "demo-transport", type: "train", amount: "45", paymentMode: "self", details: "Arrivée à Nantes à 14h30." }] },
           city: "Nantes",
           venue: "Le Silo",
           date: thisWeekFr(6),
@@ -387,6 +401,7 @@ export function sectorRows(sector: Sector) {
       user_rehearsals: [
         {
           id: "demo-rehearsal-1",
+          details: { productionId: "demo-live-show", setlist, technical, equipmentListIds: ["demo-live-kit"], goals: "Travailler les transitions et le final du concert.", endTime: "17:00" },
           label: "Filage avant tournée",
           date: thisWeekFr(3),
           time: "14:00",

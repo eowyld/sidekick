@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Folder, Loader2, Music, Search } from "lucide-react";
+import { ChevronRight, Folder, Link2, Loader2, Music, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDriveData } from "@/hooks/useDriveData";
 import { formatBytes } from "@/modules/phono/lib/audio-limits";
+import type { DriveAudioUsage } from "@/modules/phono/lib/audio-usage";
 import { cn } from "@/lib/utils";
 
 /** Extensions considérées comme audio dans le sélecteur. */
@@ -37,6 +38,25 @@ export interface DrivePickerDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Appelé avec le fichier choisi dans le Drive. */
   onPick: (file: { path: string; name: string; sizeBytes: number }) => void;
+  /**
+   * Relevé des fichiers déjà rattachés ailleurs dans le catalogue, produit par
+   * `useDriveAudioUsage`. Purement informatif : un fichier déjà utilisé reste
+   * sélectionnable.
+   */
+  usage?: DriveAudioUsage;
+  /**
+   * Fichier actuellement rattaché à l'entité qu'on est en train d'éditer. Il
+   * est retiré du relevé : pendant un remplacement, s'entendre dire que le
+   * fichier en place est « déjà relié » à l'entité qu'on édite n'apprend rien.
+   */
+  excludePath?: string;
+}
+
+/** « Radio edit », « Radio edit et Live », « Radio edit, Live et 2 autres ». */
+function usageLabel(labels: string[]): string {
+  if (labels.length <= 2) return labels.join(" et ");
+  const rest = labels.length - 2;
+  return `${labels.slice(0, 2).join(", ")} et ${rest} autre${rest > 1 ? "s" : ""}`;
 }
 
 /**
@@ -49,6 +69,8 @@ export function DrivePickerDialog({
   open,
   onOpenChange,
   onPick,
+  usage,
+  excludePath,
 }: DrivePickerDialogProps) {
   const { userId, storageContents, isLoadingContents, loadStorageContents } =
     useDriveData();
@@ -197,37 +219,55 @@ export function DrivePickerDialog({
                 </button>
               ))}
 
-              {audioFiles.map((file) => (
-                <button
-                  key={file.path}
-                  type="button"
-                  onClick={() => {
-                    onPick({
-                      path: file.path,
-                      name: file.name,
-                      sizeBytes: file.sizeBytes,
-                    });
-                    onOpenChange(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
-                    "hover:bg-[rgba(245,245,245,0.06)]"
-                  )}
-                  style={{ color: "#F5F5F5" }}
-                >
-                  <Music
-                    className="h-4 w-4 shrink-0"
-                    style={{ color: "#F0FF00" }}
-                  />
-                  <span className="truncate">{file.name}</span>
-                  <span
-                    className="ml-auto shrink-0 text-xs"
-                    style={{ color: "rgba(245,245,245,0.7)" }}
+              {audioFiles.map((file) => {
+                const labels =
+                  file.path === excludePath ? undefined : usage?.get(file.path);
+                return (
+                  <button
+                    key={file.path}
+                    type="button"
+                    onClick={() => {
+                      onPick({
+                        path: file.path,
+                        name: file.name,
+                        sizeBytes: file.sizeBytes,
+                      });
+                      onOpenChange(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
+                      "hover:bg-[rgba(245,245,245,0.06)]"
+                    )}
+                    style={{ color: "#F5F5F5" }}
                   >
-                    {formatBytes(file.sizeBytes)}
-                  </span>
-                </button>
-              ))}
+                    <Music
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: "#F0FF00" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{file.name}</span>
+                      {labels?.length ? (
+                        <span
+                          className="mt-0.5 flex items-center gap-1 text-[11px]"
+                          style={{ color: "rgba(240,255,0,0.75)" }}
+                          title={`Déjà relié à ${labels.join(", ")}`}
+                        >
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            Déjà relié à {usageLabel(labels)}
+                          </span>
+                        </span>
+                      ) : null}
+                    </span>
+                    <span
+                      className="shrink-0 text-xs"
+                      style={{ color: "rgba(245,245,245,0.7)" }}
+                    >
+                      {formatBytes(file.sizeBytes)}
+                    </span>
+                  </button>
+                );
+              })}
 
               {folders.length === 0 && audioFiles.length === 0 && (
                 <p

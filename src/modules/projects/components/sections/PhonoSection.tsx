@@ -176,22 +176,28 @@ export function PhonoSection({ project }: PhonoSectionProps) {
         <div className="flex items-center justify-between">
           <p className="text-[11px] text-[#F5F5F5]/30 uppercase tracking-wider">Sessions studio</p>
           <div className="flex gap-1">
-            <Button size="xs" variant="ghost" onClick={() => setLinkSessionOpen(true)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
-              <Link size={10} className="mr-1" /> Lier
+            <Button size="xs" variant="ghost" onClick={() => router.push("/phono/sessions-studio")} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
+              <ExternalLink size={10} className="mr-1" /> Voir
             </Button>
-            <Button size="xs" variant="ghost" onClick={() => router.push(`/phono/sessions-studio?projectId=${project.id}`)} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
+            <Button size="xs" variant="ghost" onClick={() => router.push("/phono/sessions-studio/nouvelle")} className="text-[#F5F5F5]/40 hover:text-[#F5F5F5] h-6 text-[11px]">
               <Plus size={10} className="mr-1" /> Créer
             </Button>
           </div>
         </div>
-        {linkedSessions.length === 0 ? (
+        {(() => {
+          const derivedSessions = sessions.filter((session) =>
+            (session.albumIds ?? []).some((id) => project.linkedAlbums.includes(id)) ||
+            (session.trackIds ?? []).some((id) => project.linkedTracks.includes(id))
+          );
+          const visibleSessions = [...linkedSessions, ...derivedSessions.filter((session) => !linkedSessions.some((linked) => linked.id === session.id))];
+          return visibleSessions.length === 0 ? (
           <p className="text-[12px] text-[#F5F5F5]/20 italic">Aucune session liée</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {linkedSessions.map((session) => (
+            {visibleSessions.map((session) => (
               <div
                 key={session.id}
-                onClick={() => router.push("/phono/sessions-studio")}
+                onClick={() => router.push(`/phono/sessions-studio/${session.id}`)}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-[rgba(245,245,245,0.08)] bg-[rgba(245,245,245,0.03)] cursor-pointer hover:bg-[rgba(245,245,245,0.06)] transition-colors"
               >
                 <p className="text-[12px] text-[#F5F5F5]/80">{session.title}</p>
@@ -200,7 +206,7 @@ export function PhonoSection({ project }: PhonoSectionProps) {
               </div>
             ))}
           </div>
-        )}
+        ); })()}
       </div>
 
       {/* Dialog lier album */}

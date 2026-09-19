@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { DRIVE_BUCKET } from "@/lib/drive-db";
+import { streamStorageFile } from "@/lib/storage-stream";
 import {
   accessCookieName,
   getServiceSupabase,
@@ -56,14 +56,6 @@ export async function GET(
     ? audioPath.slice(audioPath.lastIndexOf("."))
     : "";
 
-  const { data, error } = await supabase.storage
-    .from(DRIVE_BUCKET)
-    .createSignedUrl(audioPath, 60, { download: `${title}${extension}` });
-
-  if (error || !data) {
-    return NextResponse.json({ error: "Fichier indisponible." }, { status: 500 });
-  }
-
   const sessionId = req.nextUrl.searchParams.get("session");
   if (sessionId) {
     await supabase.rpc("listening_record_event", {
@@ -76,5 +68,11 @@ export async function GET(
     });
   }
 
-  return NextResponse.redirect(data.signedUrl);
+  // Servi depuis notre domaine, comme la lecture : le fichier descend sous le
+  // nom du titre, et aucune adresse Supabase n'apparaît dans les
+  // téléchargements du visiteur.
+  return streamStorageFile(supabase, audioPath, {
+    downloadName: `${title}${extension}`,
+    range: req.headers.get("range"),
+  });
 }

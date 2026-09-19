@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Download, Lock, Pause, Play } from "lucide-react";
+import { CalendarDays, ChevronDown, Download, ExternalLink, Headphones, Lock, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDuration } from "@/lib/audio-peaks";
 import type { PublicListeningLink } from "@/lib/listening-types";
@@ -33,8 +33,10 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
       const audio = audioRef.current;
       if (!audio) return;
       try {
-        // L'URL n'est demandée qu'au moment du play, et n'est valable que
-        // quelques minutes : elle n'apparaît jamais dans le HTML de la page.
+        // L'adresse n'est demandée qu'au moment du play : aucune piste n'est
+        // atteignable depuis le HTML de la page. Elle est sur notre domaine, et
+        // chaque octet repasse par le contrôle du lien (expiration, mot de
+        // passe, révocation).
         const res = await fetch(`/api/listening/${link.slug}/audio/${itemId}`, {
           method: "POST",
         });
@@ -125,47 +127,32 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
   }
 
   return (
-    <div className="pb-28">
+    <div className="mx-auto max-w-5xl pb-28">
       <audio ref={audioRef} preload="none" />
 
-      <header className="mb-8 flex items-start gap-4">
-        {link.coverUrl && (
+      <header className="mb-8 overflow-hidden rounded-2xl border border-white/[0.08] bg-[rgba(44,44,46,0.42)] p-4 shadow-2xl backdrop-blur sm:grid sm:grid-cols-[220px_1fr] sm:items-end sm:gap-7 sm:p-5">
+        <div className="aspect-square overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(240,255,0,0.18),transparent_35%),linear-gradient(135deg,#292929,#151515)]">
+        {link.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={link.coverUrl}
             alt=""
-            className="h-24 w-24 rounded-lg object-cover"
+            className="h-full w-full object-cover"
           />
-        )}
-        <div className="min-w-0">
-          <p
-            className="text-sm uppercase tracking-wide"
-            style={{ color: "rgba(245,245,245,0.7)" }}
-          >
+        ) : <div className="flex h-full items-end p-5 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#F0FF00]">Écoute privée</div>}
+        </div>
+        <div className="min-w-0 pt-5 sm:pt-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#F0FF00]">
             {link.artistName}
           </p>
-          <h1 className="text-2xl font-medium">{link.title}</h1>
-          <p
-            className="mt-1 flex items-center gap-1.5 text-xs"
-            style={{ color: "rgba(245,245,245,0.7)" }}
-          >
-            <Lock className="h-3.5 w-3.5 shrink-0" />
-            <span>
-              <strong>Écoute privée</strong> — titres non publiés, merci de ne pas
-              rediffuser ce lien.
-            </span>
-          </p>
-          {link.expiresAt && (
-            <p className="mt-1 text-xs" style={{ color: "rgba(245,245,245,0.7)" }}>
-              Ce lien expire le{" "}
-              {new Date(link.expiresAt).toLocaleDateString("fr-FR")}.
-            </p>
-          )}
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{link.title}</h1>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] text-[#F5F5F5]/60"><Lock className="h-3 w-3" /> Écoute privée</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] text-[#F5F5F5]/60"><Headphones className="h-3 w-3" /> {link.items.length} piste{link.items.length > 1 ? "s" : ""}</span>
+            {link.expiresAt && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] text-[#F5F5F5]/60"><CalendarDays className="h-3 w-3" /> Jusqu’au {new Date(link.expiresAt).toLocaleDateString("fr-FR")}</span>}
+          </div>
           {link.introMessage && (
-            <p
-              className="mt-3 whitespace-pre-line text-sm"
-              style={{ color: "rgba(245,245,245,0.7)" }}
-            >
+            <p className="mt-5 max-w-2xl whitespace-pre-line border-l border-[#F0FF00]/40 pl-4 text-sm leading-relaxed text-[#F5F5F5]/65">
               {link.introMessage}
             </p>
           )}
@@ -173,29 +160,26 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
       </header>
 
       {error && (
-        <p className="mb-4 text-sm" style={{ color: "#ff6b6b" }}>
+        <p className="mb-4 rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
 
       {groups.map((group, gi) => (
-        <section key={gi} className="mb-6">
+        <section key={gi} className="mb-4 overflow-hidden rounded-xl border border-white/[0.08] bg-[rgba(44,44,46,0.34)]">
           {group.label && (
-            <h2
-              className="mb-2 text-sm uppercase tracking-wide"
-              style={{ color: "rgba(245,245,245,0.7)" }}
-            >
+            <h2 className="border-b border-white/[0.07] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#F5F5F5]/40">
               {group.label}
             </h2>
           )}
-          <ul className="divide-y" style={{ borderColor: "rgba(245,245,245,0.12)" }}>
+          <ul className="divide-y divide-white/[0.07]">
             {group.items.map((item, index) => {
               const isCurrent = item.id === currentId;
               return (
-                <li key={item.id} className="py-3">
-                  <div className="flex items-center gap-3">
+                <li key={item.id} className={`px-4 py-3 transition-colors ${isCurrent ? "bg-[#F0FF00]/[0.04]" : "hover:bg-white/[0.025]"}`}>
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <Button
-                      variant="ghost"
+                      variant={isCurrent ? "default" : "ghost"}
                       size="icon"
                       onClick={() => toggle(item.id)}
                       aria-label={
@@ -210,18 +194,15 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
                         <Play className="h-4 w-4" />
                       )}
                     </Button>
-                    <span
-                      className="w-6 text-sm tabular-nums"
-                      style={{ color: "rgba(245,245,245,0.7)" }}
-                    >
-                      {index + 1}
+                    <ItemCover cover={item.snapshot.cover} />
+                    <span className="w-6 text-xs tabular-nums text-[#F5F5F5]/30">
+                      {String(index + 1).padStart(2, "0")}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate">{item.snapshot.title}</p>
+                      <p className={`truncate text-sm font-medium ${isCurrent ? "text-[#F0FF00]" : ""}`}>{item.snapshot.title}</p>
                       {item.snapshot.guestArtists.length > 0 && (
                         <p
-                          className="truncate text-xs"
-                          style={{ color: "rgba(245,245,245,0.7)" }}
+                          className="truncate text-xs text-[#F5F5F5]/40"
                         >
                           feat. {item.snapshot.guestArtists.join(", ")}
                         </p>
@@ -229,18 +210,13 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
                     </div>
                     {item.snapshot.versionLabel && (
                       <span
-                        className="hidden rounded px-2 py-0.5 text-xs sm:inline"
-                        style={{
-                          border: "1px solid rgba(245,245,245,0.12)",
-                          color: "rgba(245,245,245,0.7)",
-                        }}
+                        className="hidden rounded border border-white/10 px-2 py-0.5 text-[10px] text-[#F5F5F5]/45 sm:inline"
                       >
                         {item.snapshot.versionLabel}
                       </span>
                     )}
                     <span
-                      className="text-sm tabular-nums"
-                      style={{ color: "rgba(245,245,245,0.7)" }}
+                      className="text-xs tabular-nums text-[#F5F5F5]/40"
                     >
                       {formatDuration(item.durationMs)}
                     </span>
@@ -252,15 +228,14 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
                         aria-label={`Télécharger ${item.snapshot.title}`}
                       >
                         <Download
-                          className="h-4 w-4"
-                          style={{ color: "rgba(245,245,245,0.7)" }}
+                          className="h-4 w-4 text-[#F5F5F5]/45 transition-colors hover:text-[#F0FF00]"
                         />
                       </a>
                     )}
                   </div>
 
                   {isCurrent && (
-                    <div className="mt-3 pl-12">
+                    <div className="mt-3 pl-10 sm:pl-12">
                       <Waveform
                         peaks={item.peaks}
                         progress={
@@ -270,8 +245,7 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
                       />
                       <button
                         type="button"
-                        className="mt-2 flex items-center gap-1 text-xs"
-                        style={{ color: "rgba(245,245,245,0.7)" }}
+                        className="mt-2 flex items-center gap-1 text-xs text-[#F5F5F5]/45 hover:text-[#F5F5F5]"
                         onClick={() =>
                           setOpenCredits(openCredits === item.id ? null : item.id)
                         }
@@ -281,8 +255,7 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
                       </button>
                       {openCredits === item.id && (
                         <dl
-                          className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs"
-                          style={{ color: "rgba(245,245,245,0.7)" }}
+                          className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-black/20 p-3 text-xs text-[#F5F5F5]/50"
                         >
                           {item.snapshot.isrc && (
                             <>
@@ -326,16 +299,14 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
       ))}
 
       {link.presskitUrl && (
-        <footer
-          className="mt-10 border-t pt-6"
-          style={{ borderColor: "rgba(245,245,245,0.12)" }}
-        >
+        <footer className="mt-10 border-t border-white/[0.08] pt-6">
           <a
             href={link.presskitUrl}
-            className="text-sm underline"
-            style={{ color: "#F0FF00" }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#F0FF00] hover:underline"
           >
-            Voir le presskit
+            Voir le presskit <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </footer>
       )}
@@ -349,7 +320,7 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
           }
           style={{
             borderColor: "rgba(245,245,245,0.12)",
-            background: barExpanded ? "#101010" : "rgba(44,44,46,0.72)",
+            background: barExpanded ? "#101010" : "rgba(20,20,20,0.88)",
           }}
         >
           {barExpanded && (
@@ -363,7 +334,7 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
             </button>
           )}
 
-          <div className="mx-auto flex w-full max-w-3xl items-center gap-3">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => toggle(current.id)}>
               {isPlaying ? (
                 <Pause className="h-4 w-4" />
@@ -378,10 +349,7 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
             >
               {current.snapshot.title}
             </button>
-            <span
-              className="text-sm tabular-nums"
-              style={{ color: "rgba(245,245,245,0.7)" }}
-            >
+            <span className="text-xs tabular-nums text-[#F5F5F5]/50">
               {formatDuration(positionMs)} / {formatDuration(current.durationMs)}
             </span>
           </div>
@@ -401,5 +369,19 @@ export function ListeningPlayer({ link, sessionId }: ListeningPlayerProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function ItemCover({ cover }: { cover?: string }) {
+  const visible = cover && /^(https?:|data:|blob:|\/api\/)/.test(cover);
+  return (
+    <span className="hidden h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/[0.08] bg-white/[0.04] sm:flex">
+      {visible ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={cover} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <Headphones className="h-4 w-4 text-[#F5F5F5]/25" />
+      )}
+    </span>
   );
 }

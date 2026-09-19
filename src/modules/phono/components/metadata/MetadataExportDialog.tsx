@@ -24,6 +24,8 @@ import {
   buildItems,
   downloadBlob,
   extOf,
+  stageLocalAudio,
+  unstageLocalAudio,
   type ExportItem,
   type MetadataExportTarget,
 } from "@/modules/phono/lib/metadata-export";
@@ -250,6 +252,8 @@ export function MetadataExportDialog({
     const zipEntries: { name: string; blob: Blob }[] = [];
     const failed: string[] = [];
     let featureDisabled = false;
+    // Fichiers déposés le temps de l'export, retirés à la fin quoi qu'il arrive.
+    const staged: string[] = [];
 
     for (let i = 0; i < included.length; i++) {
       const it = included[i];
@@ -257,9 +261,25 @@ export function MetadataExportDialog({
       const src = sourceFor(it)!;
       const label = payload.title || it.track.title || "sans titre";
 
+      // Un fichier choisi ponctuellement passe par le Storage plutôt que par le
+      // corps de la requête : celui-ci est plafonné à 4,5 Mo côté Vercel, ce
+      // qu'un fichier audio dépasse presque toujours. Voir `stageLocalAudio`.
+      let audioPath: string;
+      if (src.kind === "file") {
+        try {
+          audioPath = await stageLocalAudio(src.file);
+          staged.push(audioPath);
+        } catch {
+          failed.push(label);
+          setProgress({ done: i + 1, total: included.length });
+          continue;
+        }
+      } else {
+        audioPath = src.path;
+      }
+
       const fd = new FormData();
-      if (src.kind === "file") fd.append("file", src.file, src.file.name);
-      else fd.append("audioPath", src.path);
+      fd.append("audioPath", audioPath);
       fd.append("metadata", JSON.stringify(payload));
       const cover = await coverBlobFor(it);
       if (cover) fd.append("cover", cover, "cover.jpg");
@@ -303,10 +323,20 @@ export function MetadataExportDialog({
         const prefix = String(
           target?.kind === "album" ? it.trackNumber ?? i + 1 : i + 1
         ).padStart(2, "0");
-        // Album : nommage fidèle à l'ancien export (titre de piste brut).
+        // Album : nommage fidèle à l'ancien export (titre de piste brut), sauf
+        // quand deux versions du même titre figurent sur la sortie — le fichier
+        // dit alors laquelle il porte.
+        const sameTrackTwice =
+          target?.kind === "album" &&
+          included.filter((x) => x.track.id === it.track.id).length > 1;
         const base =
           target?.kind === "album"
-            ? safeFileName(it.track.title, "audio")
+            ? safeFileName(
+                sameTrackTwice && it.version?.label
+                  ? `${it.track.title} ${it.version.label}`
+                  : it.track.title,
+                "audio"
+              )
             : safeFileName(payload.title, "audio");
         zipEntries.push({ name: `${prefix} - ${base}${ext}`, blob: outBlob });
       } else {
@@ -314,6 +344,11 @@ export function MetadataExportDialog({
       }
       setProgress({ done: i + 1, total: included.length });
     }
+
+    // Toutes les sorties de la boucle passent ici, y compris le `break` du
+    // 503 : les fichiers déposés le temps de l'export sont retirés dans tous
+    // les cas. Les octets taggés sont déjà en mémoire à ce stade.
+    await Promise.all(staged.map(unstageLocalAudio));
 
     if (featureDisabled) {
       setDisabledNotice(true);
@@ -458,13 +493,26 @@ export function MetadataExportDialog({
                   >
                     {included.map((it) => {
                       const active = it.key === previewItem?.key;
+                      // Sur un album, deux versions d'un même titre sont deux
+                      // pistes : l'étiquette porte le numéro, le titre et la
+                      // version, sans quoi « Master » et « Radio Edit » ne
+                      // disent plus de quel titre il s'agit.
                       const label =
-                        it.version?.label ||
-                        (it.trackNumber
-                          ? `${String(it.trackNumber).padStart(2, "0")} · ${
-                              it.track.title || "Titre"
-                            }`
-                          : it.track.title || "Titre");
+                        target?.kind === "album"
+                          ? [
+                              `${String(it.trackNumber ?? 0).padStart(2, "0")} · ${
+                                it.track.title || "Titre"
+                              }`,
+                              it.version?.label,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : it.version?.label ||
+                            (it.trackNumber
+                              ? `${String(it.trackNumber).padStart(2, "0")} · ${
+                                  it.track.title || "Titre"
+                                }`
+                              : it.track.title || "Titre");
                       return (
                         <button
                           key={it.key}

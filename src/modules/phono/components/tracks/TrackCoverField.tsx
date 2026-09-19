@@ -15,7 +15,7 @@ interface TrackCoverFieldProps {
  * Champ « Cover » : sélection d'une image locale, lue en data URL.
  *
  * Autonome et sans dépendance au formulaire parent, pour être réutilisé tel
- * quel par `AlbumDialog` — un album porte la même notion de cover.
+ * quel par `AlbumEditAside` — un album porte la même notion de cover.
  */
 export function TrackCoverField({ value, onChange }: TrackCoverFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);

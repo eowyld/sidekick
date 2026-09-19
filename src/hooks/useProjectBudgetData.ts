@@ -3,6 +3,8 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
+import { money, dateISO, type LiveDetails } from "@/modules/live/lib/live-model";
+import { frToIso } from "@/lib/date-format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ export interface ProjectExpense {
 
 export interface ProjectRevenue {
   id: string;
-  source: "invoice" | "manual";
+  source: "invoice" | "manual" | "live";
   label: string;
   amount: number;
   date: string;
@@ -97,7 +99,7 @@ const FALLBACK: BudgetData = { lines: [], expenses: [], revenues: [] };
 async function fetchBudgetData(projectId: string): Promise<BudgetData> {
   const supabase = createClient();
 
-  const [linesRes, expensesRes, invoicesRes, manualsRes] = await Promise.all([
+  const [linesRes, expensesRes, invoicesRes, manualsRes, projectRes, sessionsRes, datesRes, liveRes] = await Promise.all([
     supabase.from("user_project_budget_lines")
       .select("*")
       .eq("project_id", projectId)
@@ -112,12 +114,52 @@ async function fetchBudgetData(projectId: string): Promise<BudgetData> {
     supabase.from("user_royalties_manual")
       .select("id, track_title, revenue, currency, period")
       .eq("project_id", projectId),
+    supabase.from("user_projects")
+      .select("linked_albums, linked_tracks, linked_tour_dates")
+      .eq("id", projectId)
+      .maybeSingle(),
+    supabase.from("user_phono_sessions")
+      .select("id, title, date, album_ids, track_ids, studio_cost, other_costs"),
+    supabase.from("user_tour_dates").select("id, venue, date, details, invoice_ids, mission_ids"),
+    supabase.from("user_live_productions").select("id, data"),
   ]);
 
   const lines = linesRes.error ? [] : (linesRes.data ?? []).map((r) => rowToBudgetLine(r as Record<string, unknown>));
   const expenses = expensesRes.error ? [] : (expensesRes.data ?? []).map((r) => rowToExpense(r as Record<string, unknown>));
+  const projectAlbums = new Set((projectRes.data?.linked_albums as string[] | null) ?? []);
+  const projectTracks = new Set((projectRes.data?.linked_tracks as string[] | null) ?? []);
+  for (const raw of sessionsRes.data ?? []) {
+    const row = raw as Record<string, unknown>;
+    const albumIds = (row.album_ids as string[] | null) ?? [];
+    const trackIds = (row.track_ids as string[] | null) ?? [];
+    if (!albumIds.some((id) => projectAlbums.has(id)) && !trackIds.some((id) => projectTracks.has(id))) continue;
+    const amount = Number(row.studio_cost ?? 0) + Number(row.other_costs ?? 0);
+    if (amount <= 0) continue;
+    const storedDate = (row.date as string) ?? "";
+    expenses.push({ id: `studio-session:${row.id as string}`, projectId, kind: "expense", label: `Session studio — ${(row.title as string) || "Sans titre"}`, category: "Studio", amount, date: storedDate.includes("/") ? frToIso(storedDate) : storedDate, notes: "Coût synchronisé automatiquement depuis Phono." });
+  }
 
+  const linkedDateIds = new Set((projectRes.data?.linked_tour_dates as string[] | null) ?? []);
+  const linkedProductionIds = new Set((liveRes.data ?? []).filter(row => row.data?.projectId === projectId).map(row => row.id));
+  const liveDates = (datesRes.data ?? []).filter(row => linkedDateIds.has(String(row.id)) || linkedProductionIds.has(row.details?.productionId) || linkedProductionIds.has(row.details?.tourId));
+  for (const row of liveDates) {
+    const details = (row.details ?? {}) as LiveDetails;
+    const ownCosts = [...(details.transports ?? []), ...(details.lodgings ?? [])].filter(e => e.paymentMode === "self");
+    const amount = ownCosts.reduce((sum, e) => sum + money(e.amount), 0);
+    if (amount > 0) expenses.push({ id: `live-date:${row.id}`, projectId, kind: "expense", label: `Live — ${row.venue}`, category: "Logistique live", amount, date: dateISO(row.date), notes: "Frais à ta charge, synchronisés depuis la représentation." });
+  }
   const revenues: ProjectRevenue[] = [];
+  const invoiceIds = [...new Set(liveDates.flatMap(row => (row.invoice_ids ?? []) as string[]))].filter(id => !(invoicesRes.data ?? []).some(i => i.id === id));
+  const missionIds = [...new Set(liveDates.flatMap(row => (row.mission_ids ?? []) as string[]))];
+  if (invoiceIds.length) {
+    const { data } = await supabase.from("user_invoices").select("id, number, client, amount, due_date").in("id", invoiceIds);
+    for (const row of data ?? []) revenues.push({ id: row.id, source: "invoice", label: `Facture ${row.number} — ${row.client}`, amount: money(row.amount), date: row.due_date });
+  }
+  if (missionIds.length) {
+    const { data } = await supabase.from("user_intermittence_missions").select("id, employer, net_amount, date").in("id", missionIds);
+    for (const row of data ?? []) revenues.push({ id: row.id, source: "live", label: `Cachet — ${row.employer}`, amount: Number(row.net_amount) || 0, date: row.date });
+  }
+
 
   for (const inv of invoicesRes.data ?? []) {
     const row = inv as Record<string, unknown>;

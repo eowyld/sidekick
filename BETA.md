@@ -1,7 +1,7 @@
 # BÊTA — état et plan
 
 Document de reprise de la bêta. `ALPHA.md` reste la référence jusqu'à
-l'ouverture du 21/09/2026 ; ce document prend le relais ensuite.
+l'ouverture du 24/09/2026 ; ce document prend le relais ensuite.
 
 **Cible : bêta payante le lundi 16/11/2026.** Huit semaines après l'ouverture de
 l'alpha. Lundi, jamais un vendredi : les premiers paiements ratés doivent tomber
@@ -19,7 +19,7 @@ Créé le 16/09/2026.
 
 ## Ce qui change entre l'alpha et la bêta
 
-| | Alpha (21/09) | Bêta (16/11) |
+| | Alpha (24/09) | Bêta (16/11) |
 |---|---|---|
 | Accès | gratuit, tout le monde | freemium : gratuit limité + Pro |
 | Paiement | aucun | Stripe, 8 €/mois |
@@ -114,6 +114,10 @@ recette :
 - Marketing (module entier) + `/presskit/*` public, à retirer aussi de
   `proxy.ts`.
 - `/admin/contrats`.
+- Signature numérique des fiches de présence studio, traitée avec le chantier
+  Contrats. L'alpha génère seulement un PDF à imprimer et faire signer ; ne pas
+  introduire un parcours de signature électronique isolé avant d'avoir défini
+  le niveau de preuve, l'horodatage et la conservation des documents signés.
 - `/admin/comptabilite`.
 - ⚠️ Marketing et presskit rouvrent des surfaces publiques et des envois
   d'emails : les routes `mail/track/*` (pixels), `presskit/[id]` et le

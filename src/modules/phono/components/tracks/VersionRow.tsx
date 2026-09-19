@@ -19,6 +19,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ import { effectiveIsrc } from "@/modules/phono/lib/track";
 import { trackQueueItem } from "@/modules/phono/lib/player-queue";
 import { usePhonoPlayer } from "../audio/PhonoPlayerProvider";
 import { ATTACH_BUTTON, AudioAttachField, catalogFileBaseName } from "../audio/AudioAttachField";
+import type { DriveAudioUsage } from "@/modules/phono/lib/audio-usage";
 import { Waveform } from "../listening/Waveform";
 
 const ISRC_INHERITED_TITLE =
@@ -117,6 +119,10 @@ export function VersionRow({
   onRequestDelete,
   onRequestReplace,
   onReplacingDone,
+  selected,
+  onToggleSelected,
+  showExport = true,
+  audioUsage,
 }: {
   track: Track;
   version: TrackVersion;
@@ -128,6 +134,24 @@ export function VersionRow({
   onRequestDelete: (version: TrackVersion) => void;
   onRequestReplace: (mode: "file" | "drive") => void;
   onReplacingDone: () => void;
+  /**
+   * Version retenue sur la sortie en cours d'édition. `undefined` = on n'est
+   * pas dans un contexte de sélection (catalogue, page titre) et aucune case
+   * n'est rendue.
+   */
+  selected?: boolean;
+  onToggleSelected?: (selected: boolean) => void;
+  /**
+   * L'export de métadonnées vit dans le catalogue, sur un titre déjà
+   * enregistré : les pages d'édition le masquent plutôt que d'afficher un
+   * bouton sans effet.
+   */
+  showExport?: boolean;
+  /**
+   * Relevé des fichiers déjà rattachés ailleurs dans le catalogue, construit
+   * une fois par `VersionList` et passé au sélecteur du Drive.
+   */
+  audioUsage?: DriveAudioUsage;
 }) {
   const { current, isPlaying, position, duration, play, seek } =
     usePhonoPlayer();
@@ -190,6 +214,20 @@ export function VersionRow({
         isCurrent && "border-[#F0FF00]"
       )}
     >
+      {selected !== undefined ? (
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(checked) => onToggleSelected?.(checked === true)}
+          aria-label={`Inclure « ${version.label} » sur cette sortie`}
+          title={
+            selected
+              ? `« ${version.label} » est sur la sortie`
+              : `Ajouter « ${version.label} » à la sortie`
+          }
+          className="shrink-0"
+        />
+      ) : null}
+
       <Button
         type="button"
         variant="ghost"
@@ -274,6 +312,8 @@ export function VersionRow({
             autoOpen={replacing === "drive" ? "drive" : undefined}
             showFormatsMark={!replacing}
             fileBaseName={catalogFileBaseName(track.mainArtist, track.title, version.label)}
+            usage={audioUsage}
+            excludePath={version.audioPath}
             onChange={(patch) => {
               onReplacingDone();
               onPatchVersion(version.id, patch);
@@ -300,7 +340,7 @@ export function VersionRow({
         pendant un remplacement : le fichier qu'il exporterait est sur le
         point d'être remplacé, pas celui affiché à l'écran.
       */}
-      {showsCurrentAudio ? (
+      {showsCurrentAudio && showExport ? (
         <button
           type="button"
           className={cn(ATTACH_BUTTON, "shrink-0")}
@@ -384,7 +424,7 @@ export function VersionRow({
               </DropdownMenuItem>
             </>
           ) : null}
-          {!hasAudio ? (
+          {!hasAudio && showExport ? (
             <DropdownMenuItem onSelect={() => onExportMetadata(version.id)}>
               <Download className="mr-2 h-3.5 w-3.5" />
               Exporter les métadonnées

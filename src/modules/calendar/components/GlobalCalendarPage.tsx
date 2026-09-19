@@ -35,6 +35,7 @@ import { EventDialog, type EventDialogField } from "@/components/ui/event-dialog
 import { DatePicker } from "@/components/ui/date-picker";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useSidekickData } from "@/hooks/useSidekickData";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useLiveData } from "@/hooks/useLiveData";
 import { usePhonoData } from "@/hooks/usePhonoData";
 import { useIncomesData } from "@/hooks/useIncomesData";
@@ -877,8 +878,14 @@ export function GlobalCalendarPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const eventFromQuery = searchParams.get("event");
-  const { data: sidekickData, preferencesReady } = useSidekickData();
-  const enabledModules = sidekickData.preferences.enabledModules;
+  const { data: sidekickData } = useSidekickData();
+  // Les préférences vivent dans `user_preferences` depuis le 31/08 :
+  // `useSidekickData` est du localStorage pur et ne lit jamais Supabase, si
+  // bien qu'un module coupé dans les Réglages restait visible ici (ses défauts
+  // sont tous à `true`). Même bug que celui corrigé sur `DashboardPage` le
+  // 14/09. `preferencesReady` vient donc de ce hook-ci, plus de l'autre — il
+  // ne signalait que la relecture du localStorage sous la bonne clé.
+  const { enabledModules, preferencesReady } = usePreferencesData();
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -1367,12 +1374,12 @@ export function GlobalCalendarPage() {
           Filtres :
         </span>
         {(Object.keys(SECTOR_CONFIG) as CalendarSector[]).map((sector) => {
-          if (sector === "live" && !sidekickData.preferences.enabledModules.live) return null;
-          if (sector === "phono" && !sidekickData.preferences.enabledModules.phono) return null;
-          if (sector === "admin" && !sidekickData.preferences.enabledModules.admin) return null;
-          if (sector === "marketing" && !sidekickData.preferences.enabledModules.marketing) return null;
-          if (sector === "edition" && !sidekickData.preferences.enabledModules.edition) return null;
-          if (sector === "revenus" && !sidekickData.preferences.enabledModules.revenus) return null;
+          if (sector === "live" && !enabledModules.live) return null;
+          if (sector === "phono" && !enabledModules.phono) return null;
+          if (sector === "admin" && !enabledModules.admin) return null;
+          if (sector === "marketing" && !enabledModules.marketing) return null;
+          if (sector === "edition" && !enabledModules.edition) return null;
+          if (sector === "revenus" && !enabledModules.revenus) return null;
           const config = SECTOR_CONFIG[sector];
           const isActive = sectorFiltersSafe[sector];
           const toggle = () =>
