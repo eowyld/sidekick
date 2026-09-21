@@ -9,6 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { PageLoader } from "@/components/ui/page-loader";
 import { usePostHog } from "posthog-js/react";
+import { mutate } from "swr";
+import { ArtistIdentityCard } from "./ArtistIdentityCard";
+import { AUTH_META_KEY } from "@/hooks/useArtistIdentity";
+import { usePreferencesData } from "@/hooks/usePreferencesData";
 
 export function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -26,6 +30,7 @@ export function SettingsPage() {
   const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const posthog = usePostHog();
+  const { identityMode, setArtistIdentity } = usePreferencesData();
 
   useEffect(() => {
     const supabase = createClient();
@@ -55,6 +60,10 @@ export function SettingsPage() {
         }
       });
       if (error) throw error;
+      // En nom propre, le nom affiché est le nom civil : il suit.
+      const full = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      if (identityMode === "legal" && full) setArtistIdentity("legal", full);
+      void mutate(AUTH_META_KEY);
       posthog?.capture("profile_name_updated", { module: "settings" });
       setProfileMessage({ type: "success", text: "Profil enregistré." });
     } catch (err) {
@@ -178,6 +187,8 @@ export function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ArtistIdentityCard />
 
       <Card>
         <CardHeader>

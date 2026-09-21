@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { ArrowLeft } from "lucide-react";
 import { usePhonoData } from "@/hooks/usePhonoData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
 import {
   UNSAVED_CHANGES_MESSAGE,
   useUnsavedChangesGuard,
@@ -151,6 +152,8 @@ export function AlbumEditPage({ albumId }: AlbumEditPageProps) {
   const album = existing ? normalizeAlbum(existing) : null;
   const tracks = tracksRaw.map(normalizeTrack);
 
+  const { releaseArtist, ready: identityReady } = useArtistIdentity();
+
   const [form, setForm] = useState<AlbumFormState>(EMPTY_FORM);
   const [initialForm, setInitialForm] = useState<AlbumFormState>(EMPTY_FORM);
   const [loadedId, setLoadedId] = useState<string | null>(null);
@@ -160,10 +163,16 @@ export function AlbumEditPage({ albumId }: AlbumEditPageProps) {
   // qu'il est là, une seule fois, sans écraser une saisie en cours. Ajustement
   // d'état en cours de rendu, comme `TrackEditPage` : pas de useEffect, pour
   // que la première peinture montre déjà les bonnes valeurs.
-  const readyId = album ? album.id : albumId === null ? "__new__" : null;
+  const readyId = album
+    ? album.id
+    : albumId === null && identityReady
+      ? "__new__"
+      : null;
   if (readyId !== null && loadedId !== readyId) {
     setLoadedId(readyId);
-    const initial = album ? formFromAlbum(album) : EMPTY_FORM;
+    const initial = album
+      ? formFromAlbum(album)
+      : { ...EMPTY_FORM, artist: releaseArtist };
     setForm(initial);
     setInitialForm(initial);
   }

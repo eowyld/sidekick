@@ -10,6 +10,7 @@ import {
   useUnsavedChangesGuard,
 } from "@/hooks/useUnsavedChangesGuard";
 import { useProjectsData } from "@/hooks/useProjectsData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
 import { PageError } from "@/components/ui/page-error";
 import { PageLoader } from "@/components/ui/page-loader";
 import type {
@@ -71,10 +72,10 @@ export interface TrackFormState {
  * prenait le brouillon pour le titre déjà en écoute et basculait en pause au
  * lieu de charger le nouveau fichier.
  */
-function emptyForm(): TrackFormState {
+function emptyForm(mainArtist = ""): TrackFormState {
   return {
     title: "",
-    mainArtist: "",
+    mainArtist,
     role: "artiste_principal",
     status: "en_production",
     cover: undefined,
@@ -122,6 +123,8 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
   const existing = trackId ? tracks.find((t) => t.id === trackId) : undefined;
   const track = existing ? normalizeTrack(existing) : null;
 
+  const { releaseArtist, ready: identityReady } = useArtistIdentity();
+
   const [form, setForm] = useState<TrackFormState>(emptyForm);
   // Même objet que `form` au montage : deux appels à `emptyForm()` donneraient
   // deux ids de version différentes, donc un formulaire « modifié » d'entrée.
@@ -135,10 +138,15 @@ export function TrackEditPage({ trackId }: TrackEditPageProps) {
   // qu'il est là, une seule fois, sans écraser une saisie en cours. Ajustement
   // d'état en cours de rendu (motif déjà utilisé par `TrackDialog`) : pas de
   // useEffect, pour que la première peinture montre déjà les bonnes valeurs.
-  const readyId = track ? track.id : trackId === null ? "__new__" : null;
+  // Un nouveau titre attend l'identité pour naître pré-rempli.
+  const readyId = track
+    ? track.id
+    : trackId === null && identityReady
+      ? "__new__"
+      : null;
   if (readyId !== null && loadedId !== readyId) {
     setLoadedId(readyId);
-    const initial = track ? formFromTrack(track) : emptyForm();
+    const initial = track ? formFromTrack(track) : emptyForm(releaseArtist);
     setForm(initial);
     setInitialForm(initial);
     // Un album ne référence pas son titre : il faut le chercher côté album.

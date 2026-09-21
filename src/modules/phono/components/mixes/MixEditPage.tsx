@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { ArrowLeft } from "lucide-react";
 import { usePhonoData } from "@/hooks/usePhonoData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
 import {
   UNSAVED_CHANGES_MESSAGE,
   useUnsavedChangesGuard,
@@ -109,6 +110,8 @@ export function MixEditPage({ mixId }: MixEditPageProps) {
   const existing = mixId ? mixes.find((m) => m.id === mixId) : undefined;
   const mix = existing ? normalizeMix(existing) : null;
 
+  const { releaseArtist, ready: identityReady } = useArtistIdentity();
+
   const [form, setForm] = useState<MixFormState>(EMPTY_FORM);
   const [initialForm, setInitialForm] = useState<MixFormState>(EMPTY_FORM);
   const [loadedId, setLoadedId] = useState<string | null>(null);
@@ -118,10 +121,16 @@ export function MixEditPage({ mixId }: MixEditPageProps) {
   // qu'il est là, une seule fois, sans écraser une saisie en cours. Ajustement
   // d'état en cours de rendu, comme `AlbumEditPage` : pas de useEffect, pour
   // que la première peinture montre déjà les bonnes valeurs.
-  const readyId = mix ? mix.id : mixId === null ? "__new__" : null;
+  const readyId = mix
+    ? mix.id
+    : mixId === null && identityReady
+      ? "__new__"
+      : null;
   if (readyId !== null && loadedId !== readyId) {
     setLoadedId(readyId);
-    const initial = mix ? formFromMix(mix) : EMPTY_FORM;
+    const initial = mix
+      ? formFromMix(mix)
+      : { ...EMPTY_FORM, artists: releaseArtist };
     setForm(initial);
     setInitialForm(initial);
   }

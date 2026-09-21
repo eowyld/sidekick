@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { usePreferencesData, type Sector } from "@/hooks/usePreferencesData";
 import { removeDemoData, seedDemoData } from "@/lib/demo-seed";
 import { cn } from "@/lib/utils";
+import { IdentityStep } from "./IdentityStep";
 
 const SECTOR_CHOICES: {
   id: Sector;
@@ -34,14 +35,29 @@ const SECTOR_CHOICES: {
   },
 ];
 
+/** Coquille plein écran commune aux étapes d'onboarding. */
+export function OnboardingShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101010]/95 p-6 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-sm border border-[rgba(245,245,245,0.12)] bg-[rgba(44,44,46,0.72)] p-8 backdrop-blur-xl">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Onboarding en deux temps, présenté au premier passage sur le tableau de bord.
+ * Onboarding en trois temps, présenté au premier passage sur le tableau de bord.
  *
- * Étape 1 — secteurs : multi-choix, au moins un. Ce n'est qu'un réglage
+ * Étape 1 — identité : nom d'artiste ou nom propre, enregistré dès la
+ * validation (voir `IdentityStep`). Les comptes créés avant cette étape la
+ * reçoivent seule, depuis le tableau de bord.
+ *
+ * Étape 2 — secteurs : multi-choix, au moins un. Ce n'est qu'un réglage
  * d'affichage, réversible depuis Réglages > Personnalisation ; le texte le dit
  * pour que personne n'hésite par peur de se fermer une porte.
  *
- * Étape 2 — données d'exemple : facultatif, et jamais bloquant. Si le seed
+ * Étape 3 — données d'exemple : facultatif, et jamais bloquant. Si le seed
  * échoue, on entre quand même dans le produit : mieux vaut un compte vide
  * qu'un utilisateur coincé sur un écran de chargement.
  */
@@ -49,7 +65,7 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
   const posthog = usePostHog();
   const { completeOnboarding, setDemoSeed } = usePreferencesData();
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selected, setSelected] = useState<Sector[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -106,12 +122,14 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101010]/95 p-6 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-sm border border-[rgba(245,245,245,0.12)] bg-[rgba(44,44,46,0.72)] p-8 backdrop-blur-xl">
-        {step === 1 ? (
+    <OnboardingShell>
+        {step === 1 && (
+          <IdentityStep eyebrow="Bienvenue" onContinue={() => setStep(2)} />
+        )}
+        {step === 2 && (
           <>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#F0FF00]">
-              Bienvenue
+              Étape 2 sur 3
             </p>
             <h1 className="font-display mt-3 text-3xl sm:text-4xl">
               Qu&apos;est-ce qui te concerne ?
@@ -180,13 +198,14 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
                 size="lg"
                 className="btn-glow gap-2"
                 disabled={selected.length === 0}
-                onClick={() => setStep(2)}
+                onClick={() => setStep(3)}
               >
                 Continuer
               </Button>
             </div>
           </>
-        ) : (
+        )}
+        {step === 3 && (
           <>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#F0FF00]">
               Dernière étape
@@ -238,14 +257,13 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               disabled={busy}
-              onClick={() => setStep(1)}
+              onClick={() => setStep(2)}
               className="mt-6 text-xs text-[#f5f5f5]/40 transition-colors hover:text-[#f5f5f5]/70 disabled:opacity-60"
             >
               ← Revenir aux secteurs
             </button>
           </>
         )}
-      </div>
-    </div>
+    </OnboardingShell>
   );
 }

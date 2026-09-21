@@ -8,6 +8,7 @@ import {
   DEFAULT_SIDEKICK_DATA,
   type InvoiceTemplate,
 } from "@/lib/sidekick-store";
+import type { IdentityMode } from "@/lib/artist-identity";
 
 const KEY = "user_preferences";
 
@@ -40,6 +41,10 @@ type PreferencesRow = {
   /** NULL tant que l'utilisateur n'a pas touché aux réglages de facturation. */
   invoice_template: InvoiceTemplate | null;
   invoice_footer_note: string | null;
+  /** NULL tant que la question « nom d'artiste ou nom propre » n'a pas été posée. */
+  identity_mode: IdentityMode | null;
+  /** Nom affiché, renseigné dès que `identity_mode` l'est. */
+  artist_name: string | null;
 };
 
 /**
@@ -68,6 +73,7 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
   // une base à jour sur les rappels mais pas encore sur la facturation doit
   // continuer à servir `reminders_enabled` et `demo_seed`.
   const SELECTS = [
+    `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note, identity_mode, artist_name`,
     `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note`,
     `${BASE_COLUMNS}, demo_seed, reminders_enabled`,
     BASE_COLUMNS,
@@ -94,6 +100,9 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
       ((data as { invoice_template?: InvoiceTemplate | null }).invoice_template) ?? null,
     invoice_footer_note:
       ((data as { invoice_footer_note?: string | null }).invoice_footer_note) ?? null,
+    identity_mode:
+      ((data as { identity_mode?: IdentityMode | null }).identity_mode) ?? null,
+    artist_name: ((data as { artist_name?: string | null }).artist_name) ?? null,
   };
 }
 
@@ -139,6 +148,8 @@ export function usePreferencesData() {
         reminders_enabled: row?.reminders_enabled ?? true,
         invoice_template: row?.invoice_template ?? null,
         invoice_footer_note: row?.invoice_footer_note ?? null,
+        identity_mode: row?.identity_mode ?? null,
+        artist_name: row?.artist_name ?? null,
         ...patch,
       };
       mutateLocal(nextRow, false);
@@ -200,6 +211,23 @@ export function usePreferencesData() {
   const setInvoiceFooterNote = useCallback(
     (note: string) => {
       persist({ invoice_footer_note: note }, { invoice_footer_note: note });
+    },
+    [persist]
+  );
+
+  /**
+   * Enregistre l'identité de l'artiste. Le nom est toujours stocké résolu,
+   * même en nom propre : la route publique du lien d'écoute ne lit que cette
+   * table. Un nom vide est refusé, l'appelant désactive son bouton avant.
+   */
+  const setArtistIdentity = useCallback(
+    (mode: IdentityMode, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      persist(
+        { identity_mode: mode, artist_name: trimmed },
+        { identity_mode: mode, artist_name: trimmed }
+      );
     },
     [persist]
   );
@@ -272,6 +300,9 @@ export function usePreferencesData() {
     setInvoiceTemplate,
     invoiceFooterNote: row?.invoice_footer_note ?? "",
     setInvoiceFooterNote,
+    identityMode: row?.identity_mode ?? null,
+    artistName: row?.artist_name ?? "",
+    setArtistIdentity,
     onboardingCompleted: Boolean(row?.onboarding_completed_at),
     onboardingSectors: row?.onboarding_sectors ?? [],
     /** false tant que le chargement n'a pas eu lieu — évite le flash de sidebar. */

@@ -14,7 +14,8 @@ import { EventDialog } from "@/components/ui/event-dialog";
 import { formatTimeForDisplay } from "@/lib/utils";
 import { enumerateDateKeysInclusive } from "@/modules/calendar/week-schedule-utils";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
-import { SectorOnboarding } from "@/components/onboarding/SectorOnboarding";
+import { OnboardingShell, SectorOnboarding } from "@/components/onboarding/SectorOnboarding";
+import { IdentityStep } from "@/components/onboarding/IdentityStep";
 import { DashboardHero } from "./DashboardHero";
 import { DashboardWeekRibbon, type RibbonEvent } from "./DashboardWeekRibbon";
 import { DashboardTodayList, type TodayTask } from "./DashboardTodayList";
@@ -64,11 +65,14 @@ export function DashboardPage() {
   const {
     enabledModules: enabled,
     onboardingCompleted,
+    identityMode,
     preferencesReady,
   } = usePreferencesData();
   const { projects } = useProjectsData();
   // Fermé localement dès la validation, sans attendre le rechargement SWR.
   const [onboardingDone, setOnboardingDone] = useState(false);
+  // Comptes créés avant l'étape identité : on la leur pose une fois, seule.
+  const [identityDone, setIdentityDone] = useState(false);
 
   const { tasks, setTasks, error: tasksError } = useTasksData();
   const { tourDates, rehearsals, error: liveError } = useLiveData();
@@ -353,6 +357,8 @@ export function DashboardPage() {
   );
 
   const showOnboarding = preferencesReady && !onboardingCompleted && !onboardingDone;
+  const showIdentityOnly =
+    preferencesReady && onboardingCompleted && identityMode === null && !identityDone;
 
   // Compte réellement vierge : aucune donnée dans les modules du tableau de
   // bord. Le seed de démonstration remplit ces tables, la carte disparaît donc
@@ -365,6 +371,14 @@ export function DashboardPage() {
 
   if (showOnboarding) {
     return <SectorOnboarding onDone={() => setOnboardingDone(true)} />;
+  }
+
+  if (showIdentityOnly) {
+    return (
+      <OnboardingShell>
+        <IdentityStep eyebrow="Nouveau" onContinue={() => setIdentityDone(true)} />
+      </OnboardingShell>
+    );
   }
 
   return (

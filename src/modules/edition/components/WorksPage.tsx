@@ -9,6 +9,8 @@ import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
 import { useProjectsData } from "@/hooks/useProjectsData";
 import { usePhonoData } from "@/hooks/usePhonoData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
+import { selfPerson } from "@/lib/artist-identity";
 import type { Work, Person, PersonRole, SplitEntry, SacemRepartition, EditionPublisher } from "@/lib/sidekick-store";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
@@ -724,7 +726,7 @@ const WorkForm = memo(function WorkForm({ work, setWork }: WorkFormProps) {
       {/* Artiste + Titre */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>Nom du groupe / de l&apos;artiste *</Label>
+          <Label>Nom (état civil) *</Label>
           <Input
             value={work.artistName}
             onChange={(e) => setWork((p) => ({ ...p, artistName: e.target.value }))}
@@ -1320,6 +1322,14 @@ export function WorksPage() {
   const { works, setWorks, loading, error } = useEditionData();
   const { projects, patchProjectLinks } = useProjectsData();
   const { tracks } = usePhonoData();
+  const { legal, identityMode, artistName } = useArtistIdentity();
+  // Une œuvre se déclare sous l'identité civile de ses auteurs : nom civil, et
+  // l'utilisateur d'office comme ayant droit (retirable). Fonction et non
+  // valeur : chaque ouverture tire un nouvel identifiant d'ayant droit.
+  const blankWork = (): Omit<Work, "id"> => {
+    const self = selfPerson(legal, identityMode, artistName);
+    return { ...DEFAULT_WORK, artistName: legal.full, persons: self ? [self] : [] };
+  };
   const searchParams = useSearchParams();
   const projectIdParam = searchParams.get("projectId");
 
@@ -1351,7 +1361,7 @@ export function WorksPage() {
   };
 
   const handleAddWork = () => {
-    if (!newWork.artistName.trim()) { toast.error("Le nom du groupe / de l'artiste est requis."); return; }
+    if (!newWork.artistName.trim()) { toast.error("Le nom (état civil) est requis."); return; }
     if (!newWork.title.trim()) { toast.error("Le titre de l'œuvre est requis."); return; }
     if (newWork.persons.length === 0) { toast.error("Au moins une personne est requise."); return; }
     if (!isSplitValid(newWork)) { toast.error("La répartition interne doit totaliser 100% pour chaque catégorie."); return; }
@@ -1366,7 +1376,7 @@ export function WorksPage() {
       }
     }
     setIsAddOpen(false);
-    setNewWork(DEFAULT_WORK);
+    setNewWork(blankWork());
     posthog?.capture("work_created", { module: "edition" });
     posthog?.capture("item_created", { module: "edition" });
     toast.success(`« ${work.title} » ajoutée au catalogue.`);
@@ -1374,7 +1384,7 @@ export function WorksPage() {
 
   const handleEditWork = () => {
     if (!selectedWork) return;
-    if (!editWork.artistName.trim()) { toast.error("Le nom du groupe / de l'artiste est requis."); return; }
+    if (!editWork.artistName.trim()) { toast.error("Le nom (état civil) est requis."); return; }
     if (!editWork.title.trim()) { toast.error("Le titre de l'œuvre est requis."); return; }
     if (editWork.persons.length === 0) { toast.error("Au moins une personne est requise."); return; }
     if (!isSplitValid(editWork)) { toast.error("La répartition interne doit totaliser 100% pour chaque catégorie."); return; }
@@ -1412,7 +1422,7 @@ export function WorksPage() {
             Cataloguez vos œuvres musicales et gérez vos droits d&apos;édition
           </p>
         </div>
-        <Button onClick={() => { setNewWork(DEFAULT_WORK); setIsAddOpen(true); }}>
+        <Button onClick={() => { setNewWork(blankWork()); setIsAddOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" /> Ajouter une œuvre
         </Button>
       </div>
@@ -1443,7 +1453,7 @@ export function WorksPage() {
           icon={BookOpen}
           title="Aucune œuvre déposée"
           description="Tes œuvres éditoriales (compositions, textes, arrangements) : référence-les ici et suis leurs dépôts SACEM."
-          action={{ label: "Ajouter une œuvre", onClick: () => { setNewWork(DEFAULT_WORK); setIsAddOpen(true); } }}
+          action={{ label: "Ajouter une œuvre", onClick: () => { setNewWork(blankWork()); setIsAddOpen(true); } }}
         />
       ) : (
         <div className="space-y-4">

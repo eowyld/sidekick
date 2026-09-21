@@ -37,13 +37,22 @@ export async function GET(
     .eq("link_id", row.id)
     .order("position", { ascending: true });
 
-  // `user_presskit_profile` ne porte pas de colonne `artist_name` : le nom
-  // affiché est `artist_title`, avec `streaming_artist_name` en repli.
-  const { data: profile } = await supabase
-    .from("user_presskit_profile")
-    .select("artist_title, streaming_artist_name")
-    .eq("user_id", row.user_id)
-    .maybeSingle();
+  // Nom affiché : l'identité déclarée à l'onboarding (`user_preferences`),
+  // puis le presskit (fermé pour l'alpha, mais peut-être renseigné avant),
+  // puis un libellé neutre. `user_presskit_profile` ne porte pas de colonne
+  // `artist_name` : son nom est `artist_title`, `streaming_artist_name` en repli.
+  const [{ data: prefs }, { data: profile }] = await Promise.all([
+    supabase
+      .from("user_preferences")
+      .select("artist_name")
+      .eq("user_id", row.user_id)
+      .maybeSingle(),
+    supabase
+      .from("user_presskit_profile")
+      .select("artist_title, streaming_artist_name")
+      .eq("user_id", row.user_id)
+      .maybeSingle(),
+  ]);
 
   // Bucket privé, et l'adresse reste sur notre domaine : la pochette est
   // servie par `/cover`, qui refait les mêmes contrôles à chaque requête.
@@ -63,6 +72,7 @@ export async function GET(
         | { artist_title?: string; streaming_artist_name?: string }
         | null;
       return (
+        ((prefs as { artist_name?: string | null } | null)?.artist_name ?? "").trim() ||
         (p?.artist_title ?? "").trim() ||
         (p?.streaming_artist_name ?? "").trim() ||
         "Artiste"
