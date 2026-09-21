@@ -16,3 +16,6 @@ tsconfig.tsbuildinfo
 
 # Dossiers de travail locaux (sources de logos, exports) — non versionnés
 FILES/
+
+# Worktrees git temporaires (superpowers)
+.worktrees/
