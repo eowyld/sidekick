@@ -1,4 +1,4 @@
-import { TECHNICAL_FIELDS, setlistDuration, type TechnicalSheet, type SetlistTrack } from "./live-model";
+import { setlistDuration, type SetlistTrack } from "./live-model";
 export type DocumentSection = {
     title: string;
     lines: string[];
@@ -56,5 +56,4 @@ export async function exportLivePDF(title: string, subtitle: string, sections: D
     }
     pdf.save(`${title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9-]+/g, "-").slice(0, 80)}.pdf`);
 }
-export function technicalSections(value: TechnicalSheet): DocumentSection[] { return TECHNICAL_FIELDS.map(([key, label]) => ({ title: label, lines: [value[key] || "Non renseigné"] })); }
 export function setlistSection(value: SetlistTrack[]): DocumentSection { return { title: `Setlist — ${setlistDuration(value)} min`, lines: value.map((t, i) => `${i + 1}. ${t.title || "Sans titre"}${t.artist ? ` — ${t.artist}` : ""}${t.duration ? ` (${t.duration})` : ""}${t.note ? `\n${t.note}` : ""}`) }; }

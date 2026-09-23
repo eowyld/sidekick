@@ -318,7 +318,17 @@ export function sectorRows(sector: Sector) {
       { id: "demo-set-2", title: "Premières Lueurs", artist: DEMO_ARTIST, duration: "4:15", note: "Enchaîner sans pause." },
       { id: "demo-set-3", title: "À contretemps", artist: DEMO_ARTIST, duration: "3:50", note: "Final, interaction public." },
     ];
-    const technical = { ...emptyTechnical(), team: "Chant, guitare, claviers / machines", sound: "2 micros voix, 2 DI stéréo, 2 retours de scène", contact: "Contact régie à confirmer", stage: "Espace 5 × 4 m minimum", supplied: "Guitare, pédalier et machines", provided: "Diffusion, micros et retours" };
+    const technical = {
+      ...emptyTechnical(),
+      people: [
+        { id: "demo-person-1", group: "artistic", firstName: "Camille", lastName: "Roux", role: "Chant, guitare" },
+        { id: "demo-person-2", group: "artistic", firstName: "Hugo", lastName: "Lemaire", role: "Claviers, machines" },
+        { id: "demo-person-3", group: "tech", firstName: "", lastName: "Régie du lieu", role: "Contact technique" },
+      ],
+      details: { sound: "2 micros voix, 2 DI stéréo, 2 retours de scène", light: "", stage: "Espace 5 × 4 m minimum", other: "" },
+      brought: [{ id: "demo-brought-1", name: "Machines et pédalier", quantity: 1, category: "other" }],
+      venue: [{ id: "demo-venue-1", name: "Diffusion", quantity: 1, category: "sound" }, { id: "demo-venue-2", name: "Retours de scène", quantity: 2, category: "sound" }],
+    };
     return {
       user_live_productions: [
         { id: "demo-live-show", title: "Premières Lueurs — Live", kind: "show", data: { description: "Un live entre chanson et textures électroniques.", setlist, technical, equipmentListIds: ["demo-live-kit"], preparation: { concept: "done", setlist: "done", team: "done", technical: "done" } } },
@@ -427,10 +437,10 @@ export function sectorRows(sector: Sector) {
       ] as SeedRow[],
 
       user_equipment_inventory: [
-        { id: "demo-equip-1", name: "Guitare électrique", quantity: 1, condition: "bon", comment: "" },
-        { id: "demo-equip-2", name: "Pédalier d'effets", quantity: 1, condition: "bon", comment: "" },
-        { id: "demo-equip-3", name: "Câbles jack 6m", quantity: 6, condition: "moyen", comment: "En racheter deux." },
-        { id: "demo-equip-4", name: "Retour de scène", quantity: 2, condition: "bon", comment: "" },
+        { id: "demo-equip-1", name: "Guitare électrique", quantity: 1, condition: "bon", comment: "", category: "other" },
+        { id: "demo-equip-2", name: "Pédalier d'effets", quantity: 1, condition: "bon", comment: "", category: "sound" },
+        { id: "demo-equip-3", name: "Câbles jack 6m", quantity: 6, condition: "moyen", comment: "En racheter deux.", category: "sound" },
+        { id: "demo-equip-4", name: "Retour de scène", quantity: 2, condition: "bon", comment: "", category: "sound" },
       ] as SeedRow[],
     };
   }

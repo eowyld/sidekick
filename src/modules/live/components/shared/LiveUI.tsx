@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { progress, type PreparationState } from "../../lib/live-model";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { isChecked, progress, type EquipmentCategory, type PreparationState } from "../../lib/live-model";
+import { CATEGORY_COLOR } from "../../lib/live-equipment";
 export function LiveHeader({ title, eyebrow = "LIVE", description, actions, back }: {
     title: string;
     eyebrow?: string;
@@ -87,7 +89,7 @@ export function TextField({ label, value, onChange, area, placeholder, type = "t
     {area ? <Textarea id={id} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3}/> : <Input id={id} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type} required={required} min={min}/>}
     </div>;
 }
-export function Choice({ label, value, onChange, options, placeholder = "Choisir", optional }: {
+export function Choice({ label, value, onChange, options, placeholder = "Choisir", optional, noneLabel = "Aucun" }: {
     label: string;
     value?: string;
     onChange: (value: string) => void;
@@ -97,6 +99,8 @@ export function Choice({ label, value, onChange, options, placeholder = "Choisir
     }[];
     placeholder?: string;
     optional?: boolean;
+    /** Libellé de l'option vide quand `optional` : « Hors tournée », « Toutes »… */
+    noneLabel?: string;
 }) {
     const id = useId();
     return <div className="min-w-0 space-y-2">
@@ -109,7 +113,7 @@ export function Choice({ label, value, onChange, options, placeholder = "Choisir
     </SelectTrigger>
     <SelectContent>
         {(optional || !value) && <SelectItem value="__none">
-        {optional ? "Aucun" : placeholder}
+        {optional ? noneLabel : placeholder}
         </SelectItem>}
         {options.map(o => <SelectItem key={o.value} value={o.value}>
         {o.label}
@@ -143,19 +147,17 @@ export function Preparation({ steps, value, onChange, color = "#F0FF00" }: {
     </div>
     <ProgressBar percent={p.percent} color={color}/>
     <div className="divide-y divide-[#F5F5F5]/[.06]">
-        {steps.map(([id, label]) => <div key={id} className="flex items-center justify-between gap-2 py-2.5">
-        <button type="button" onClick={() => onChange({ ...value, [id]: value[id] === "done" ? "todo" : "done" })} aria-pressed={value[id] === "done"} className="flex items-center gap-2 text-left text-xs focus-visible:outline-[#F0FF00]">
-        <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full border", value[id] === "done" ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-400" : "border-[#F5F5F5]/20 text-[#F5F5F5]/40")}>
-        {value[id] === "done" && <Check size={12}/>}
+        {steps.map(([id, label]) => {
+        const done = isChecked(value[id]);
+        return <div key={id} className="py-2.5">
+        <button type="button" onClick={() => onChange({ ...value, [id]: done ? "todo" : "done" })} aria-pressed={done} className="flex items-center gap-2 text-left text-xs focus-visible:outline-[#F0FF00]">
+        <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full border", done ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-400" : "border-[#F5F5F5]/20 text-[#F5F5F5]/40")}>
+        {done && <Check size={12}/>}
         </span>
-        <span className={cn(value[id] === "na" && "text-[#F5F5F5]/35 line-through")}>
-        {label}
-        </span>
+        <span>{label}</span>
         </button>
-        <button type="button" onClick={() => onChange({ ...value, [id]: value[id] === "na" ? "todo" : "na" })} className="shrink-0 text-[10px] text-[#F5F5F5]/45 hover:text-[#F5F5F5]" aria-label={`${label} : ${value[id] === "na" ? "rendre nécessaire" : "non nécessaire"}`}>
-        {value[id] === "na" ? "Rétablir" : "Non nécessaire"}
-        </button>
-        </div>)}
+        </div>;
+        })}
     </div>
     </div>;
 }
@@ -166,16 +168,58 @@ export function Segments({ value, onChange, items }: {
         id: string;
         label: string;
         count?: number;
+        /** Onglet visible mais inaccessible : la raison s'affiche au survol. */
+        disabledHint?: string;
     }[];
 }) {
     return <div className="flex flex-wrap gap-1 border-b border-[#F5F5F5]/10" role="group" aria-label="Afficher">
-        {items.map(i => <button key={i.id} type="button" onClick={() => onChange(i.id)} aria-pressed={value === i.id} className={cn("border-b-2 px-4 py-3 text-xs font-medium transition-colors focus-visible:outline-[#F0FF00]", value === i.id ? "border-[#F0FF00] text-[#F0FF00]" : "border-transparent text-[#F5F5F5]/50 hover:text-[#F5F5F5]")}>
+        {items.map(i => {
+        const tab = <button key={i.id} type="button" disabled={!!i.disabledHint} onClick={() => onChange(i.id)} aria-pressed={value === i.id} className={cn("border-b-2 px-4 py-3 text-xs font-medium transition-colors focus-visible:outline-[#F0FF00] disabled:cursor-not-allowed disabled:text-[#F5F5F5]/25", value === i.id ? "border-[#F0FF00] text-[#F0FF00]" : "border-transparent text-[#F5F5F5]/50 hover:text-[#F5F5F5]")}>
         {i.label}
             {i.count !== undefined && <span className="ml-2 opacity-60">
             {i.count}
             </span>}
-        </button>)}
+        </button>;
+        if (!i.disabledHint)
+            return tab;
+        // Un bouton désactivé ne reçoit pas le survol : l'infobulle s'accroche à l'enveloppe.
+        return <TooltipProvider key={i.id} delayDuration={150}>
+        <Tooltip>
+        <TooltipTrigger asChild>
+        <span tabIndex={0} className="inline-flex">{tab}</span>
+        </TooltipTrigger>
+        <TooltipContent>{i.disabledHint}</TooltipContent>
+        </Tooltip>
+        </TooltipProvider>;
+    })}
     </div>;
+}
+/**
+ * Échec d'enregistrement, en bandeau. Volontairement non bloquant : l'écran
+ * reste affiché pour que la saisie en cours ne soit pas perdue.
+ */
+export function WriteError({ message }: {
+    message: string | null;
+}) {
+    if (!message)
+        return null;
+    return <p role="alert" className="mb-4 rounded-lg border border-rose-400/25 bg-rose-400/[.07] px-4 py-3 text-sm text-rose-300">
+    {message}
+    </p>;
+}
+/** Intitulé d'une catégorie de matériel, avec sa pastille de couleur. */
+export function CategoryTag({ category, label, count, className }: {
+    category: EquipmentCategory;
+    label: string;
+    count?: number;
+    className?: string;
+}) {
+    const color = CATEGORY_COLOR[category];
+    return <span className={cn("inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest", className)} style={{ color }}>
+    <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }}/>
+    {label}
+    {count !== undefined && <span className="opacity-60">{count}</span>}
+    </span>;
 }
 export function Jump({ href, children }: {
     href: string;

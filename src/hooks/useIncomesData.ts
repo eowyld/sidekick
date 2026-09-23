@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
+import { fetchAll } from "@/lib/fetch-all";
 import type {
   Distributor,
   DistributorImport,
@@ -208,9 +209,9 @@ async function fetchIncomesData(): Promise<IncomesData> {
 
   const [imp, man, inv, mis] = await Promise.all([
     supabase.from("user_royalties_imports").select("*"),
-    supabase.from("user_royalties_manual").select("*").order("created_at", { ascending: false }),
-    supabase.from("user_invoices").select("*").order("created_at", { ascending: false }),
-    supabase.from("user_intermittence_missions").select("*").order("date", { ascending: false }),
+    fetchAll((from, to) => supabase.from("user_royalties_manual").select("*").order("created_at", { ascending: false }).order("id").range(from, to)),
+    fetchAll((from, to) => supabase.from("user_invoices").select("*").order("created_at", { ascending: false }).order("id").range(from, to)),
+    fetchAll((from, to) => supabase.from("user_intermittence_missions").select("*").order("date", { ascending: false }).order("id").range(from, to)),
   ]);
 
   const imports: ImportsStore = { ...EMPTY_IMPORTS };

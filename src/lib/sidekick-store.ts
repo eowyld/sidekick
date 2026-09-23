@@ -603,11 +603,18 @@ export interface InvoiceTemplate {
   accentColor: string;
   /** Clé de la police (voir INVOICE_FONTS dans le module incomes). */
   fontFamily: string;
-  /** Logo en data URL base64, affiché en en-tête. */
-  logoDataUrl?: string;
   /** Termes et conditions affichés en bas de chaque facture. */
   termsAndConditions?: string;
+  /**
+   * Mise en page du PDF de fiche technique (module Live). Rangée ici pour que
+   * couleur, police et logo restent communs à tous les documents de l'artiste,
+   * sans colonne de plus en base (`user_preferences.invoice_template`, jsonb).
+   */
+  technicalLayout?: TechnicalLayout;
 }
+
+/** Mises en page proposées pour la fiche technique. Absent = « classic ». */
+export type TechnicalLayout = "classic" | "poster" | "compact";
 
 export const DEFAULT_TERMS_AND_CONDITIONS =
   `En cas de retard de paiement, seront exigibles, conformément au code de commerce, une indemnité calculée sur la base de trois fois le taux de l'intérêt légal en vigueur ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40€.\nPas d'escompte en cas de paiement anticipé.`;

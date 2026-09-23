@@ -33,6 +33,8 @@ export interface InvoiceDocumentData {
   notes?: string;
   issuer: InvoiceIssuer;
   template: InvoiceTemplate;
+  /** Logo de l'artiste, déjà filtré par son interrupteur (`logoFor(…, "invoices")`). */
+  logo?: string;
 }
 
 const MUTED = "#6b7280";
@@ -189,13 +191,13 @@ export function InvoiceDocument({ data }: { data: InvoiceDocumentData }) {
         {/* En-tête : émetteur gauche / client droite */}
         <View style={s.header}>
           <View style={s.headerLeft}>
-            {data.template.logoDataUrl ? (
+            {data.logo ? (
               // eslint-disable-next-line jsx-a11y/alt-text
-              <Image src={data.template.logoDataUrl} style={s.logo} />
+              <Image src={data.logo} style={s.logo} />
             ) : (
               <Text style={s.issuerName}>{data.issuer.name}</Text>
             )}
-            {data.template.logoDataUrl ? (
+            {data.logo ? (
               <Text style={[s.issuerLine, { marginTop: 6, fontWeight: 600, color: TEXT }]}>
                 {data.issuer.name}
               </Text>

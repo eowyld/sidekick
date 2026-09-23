@@ -8,14 +8,54 @@ export type SetlistTrack = {
     note: string;
     trackId?: string;
 };
+export type EquipmentCategory = "sound" | "light" | "stage" | "other";
+/** L'ordre est celui de l'affichage, et de tri partout où du matériel est listé. */
+export const EQUIPMENT_CATEGORIES: readonly (readonly [
+    EquipmentCategory,
+    string
+])[] = [["sound", "Son"], ["light", "Lumière"], ["stage", "Scène et implantation"], ["other", "Autre matériel"]];
+/** Un élément de matériel dans une fiche technique. `itemId` renvoie à l'inventaire quand l'ajout en vient ; nom, quantité et catégorie sont des copies faites à l'ajout. */
+export type SheetItem = {
+    id: string;
+    name: string;
+    quantity: number;
+    category: EquipmentCategory;
+    itemId?: string;
+};
+export type PersonGroup = "tech" | "artistic" | "organisation" | "other";
+/** L'ordre est celui de l'affichage, dans la fiche comme dans le PDF. */
+export const PERSON_GROUPS: readonly (readonly [
+    PersonGroup,
+    string
+])[] = [["tech", "Équipe technique"], ["artistic", "Équipe artistique"], ["organisation", "Organisation"], ["other", "Autres"]];
+/**
+ * Une personne de l'équipe ou un contact du lieu. `contactId` la relie au module
+ * Contacts : la fiche affiche alors le contact à jour, et une modification faite
+ * depuis la fiche est enregistrée dans les deux. Les champs gardent une copie, qui
+ * sert si le contact est supprimé.
+ */
+export type SheetPerson = {
+    id: string;
+    group: PersonGroup;
+    firstName: string;
+    lastName: string;
+    role: string;
+    email?: string;
+    phone?: string;
+    instagram?: string;
+    city?: string;
+    notes?: string;
+    contactId?: string;
+};
 export type TechnicalSheet = {
-    team: string;
-    stage: string;
-    sound: string;
-    lights: string;
-    supplied: string;
-    provided: string;
-    contact: string;
+    /** Équipe sur scène et contacts techniques, une ligne par personne. Remplace les anciens textes `contact` et `team`. */
+    people: SheetPerson[];
+    /** « Détails » de chaque catégorie. */
+    details: Record<EquipmentCategory, string>;
+    /** Matériel apporté EN PLUS des listes cochées (`equipmentListIds`). */
+    brought: SheetItem[];
+    /** Matériel à fournir par la salle. */
+    venue: SheetItem[];
 };
 export type LogisticsEntry = {
     id: string | number;
@@ -47,6 +87,8 @@ export type LiveDetails = {
     endTime?: string;
     location?: string;
     legacyImported?: boolean;
+    /** Programme de la représentation déclaré à la SACEM (lu par la vie de l'œuvre, module Édition). */
+    sacemProgramDeclared?: boolean;
 };
 export type LiveProduction = {
     id: string;
@@ -72,18 +114,23 @@ export function productionSteps(kind: LiveKind): readonly (readonly [
 ])[] {
     if (kind === "tour")
         return [["booking", "Prospection"], ["dates", "Dates confirmées"], ["fees", "Cachets convenus"], ["logistics", "Logistique préparée"]];
-    return [["concept", kind === "dj" ? "Ambiance & direction musicale" : "Concept du spectacle"], ["setlist", kind === "dj" ? "Sélection & structure du set" : "Setlist construite"], ["team", "Équipe réunie"], ["equipment", "Matériel préparé"], ["rehearsal", "Répétitions effectuées"], ["technical", "Fiche technique prête"]];
+    return [["concept", kind === "dj" ? "Ambiance & direction musicale" : "Concept du spectacle"], ["setlist", kind === "dj" ? "Sélection & structure du set" : "Setlist construite"], ["team", "Équipe réunie"], ["equipment", "Matériel préparé"], ["technical", "Fiche technique prête"], ["rehearsal", "Répétitions planifiées"]];
 }
-export const emptyTechnical = (): TechnicalSheet => ({ team: "", stage: "", sound: "", lights: "", supplied: "", provided: "", contact: "" });
+export const emptyTechnical = (): TechnicalSheet => ({ people: [], details: { sound: "", light: "", stage: "", other: "" }, brought: [], venue: [] });
 export const newProduction = (kind: LiveKind = "show"): LiveProduction => ({ id: crypto.randomUUID(), kind, title: "", description: "", setlist: [], technical: emptyTechnical(), preparation: {}, equipmentListIds: [] });
 export function progress(steps: readonly (readonly [
     string,
     string
 ])[], states: Record<string, PreparationState> = {}) {
-    const required = steps.filter(([id]) => states[id] !== "na");
-    const done = required.filter(([id]) => states[id] === "done").length;
-    return { done, total: required.length, percent: required.length ? Math.round(done / required.length * 100) : 100, next: required.find(([id]) => states[id] !== "done")?.[1] };
+    const done = steps.filter(([id]) => isChecked(states[id])).length;
+    return { done, total: steps.length, percent: steps.length ? Math.round(done / steps.length * 100) : 100, next: steps.find(([id]) => !isChecked(states[id]))?.[1] };
 }
+/**
+ * Une étape est cochée ou ne l'est pas. `na` (« sans objet ») n'est plus
+ * proposé depuis le 22/09 : les étapes ainsi marquées se lisent cochées, ce
+ * qui garde leur pourcentage, et se décochent comme les autres.
+ */
+export const isChecked = (state?: PreparationState) => state === "done" || state === "na";
 export function dateISO(value: string): string {
     if (!value.includes("/"))
         return value.slice(0, 10);
@@ -96,10 +143,3 @@ export function todayISO(): string { const d = new Date(); return `${d.getFullYe
 export function money(value: string | number): number { return Number(String(value).replace(/\s/g, "").replace(",", ".")) || 0; }
 export function durationSeconds(value: string): number { const parts = value.split(":").map(Number); return parts.some(n => !Number.isFinite(n) || n < 0) ? 0 : parts.length === 2 ? parts[0] * 60 + parts[1] : (parts[0] || 0) * 60; }
 export function setlistDuration(items: SetlistTrack[]): string { const seconds = items.reduce((n, t) => n + durationSeconds(t.duration), 0); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`; }
-export const TECHNICAL_FIELDS: readonly (readonly [
-    keyof TechnicalSheet,
-    string,
-    string
-])[] = [
-    ["contact", "Contact technique", "Nom, téléphone, email"], ["team", "Équipe sur scène", "Artistes, instruments, techniciens"], ["stage", "Scène & implantation", "Dimensions, disposition, alimentation électrique"], ["sound", "Son & retours", "Entrées, micros, DI, retours, régie ou configuration DJ"], ["lights", "Lumière", "Ambiances, conduite, besoins spécifiques"], ["supplied", "Matériel apporté", "Ce que tu apportes"], ["provided", "Matériel à fournir par le lieu", "Backline, platines, table de mixage…"]
-];

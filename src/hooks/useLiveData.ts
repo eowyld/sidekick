@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { LiveDetails, LiveProduction } from "@/modules/live/lib/live-model";
-import { emptyTechnical } from "@/modules/live/lib/live-model";
+import type { EquipmentCategory, LiveDetails, LiveProduction } from "@/modules/live/lib/live-model";
+import { normalizeCategory, normalizeTechnical } from "@/modules/live/lib/live-equipment";
 import { migrateLiveDetails } from "@/modules/live/lib/migrate-live-details";
+import { migrateLiveTourLinks } from "@/modules/live/lib/migrate-live-tour-links";
 import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
+import { fetchAll } from "@/lib/fetch-all";
 import type { TourDate, TimetableItem } from "@/modules/live/data/defaultRepresentations";
 
 export type { TourDate, TimetableItem };
@@ -29,6 +31,7 @@ export type EquipmentInventoryItem = {
   name: string;
   quantity: number;
   condition: string;
+  category: EquipmentCategory;
   comment?: string;
 };
 
@@ -68,6 +71,8 @@ export type ProspectionEntry = {
   lastContact?: string;
   touchpoints: ContactTouchpoint[];
   reliabilityTier: ReliabilityTier;
+  /** Tournée pour laquelle ce lieu est démarché. */
+  tourId?: string;
 };
 
 type LiveData = {
@@ -77,6 +82,20 @@ type LiveData = {
   inventory: EquipmentInventoryItem[];
   lists: EquipmentList[];
   prospection: ProspectionEntry[];
+  /** Tranches dont le chargement a échoué ; le reste du module reste utilisable. */
+  unavailable: readonly LiveSlice[];
+};
+
+/** Les six tranches chargées indépendamment par le module Live. */
+export type LiveSlice = "productions" | "tourDates" | "rehearsals" | "inventory" | "lists" | "prospection";
+
+const SLICE_LABELS: Record<LiveSlice, string> = {
+  productions: "les spectacles",
+  tourDates: "les dates",
+  rehearsals: "les répétitions",
+  inventory: "le matériel",
+  lists: "les listes de matériel",
+  prospection: "la prospection",
 };
 
 const KEY = "user_live";
@@ -88,9 +107,22 @@ const EMPTY: LiveData = {
   inventory: [],
   lists: [],
   prospection: [],
+  unavailable: [],
 };
 
+/** « les dates », « les dates et le matériel », « les dates, le matériel et la prospection ». */
+function joinFr(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`;
+}
+
 // ─── Row mappers ─────────────────────────────────────────────────────────────
+
+/** Les `details` d'un événement : sa fiche technique, si elle en a une, est lue quelle que soit sa forme. */
+function normalizeDetails(raw: unknown): LiveDetails {
+  const details = ((raw as LiveDetails | null) ?? {}) as LiveDetails;
+  return details.technical ? { ...details, technical: normalizeTechnical(details.technical) } : details;
+}
 
 function tourDateToRow(d: TourDate, userId: string): Record<string, unknown> {
   return {
@@ -116,7 +148,7 @@ function tourDateToRow(d: TourDate, userId: string): Record<string, unknown> {
 
 function rowToTourDate(row: Record<string, unknown>): TourDate {
   return {
-    details: (row.details as LiveDetails) ?? {},
+    details: normalizeDetails(row.details),
     id: row.id as number,
     city: row.city as string,
     venue: row.venue as string,
@@ -155,7 +187,7 @@ function rehearsalToRow(r: RehearsalItem, userId: string): Record<string, unknow
 function rowToRehearsal(row: Record<string, unknown>): RehearsalItem {
   return {
     id: row.id as string,
-    details: (row.details as LiveDetails) ?? {},
+    details: normalizeDetails(row.details),
     label: (row.label as string) ?? undefined,
     date: row.date as string,
     time: row.time as string,
@@ -175,6 +207,7 @@ function inventoryItemToRow(item: EquipmentInventoryItem, userId: string): Recor
     name: item.name,
     quantity: item.quantity,
     condition: item.condition,
+    category: item.category,
     comment: item.comment ?? null,
   };
 }
@@ -185,6 +218,7 @@ function rowToInventoryItem(row: Record<string, unknown>): EquipmentInventoryIte
     name: row.name as string,
     quantity: row.quantity as number,
     condition: ({ bon: "Bon", neuf: "Neuf", moyen: "Moyen", "à réparer": "A réparer", "a réparer": "A réparer" } as Record<string, string>)[String(row.condition).toLocaleLowerCase()] ?? String(row.condition),
+    category: normalizeCategory(row.category),
     comment: (row.comment as string) ?? undefined,
   };
 }
@@ -241,6 +275,7 @@ function prospectionToRow(e: ProspectionEntry, userId: string): Record<string, u
     touchpoints,
     reliability_tier: e.reliabilityTier ?? "neutral",
     last_contact: lastContact ?? null,
+    tour_id: e.tourId ?? null,
   };
 }
 
@@ -261,6 +296,7 @@ function rowToProspection(row: Record<string, unknown>): ProspectionEntry {
     touchpoints,
     reliabilityTier,
     lastContact: getLastContactFromTouchpoints(touchpoints),
+    tourId: (row.tour_id as string) ?? undefined,
   };
 }
 
@@ -272,24 +308,42 @@ async function fetchLiveData(): Promise<LiveData> {
   if (!user) return EMPTY;
 
   const [td, rh, inv, lists, pro, productions] = await Promise.all([
-    supabase.from("user_tour_dates").select("*").order("date"),
+    fetchAll((from, to) => supabase.from("user_tour_dates").select("*").order("date").order("id").range(from, to)),
     supabase.from("user_rehearsals").select("*").order("date"),
     supabase.from("user_equipment_inventory").select("*").order("name"),
     supabase.from("user_equipment_lists").select("*").order("name"),
-    supabase.from("user_live_prospection").select("*").order("venue_name"),
+    fetchAll((from, to) => supabase.from("user_live_prospection").select("*").order("venue_name").order("id").range(from, to)),
     supabase.from("user_live_productions").select("*" ).order("created_at"),
   ]);
 
-  const failed = [td, rh, inv, lists, pro, productions].find(result => result.error);
-  if (failed?.error) throw new Error("Impossible de charger tes données Live. Réessaie dans quelques instants.");
-  await migrateLiveDetails(supabase, user.id, td.data ?? [], rh.data ?? []);
+  // Chaque tranche dégrade pour elle-même : une table indisponible ne doit pas
+  // emporter les cinq autres. On remonte la liste de ce qui manque pour que
+  // l'écran le dise, plutôt que d'afficher un module vide sans explication.
+  const unavailable = ([
+    ["tourDates", td],
+    ["rehearsals", rh],
+    ["inventory", inv],
+    ["lists", lists],
+    ["prospection", pro],
+    ["productions", productions],
+  ] as const).filter(([, result]) => result.error).map(([slice]) => slice);
+
+  // La reprise des anciens champs réécrit dates et répétitions : la lancer sur
+  // un chargement partiel écraserait du contenu par du vide.
+  if (!td.error && !rh.error) await migrateLiveDetails(supabase, user.id, td.data ?? [], rh.data ?? []);
+
+  // Même précaution : sans les trois tranches, on ne sait pas ce qui manque.
+  if (!td.error && !rh.error && !productions.error)
+    await migrateLiveTourLinks(supabase, user.id, productions.data ?? [], [["user_tour_dates", td.data ?? []], ["user_rehearsals", rh.data ?? []]]);
+
   return {
-    productions: (productions.data ?? []).map(row => ({ setlist: [], preparation: {}, equipmentListIds: [], technical: emptyTechnical(), ...row.data, id: row.id, title: row.title, kind: row.kind } as LiveProduction)),
+    productions: productions.error ? [] : (productions.data ?? []).map(row => ({ setlist: [], preparation: {}, equipmentListIds: [], ...row.data, id: row.id, title: row.title, kind: row.kind, technical: normalizeTechnical(row.data?.technical) } as LiveProduction)),
     tourDates: td.error ? [] : (td.data ?? []).map(rowToTourDate),
     rehearsals: rh.error ? [] : (rh.data ?? []).map(rowToRehearsal),
     inventory: inv.error ? [] : (inv.data ?? []).map(rowToInventoryItem),
     lists: lists.error ? [] : (lists.data ?? []).map(rowToEquipmentList),
     prospection: pro.error ? [] : (pro.data ?? []).map(rowToProspection),
+    unavailable,
   };
 }
 
@@ -396,6 +450,18 @@ export function useLiveData() {
     prospection: allData.prospection,
     setProspection,
     loading: isLoading,
-    error: error ?? (fetchError ? String(fetchError) : null),
+    /** Erreur d'écriture, ou panne totale du chargement. */
+    error: error ?? (fetchError ? "Impossible de charger tes données Live. Réessaie dans quelques instants." : null),
+    unavailable: allData.unavailable,
+    /**
+     * Message si l'une des tranches demandées n'a pas pu être chargée, sinon
+     * `null`. Chaque écran n'interroge que les tranches dont il dépend : une
+     * table en panne ne doit bloquer que les écrans qui s'en servent.
+     */
+    sliceError: (...slices: LiveSlice[]): string | null => {
+      const down = slices.filter(slice => allData.unavailable.includes(slice));
+      if (!down.length) return null;
+      return `Impossible de charger ${joinFr(down.map(slice => SLICE_LABELS[slice]))}. Réessaie dans quelques instants.`;
+    },
   };
 }
