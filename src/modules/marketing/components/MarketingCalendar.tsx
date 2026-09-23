@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CalendarDays, ChevronLeft, ChevronRight, FolderOpen, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useSidekickData } from "@/hooks/useSidekickData";
@@ -43,6 +44,7 @@ import {
   type EditorialStatus,
   normalizeEditorialEvent
 } from "@/modules/marketing/data/calendrier-editorial";
+import { userErrorMessage } from "@/lib/user-error";
 
 const WEEK_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -159,6 +161,7 @@ function stripExtension(name: string): string {
 }
 
 export function MarketingCalendar() {
+  const { confirm, confirmDialog } = useConfirm();
   const { data, setData } = useSidekickData();
   const { marketingEvents: eventsFromDb, setMarketingEvents, loading, error } = useMarketingData();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
@@ -461,7 +464,7 @@ export function MarketingCalendar() {
       setSelectedFile(null);
       setUploadFileName("");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur pendant l'upload.";
+      const message = userErrorMessage(err, "Erreur pendant l'import.");
       setUploadError(message);
     } finally {
       setUploadingFiles(false);
@@ -508,10 +511,10 @@ export function MarketingCalendar() {
     setDialogOpen(false);
   };
 
-  const deleteEvent = (id: string) => {
+  const deleteEvent = async (id: string) => {
     const target = events.find((event) => event.id === id);
     if (!target) return;
-    if (!window.confirm(`Supprimer "${target.title}" ?`)) return;
+    if (!(await confirm({ title: `Supprimer « ${target.title} » ?` }))) return;
     persistEvents((prev) => prev.filter((item) => String(item.id) !== id));
   };
 
@@ -1084,6 +1087,8 @@ export function MarketingCalendar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   );
 }

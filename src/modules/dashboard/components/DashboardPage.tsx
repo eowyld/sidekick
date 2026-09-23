@@ -10,6 +10,7 @@ import { usePhonoData } from "@/hooks/usePhonoData";
 import { useCalendarData } from "@/hooks/useCalendarData";
 import { useDashboardHero } from "@/hooks/useDashboardHero";
 import { PageError } from "@/components/ui/page-error";
+import { PageLoader } from "@/components/ui/page-loader";
 import { EventDialog } from "@/components/ui/event-dialog";
 import { formatTimeForDisplay } from "@/lib/utils";
 import { enumerateDateKeysInclusive } from "@/modules/calendar/week-schedule-utils";
@@ -68,17 +69,29 @@ export function DashboardPage() {
     identityMode,
     preferencesReady,
   } = usePreferencesData();
-  const { projects } = useProjectsData();
+  const { projects, loading: projectsLoading } = useProjectsData();
   // Fermé localement dès la validation, sans attendre le rechargement SWR.
   const [onboardingDone, setOnboardingDone] = useState(false);
   // Comptes créés avant l'étape identité : on la leur pose une fois, seule.
   const [identityDone, setIdentityDone] = useState(false);
 
-  const { tasks, setTasks, error: tasksError } = useTasksData();
-  const { tourDates, rehearsals, error: liveError } = useLiveData();
-  const { invoices, error: incomesError } = useIncomesData();
-  const { sessions, albums, tracks, mixes, error: phonoError } = usePhonoData();
-  const { customEvents, error: calendarError } = useCalendarData();
+  const { tasks, setTasks, loading: tasksLoading, error: tasksError } = useTasksData();
+  const { tourDates, rehearsals, loading: liveLoading, error: liveError } = useLiveData();
+  const { invoices, loading: incomesLoading, error: incomesError } = useIncomesData();
+  const { sessions, albums, tracks, mixes, loading: phonoLoading, error: phonoError } = usePhonoData();
+  const { customEvents, loading: calendarLoading, error: calendarError } = useCalendarData();
+
+  // Tant qu'un module n'a pas répondu, ses listes valent [] : le tableau de
+  // bord se prendrait pour celui d'un compte vierge (carte « premiers pas »,
+  // compteurs à zéro, semaine vide) avant de se remplir d'un coup.
+  const dataLoading =
+    !preferencesReady ||
+    projectsLoading ||
+    tasksLoading ||
+    liveLoading ||
+    incomesLoading ||
+    phonoLoading ||
+    calendarLoading;
 
   const now = useMemo(() => new Date(), []);
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -262,7 +275,9 @@ export function DashboardPage() {
   }, [tasks]);
 
   const heroPayload = useMemo(() => {
-    if (!preferencesReady) return null;
+    // Attendre toutes les données : la clé SWR du hero est le payload, chaque
+    // module qui répondait déclenchait un nouvel appel à l'API (5 par visite).
+    if (dataLoading) return null;
     type HeroEv = {
       id: string;
       title: string;
@@ -337,7 +352,7 @@ export function DashboardPage() {
       }));
 
     return { tasks: heroTasks, events, projects: heroProjects };
-  }, [preferencesReady, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, projects]);
+  }, [dataLoading, tasks, tourDates, rehearsals, invoices, sessions, albums, tracks, mixes, customEvents, projects]);
 
   const { phrase, accent, loading: heroLoading } = useDashboardHero(heroPayload);
 
@@ -380,6 +395,8 @@ export function DashboardPage() {
       </OnboardingShell>
     );
   }
+
+  if (dataLoading) return <PageLoader />;
 
   return (
     <div>

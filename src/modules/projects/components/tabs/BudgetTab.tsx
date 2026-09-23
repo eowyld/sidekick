@@ -6,6 +6,7 @@ import type { Project } from "@/lib/sidekick-store";
 import { useProjectBudgetData } from "@/hooks/useProjectBudgetData";
 import type { BudgetLine, ProjectExpense } from "@/hooks/useProjectBudgetData";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -157,6 +158,15 @@ function CategoryHeader({
   onToggle: () => void; onStartRename: () => void; onDelete: () => void;
 }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
+
+  const requestDelete = async () => {
+    const ok = await confirm({
+      title: `Supprimer la catégorie « ${name} » ?`,
+      description: "Toutes les lignes de cette catégorie seront supprimées avec elle.",
+    });
+    if (ok) onDelete();
+  };
 
   const openMenu = useCallback((x: number, y: number) => setMenu({ x, y }), []);
 
@@ -206,10 +216,11 @@ function CategoryHeader({
         <ContextMenu
           x={menu.x} y={menu.y}
           onRename={onStartRename}
-          onDelete={onDelete}
+          onDelete={() => void requestDelete()}
           onClose={() => setMenu(null)}
         />
       )}
+      {confirmDialog}
     </>
   );
 }

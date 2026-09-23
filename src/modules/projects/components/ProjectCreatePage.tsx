@@ -19,6 +19,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, focusRing } from "@/lib/utils";
 import type { AlbumType, Person, ProjectObjective, ProjectStatus } from "@/lib/sidekick-store";
+import { userErrorMessage } from "@/lib/user-error";
 
 type DraftRelease = { id: string; title: string; artist: string; type: AlbumType; releaseDate: string; cover: string };
 type DraftWork = { id: string; title: string; artistName: string; persons: Person[] };
@@ -71,7 +72,7 @@ export function ProjectCreatePage() {
     setNewWorks((prev) => [...prev, { id: `w-${crypto.randomUUID()}`, title: "", artistName: identity.legal.full, persons: self ? [self] : [] }]);
   };
   const canSave = title.trim() && sectors.length && objectives.length && newReleases.every((item) => item.title.trim()) && newWorks.every((item) => item.title.trim());
-  const save = async () => { if (!canSave || saving) return; setSaving(true); try { const id = await createProjectBundle({ id: crypto.randomUUID(), title: title.trim(), description: description.trim(), cover: suggestedCover, targetDate, status, sectors, objectives, milestoneStates: {}, linkedAlbumIds: linkedAlbums, linkedTrackIds: linkedTracks, linkedWorkIds: linkedWorks, linkedTourDateIds: linkedDates, newAlbums: newReleases, newWorks }); toast.success("Projet créé et modules reliés."); router.push(`/projects/${id}`); } catch (error) { toast.error(error instanceof Error ? error.message : "Impossible de créer le projet."); setSaving(false); } };
+  const save = async () => { if (!canSave || saving) return; setSaving(true); try { const id = await createProjectBundle({ id: crypto.randomUUID(), title: title.trim(), description: description.trim(), cover: suggestedCover, targetDate, status, sectors, objectives, milestoneStates: {}, linkedAlbumIds: linkedAlbums, linkedTrackIds: linkedTracks, linkedWorkIds: linkedWorks, linkedTourDateIds: linkedDates, newAlbums: newReleases, newWorks }); toast.success("Projet créé et modules reliés."); router.push(`/projects/${id}`); } catch (error) { toast.error(userErrorMessage(error, "Impossible de créer le projet.")); setSaving(false); } };
 
   return <div className="max-w-6xl pb-12"><button onClick={() => router.push("/projects")} className={cn("flex items-center gap-1.5 rounded-sm text-xs text-white/40 hover:text-white", focusRing)}><ArrowLeft size={13} /> Projets</button><div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
     <main className="min-w-0 space-y-5"><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#F0FF00]">Nouveau projet</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Donne un cap à ce que tu crées.</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/50">Choisis ce que ce projet réunit. SIDEKICK connectera les bons modules et construira automatiquement son suivi.</p></div>

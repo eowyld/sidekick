@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase";
 import { getCatalogAudioPaths } from "@/modules/phono/lib/audio-gc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -35,6 +36,7 @@ import {
 import { Plus, FolderOpen, FileText, ChevronRight, Home, RefreshCw, Lock, CheckCircle2, ArrowLeft } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 import { useDriveUpload } from "./DriveUploadProvider";
+import { userErrorMessage } from "@/lib/user-error";
 
 const HIDDEN_STORAGE_FILES = ["_dossier_vide", ".emptyfolderplaceholder"];
 
@@ -122,6 +124,7 @@ export function DocumentsPage() {
     refetch,
     resyncStorageUsed
   } = useDriveData();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -643,7 +646,7 @@ export function DocumentsPage() {
       setRenameValue("");
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de renommer. Réessaie."));
     }
   };
 
@@ -654,8 +657,13 @@ export function DocumentsPage() {
     setRenameOpen(true);
   };
 
-  const handleDeleteFolder = async (id: string) => {
+  const handleDeleteFolder = async (id: string, name: string) => {
     setContextMenu(null);
+    const ok = await confirm({
+      title: `Supprimer le dossier « ${name} » ?`,
+      description: "Le dossier et tous les fichiers qu'il contient seront définitivement supprimés.",
+    });
+    if (!ok) return;
     setSubmitError(null);
     try {
       if (id.startsWith(STORAGE_FOLDER_PREFIX)) {
@@ -679,12 +687,17 @@ export function DocumentsPage() {
       setSubmitSuccess("Dossier supprimé.");
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de supprimer ce dossier. Réessaie."));
     }
   };
 
-  const handleDeleteDocument = async (id: string) => {
+  const handleDeleteDocument = async (id: string, title: string) => {
     setContextMenu(null);
+    const ok = await confirm({
+      title: `Supprimer « ${title} » ?`,
+      description: "Le fichier sera définitivement supprimé du Drive.",
+    });
+    if (!ok) return;
     setSubmitError(null);
     try {
       if (id.startsWith("storage-file:")) {
@@ -703,7 +716,7 @@ export function DocumentsPage() {
       }
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de supprimer ce document. Réessaie."));
     }
   };
 
@@ -728,7 +741,7 @@ export function DocumentsPage() {
       setSubmitSuccess("Dossier créé.");
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de créer le dossier. Réessaie."));
     }
   };
 
@@ -829,7 +842,7 @@ export function DocumentsPage() {
       setSubmitSuccess("Contenu rechargé.");
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de recharger le Drive. Réessaie."));
     } finally {
       setIsReloading(false);
     }
@@ -890,7 +903,7 @@ export function DocumentsPage() {
       setSubmitSuccess("Élément déplacé.");
       setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(userErrorMessage(err, "Impossible de déplacer. Réessaie."));
       setMovePopover(null);
       setMoveBrowserPath("");
       setMoveHistory([]);
@@ -1192,7 +1205,7 @@ export function DocumentsPage() {
                   <button
                     type="button"
                     className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-                    onClick={() => handleDeleteFolder(contextMenu.item.id)}
+                    onClick={() => void handleDeleteFolder(contextMenu.item.id, (contextMenu.item as DriveFolder).name)}
                   >
                     Supprimer
                   </button>
@@ -1228,7 +1241,7 @@ export function DocumentsPage() {
               <button
                 type="button"
                 className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-                onClick={() => void handleDeleteDocument(contextMenu.item.id)}
+                onClick={() => void handleDeleteDocument(contextMenu.item.id, (contextMenu.item as DriveDocument).title)}
               >
                 Supprimer
               </button>
@@ -1492,6 +1505,8 @@ export function DocumentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   );
 }

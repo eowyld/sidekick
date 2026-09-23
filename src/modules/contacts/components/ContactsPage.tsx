@@ -7,6 +7,7 @@ import { useContactsData, type Contact } from "@/hooks/useContactsData";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ const emptyForm: Omit<Contact, "id" | "createdAt"> = {
 export function ContactsPage() {
   const posthog = usePostHog();
   const { contacts, setContacts, loading, error } = useContactsData();
+  const { confirm, confirmDialog } = useConfirm();
   const [customRoles, setCustomRoles] = useLocalStorage<string[]>(
     "contacts:customRoles",
     []
@@ -176,7 +178,14 @@ export function ContactsPage() {
     closeDialog();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    const contact = contacts.find((c) => c.id === id);
+    const name = contact ? `${contact.firstName} ${contact.lastName}`.trim() : "";
+    const ok = await confirm({
+      title: name ? `Supprimer « ${name} » ?` : "Supprimer ce contact ?",
+      description: "Ses coordonnées et tes notes seront définitivement supprimées.",
+    });
+    if (!ok) return;
     setContacts((prev) => prev.filter((c) => c.id !== id));
     posthog?.capture("contact_deleted", { module: "contacts" });
     if (editingId === id) closeDialog();
@@ -686,7 +695,7 @@ export function ContactsPage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={(e) => { e.stopPropagation(); handleDelete(contact.id); }}
+                                  onClick={(e) => { e.stopPropagation(); void handleDelete(contact.id); }}
                                   className="gap-1.5 text-red-400/70 hover:text-red-400"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -705,6 +714,8 @@ export function ContactsPage() {
           </table>
         )}
       </div>
+
+      {confirmDialog}
     </div>
   );
 }

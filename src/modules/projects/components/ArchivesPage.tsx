@@ -3,10 +3,11 @@
 import { useProjectsData } from "@/hooks/useProjectsData";
 import { ProjectArchiveRow } from "./ProjectArchiveRow";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Archive } from "lucide-react";
 
 export function ArchivesPage() {
-  const { projects, setProjects } = useProjectsData();
+  const { projects, setProjects, loading } = useProjectsData();
 
   const archivedProjects = projects
     .filter((p) => p.status === "archived")
@@ -20,6 +21,8 @@ export function ArchivesPage() {
       )
     );
   };
+
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6">

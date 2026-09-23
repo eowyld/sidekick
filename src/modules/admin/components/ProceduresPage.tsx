@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -77,6 +78,7 @@ export function ProceduresPage() {
   const searchParams = useSearchParams();
 
   const { procedures: storedProcedures, setProcedures, statuses, loading, error } = useAdminData();
+  const { confirm, confirmDialog } = useConfirm();
 
   // Le report des échéances récurrentes est fait par le cron quotidien
   // (app/api/cron/reminders) — c'est ce qui le rend fiable pour l'artiste qui
@@ -240,9 +242,17 @@ export function ProceduresPage() {
     resetForm();
   };
 
-  const deleteProcedure = (id: string) => {
+  const deleteProcedure = async (id: string) => {
     const target = procedures.find((p) => p.id === id);
     const series = target ? procedureSeriesKey(target) : null;
+    const recurring = !!series && procedures.filter((p) => procedureSeriesKey(p) === series).length > 1;
+    const ok = await confirm({
+      title: target?.label ? `Supprimer « ${target.label} » ?` : "Supprimer cette démarche ?",
+      description: recurring
+        ? "Cette démarche est récurrente : toutes ses échéances seront supprimées."
+        : "La démarche sera définitivement supprimée.",
+    });
+    if (!ok) return;
     setProcedures((prev) =>
       series ? prev.filter((p) => procedureSeriesKey(p) !== series) : prev.filter((p) => p.id !== id)
     );
@@ -673,7 +683,7 @@ export function ProceduresPage() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                  onClick={() => deleteProcedure(p.id)}
+                                  onClick={() => void deleteProcedure(p.id)}
                                   aria-label={`Supprimer ${p.label}`}
                                 >
                                   <Trash2 className="h-4 w-4" aria-hidden />
@@ -871,7 +881,7 @@ export function ProceduresPage() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             {editingId ? (
-              <Button variant="destructive" className="mr-auto" onClick={() => editingId && deleteProcedure(editingId)}>
+              <Button variant="destructive" className="mr-auto" onClick={() => editingId && void deleteProcedure(editingId)}>
                 Supprimer
               </Button>
             ) : null}
@@ -884,6 +894,8 @@ export function ProceduresPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   );
 }

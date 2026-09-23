@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase";
+import { createClient, getSessionUser } from "@/lib/supabase";
 import { LogOut, Settings } from "lucide-react";
 
 type HeaderUser = {
@@ -24,9 +24,10 @@ export function Header() {
   const posthog = usePostHog();
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth
-      .getUser()
+    // Session locale, pas `getUser()` : monté sur toutes les pages, ce dernier
+    // gardait le verrou d'auth pendant un aller-retour réseau, et toutes les
+    // requêtes de données de la page attendaient derrière (cf. getSessionUser).
+    getSessionUser(createClient())
       .then(({ data: { user } }) => {
         if (!user) {
           setUser(null);

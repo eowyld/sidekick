@@ -50,6 +50,8 @@ import {
 } from "@/modules/marketing/data/mailing";
 import { isoToFr } from "@/lib/date-format";
 import { DatePicker } from "@/components/ui/date-picker";
+import { isUsableRefreshToken } from "@/lib/mail-refresh-error";
+import { userErrorMessage } from "@/lib/user-error";
 
 type TabId = "campaigns" | "newCampaign" | "contacts";
 type LoadCampaignTab = "saved" | "sent";
@@ -166,8 +168,8 @@ export function MailingPage() {
         const mailFrom = meta.mail_from as string | null | undefined;
         const gmailEmail = (meta.gmail_email as string | null) ?? (mailFrom && String(mailFrom).includes("gmail") ? mailFrom : null);
         const outlookEmail = (meta.outlook_email as string | null) ?? (mailFrom && (String(mailFrom).includes("outlook") || String(mailFrom).includes("hotmail")) ? mailFrom : null);
-        const hasGmail = !!(meta.gmail_refresh_token as string | undefined);
-        const hasOutlook = !!(meta.outlook_refresh_token as string | undefined);
+        const hasGmail = isUsableRefreshToken(meta.gmail_refresh_token);
+        const hasOutlook = isUsableRefreshToken(meta.outlook_refresh_token);
         const addresses: string[] = [];
         if (hasGmail && gmailEmail) addresses.push(gmailEmail);
         if (hasOutlook && outlookEmail) addresses.push(outlookEmail);
@@ -563,7 +565,7 @@ export function MailingPage() {
       return;
     }
     if (!selectedFromEmail) {
-      setSendError("Choisis une adresse d'envoi. Connecte une adresse dans Paramètres > Configuration mail.");
+      setSendError("Choisis une adresse d'envoi. Connecte une adresse dans Paramètres > Intégrations.");
       return;
     }
     const subject = formCampaignSubject.trim() || formCampaignName.trim();
@@ -612,7 +614,7 @@ export function MailingPage() {
       setActiveTab("campaigns");
       posthog?.capture("mail_sent", { module: "marketing" });
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : "Erreur lors de l'envoi.");
+      setSendError(userErrorMessage(err, "Erreur lors de l'envoi."));
     } finally {
       setSendLoading(false);
     }
@@ -951,8 +953,8 @@ export function MailingPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button type="button" variant="outline" size="icon" asChild title="Ouvrir Configuration mail">
-                      <a href="/settings/mail" aria-label="Ouvrir Configuration mail">
+                    <Button type="button" variant="outline" size="icon" asChild title="Ouvrir Intégrations">
+                      <a href="/settings/mail" aria-label="Ouvrir Intégrations">
                         <Settings className="h-4 w-4" />
                       </a>
                     </Button>

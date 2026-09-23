@@ -10,6 +10,7 @@ import { UpcomingBanner } from "./UpcomingBanner";
 import { WeekScheduleGrid } from "./WeekScheduleGrid";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
@@ -34,7 +35,6 @@ import {
 import { EventDialog, type EventDialogField } from "@/components/ui/event-dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { useSidekickData } from "@/hooks/useSidekickData";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useLiveData } from "@/hooks/useLiveData";
 import { usePhonoData } from "@/hooks/usePhonoData";
@@ -234,15 +234,6 @@ type AdminStatusItem = {
   actif?: boolean;
   notes?: string;
 };
-type EditionCalendarItem = {
-  id: string | number;
-  title?: string;
-  start?: string;
-  end?: string;
-  module?: string;
-  sector?: string;
-  [key: string]: unknown;
-};
 type TaskItem = {
   id: string;
   title: string;
@@ -306,7 +297,6 @@ function buildCalendarEvents(
   marketingEvents: MarketingItem[],
   adminProcedures: AdminProcedureItem[],
   adminStatuses: AdminStatusItem[],
-  editionEvents: EditionCalendarItem[],
   customEvents: CustomCalendarItem[]
 ): CalendarEvent[] {
   const events: CalendarEvent[] = [];
@@ -535,21 +525,6 @@ function buildCalendarEvents(
         isPast: endKey < todayKey
       });
     }
-  });
-
-  editionEvents.forEach((e) => {
-    const dateKey = normalizeToDateKey(e.start);
-    if (!dateKey) return;
-    const isPast = dateKey < todayKey;
-    events.push({
-      id: `edition-event-${String(e.id)}`,
-      dateKey,
-      label: e.title || "Événement édition",
-      sector: "edition",
-      type: "edition_event",
-      subLabel: "Édition",
-      isPast
-    });
   });
 
   customEvents.forEach((c) => {
@@ -831,14 +806,6 @@ function buildCalendarEventFields(
     return fields;
   }
 
-  if (type === "edition_event") {
-    const e = source as EditionCalendarItem;
-    const fields: EventDialogField[] = [{ label: "Événement", value: e.title || "—" }];
-    if (typeof e.start === "string") fields.push({ label: "Début", value: e.start });
-    if (typeof e.end === "string") fields.push({ label: "Fin", value: e.end });
-    return fields;
-  }
-
   if (type === "custom") {
     const c = source as CustomCalendarItem;
     const fields: EventDialogField[] = [];
@@ -878,7 +845,6 @@ export function GlobalCalendarPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const eventFromQuery = searchParams.get("event");
-  const { data: sidekickData } = useSidekickData();
   // Les préférences vivent dans `user_preferences` depuis le 31/08 :
   // `useSidekickData` est du localStorage pur et ne lit jamais Supabase, si
   // bien qu'un module coupé dans les Réglages restait visible ici (ses défauts
@@ -965,25 +931,29 @@ export function GlobalCalendarPage() {
     enabledModules.revenus
   ]);
 
-  const { tourDates: representations, rehearsals: liveRehearsals } = useLiveData();
+  const { tourDates: representations, rehearsals: liveRehearsals, loading: liveLoading } = useLiveData();
   const rehearsals = liveRehearsals as unknown as RehearsalItem[];
-  const { invoices } = useIncomesData();
+  const { invoices, loading: incomesLoading } = useIncomesData();
   const {
     tracks: phonoTracks,
     albums: phonoAlbums,
     mixes: phonoMixes,
-    sessions: phonoSessions
+    sessions: phonoSessions,
+    loading: phonoLoading
   } = usePhonoData();
   const sessions = phonoSessions as unknown as SessionItem[];
   const { customEvents, setCustomEvents, loading: calendarLoading, error: calendarError } = useCalendarData();
-  const { tasks } = useTasksData();
-  const { marketingEvents } = useMarketingData();
-  const { statuses, procedures } = useAdminData();
+  const { confirm, confirmDialog } = useConfirm();
+  const { tasks, loading: tasksLoading } = useTasksData();
+  const { marketingEvents, loading: marketingLoading } = useMarketingData();
+  const { statuses, procedures, loading: adminLoading } = useAdminData();
+  // Grille vide puis événements qui apparaissent : on garde le squelette tant
+  // qu'une source d'événements n'a pas répondu.
+  const eventsLoading =
+    calendarLoading || liveLoading || incomesLoading || phonoLoading ||
+    tasksLoading || marketingLoading || adminLoading;
   const adminProcedures = procedures as unknown as AdminProcedureItem[];
   const adminStatuses = statuses as unknown as AdminStatusItem[];
-  const editionEvents = ((sidekickData.calendar.events ?? []) as EditionCalendarItem[]).filter(
-    (event) => event.sector === "edition" || event.module === "edition"
-  );
 
   const allEvents = useMemo(
     () =>
@@ -999,7 +969,6 @@ export function GlobalCalendarPage() {
         marketingEvents,
         adminProcedures,
         adminStatuses,
-        editionEvents,
         customEvents
       ),
     [
@@ -1014,7 +983,6 @@ export function GlobalCalendarPage() {
       marketingEvents,
       adminProcedures,
       adminStatuses,
-      editionEvents,
       customEvents
     ]
   );
@@ -1149,8 +1117,14 @@ export function GlobalCalendarPage() {
     setCustomDialogOpen(true);
   };
 
-  const handleDeleteCustomEvent = (eventId: string) => {
+  const handleDeleteCustomEvent = async (eventId: string) => {
     const customId = eventId.replace(/^custom-/, "").split("__")[0];
+    const target = customEvents.find((e) => e.id === customId);
+    const ok = await confirm({
+      title: target?.title ? `Supprimer « ${target.title} » ?` : "Supprimer cet événement ?",
+      description: "L'événement sera retiré de ton calendrier.",
+    });
+    if (!ok) return;
     posthog?.capture("event_deleted", { module: "calendar" });
     setCustomEvents((prev) => prev.filter((e) => e.id !== customId));
     setSelectedEvent(null);
@@ -1243,10 +1217,6 @@ export function GlobalCalendarPage() {
       const source = adminStatuses.find((s) => String(s.id) === id) ?? null;
       return { event: selectedEvent, source };
     }
-    if (type === "edition-event") {
-      const source = editionEvents.find((e) => String(e.id) === id) ?? null;
-      return { event: selectedEvent, source };
-    }
     if (type === "custom") {
       const storageId = id.split("__")[0];
       const source =
@@ -1267,7 +1237,6 @@ export function GlobalCalendarPage() {
     marketingEvents,
     adminProcedures,
     adminStatuses,
-    editionEvents,
     customEvents
   ]);
 
@@ -1309,7 +1278,7 @@ export function GlobalCalendarPage() {
     />
   );
 
-  return !preferencesReady ? (
+  return !preferencesReady || eventsLoading ? (
     <div className="space-y-4">
       <div className="animate-pulse space-y-2">
         <div className="h-6 w-40 bg-[rgba(245,245,245,0.08)]" />
@@ -1827,11 +1796,13 @@ export function GlobalCalendarPage() {
             ctaLabel={cta?.label}
             ctaHref={cta?.href}
             onEdit={ev.type === "custom" ? () => handleEditCustomEvent(ev.id) : undefined}
-            onDelete={ev.type === "custom" ? () => handleDeleteCustomEvent(ev.id) : undefined}
+            onDelete={ev.type === "custom" ? () => void handleDeleteCustomEvent(ev.id) : undefined}
             anchorRect={selectedEventAnchor}
           />
         );
       })()}
+
+      {confirmDialog}
     </div>
   )
 }

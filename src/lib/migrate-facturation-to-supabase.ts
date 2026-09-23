@@ -37,21 +37,25 @@ export async function migrateFacturationToSupabase(): Promise<void> {
   if (!user) return; // réessaiera au prochain chargement authentifié
 
   const blob = readJson<Partial<SidekickData>>(getStorageKey(user.id));
-  const localTemplate = blob?.preferences?.invoiceTemplate ?? null;
+  // Le logo n'est plus dans le modèle de facture depuis le 22/09 : il part
+  // dans `artist_logo` (identité de l'artiste).
+  const { logoDataUrl: localLogo, ...localTemplateRest } = (blob?.preferences?.invoiceTemplate ?? {}) as Record<string, unknown> & { logoDataUrl?: string };
+  const localTemplate = blob?.preferences?.invoiceTemplate ? localTemplateRest : null;
   const localFooter = blob?.preferences?.invoiceFooterNote ?? null;
   const scopeMap = readJson<Record<string, string>>(SCOPE_MAP_KEY) ?? {};
 
   // ─── Préférences de facturation ────────────────────────────────────────────
 
-  if (localTemplate || localFooter) {
+  if (localTemplate || localFooter || localLogo) {
     const { data: prefs } = await supabase
       .from("user_preferences")
-      .select("invoice_template, invoice_footer_note")
+      .select("invoice_template, invoice_footer_note, artist_logo")
       .maybeSingle();
 
     const payload: Record<string, unknown> = {};
     if (localTemplate && !prefs?.invoice_template) payload.invoice_template = localTemplate;
     if (localFooter && !prefs?.invoice_footer_note) payload.invoice_footer_note = localFooter;
+    if (localLogo && !prefs?.artist_logo) payload.artist_logo = localLogo;
 
     if (Object.keys(payload).length > 0) {
       const { error } = await supabase.from("user_preferences").upsert({

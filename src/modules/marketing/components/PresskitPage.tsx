@@ -40,6 +40,7 @@ import {
   type StreamingPlatformKey
 } from "@/modules/marketing/data/presskit";
 import { PresskitViewClient } from "../../../../app/presskit/view/PresskitViewClient";
+import { userErrorMessage } from "@/lib/user-error";
 
 function makeId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -103,7 +104,7 @@ async function compressImageFile(
     const img: HTMLImageElement = await new Promise((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error("Image load failed"));
+      i.onerror = () => reject(new Error("Image illisible."));
       i.src = objectUrl;
     });
 
@@ -238,7 +239,7 @@ export function PresskitPage() {
         setTimeout(() => setShareMessage(null), 3000);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Impossible de créer le lien. Réessaie.";
+      const msg = userErrorMessage(e, "Impossible de créer le lien. Réessaie.");
       setShareMessage(msg);
       setTimeout(() => setShareMessage(null), 5000);
     }

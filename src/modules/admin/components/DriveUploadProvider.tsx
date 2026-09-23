@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { userErrorMessage } from "@/lib/user-error";
 
 /*
   L'import d'un fichier dure parfois plusieurs minutes. Tant que l'état vivait
@@ -109,7 +110,7 @@ export function DriveUploadProvider({ children }: { children: ReactNode }) {
       }, 5000);
       onSuccess?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = userErrorMessage(err, "L’import a échoué. Réessaie.");
       setToast({ open: true, status: "error", progress: 0, message, fileName });
       onError?.(message);
     } finally {

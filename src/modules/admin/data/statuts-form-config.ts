@@ -27,6 +27,21 @@ export const SELECTABLE_STATUS_TYPES = STATUS_TYPES.filter(
   (type) => !STATUS_TYPES_HIDDEN.has(type.value)
 );
 
+/**
+ * Statuts qui émettent des factures. Un intermittent est payé en cachets sur
+ * fiche de paie : il ne facture pas, et ne doit être proposé nulle part dans la
+ * facturation (sélecteurs, statut par défaut, rattachement des factures).
+ */
+const BILLING_STATUS_TYPES = new Set<AdminStatusType>(["auto_entrepreneur", "association_1901"]);
+
+export function canIssueInvoices(type: string): boolean {
+  return BILLING_STATUS_TYPES.has(normalizeStoredAdminStatusType(type));
+}
+
+export function billingStatuses<T extends { type: string }>(statuses: T[]): T[] {
+  return statuses.filter((s) => canIssueInvoices(s.type));
+}
+
 export type StatusFieldConfig = {
   key: string;
   label: string;

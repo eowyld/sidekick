@@ -81,6 +81,12 @@ export default function ConfidentialitePage() {
           l&apos;autorisation demandée ne le permet pas. Les données obtenues
           via les API Google ne servent qu&apos;à envoyer les messages que tu
           déclenches, et ne sont ni cédées ni utilisées à d&apos;autres fins.
+          L&apos;utilisation et le transfert des informations reçues des API
+          Google respectent la{" "}
+          <LegalLink href="https://developers.google.com/terms/api-services-user-data-policy">
+            Google API Services User Data Policy
+          </LegalLink>
+          , y compris les exigences Limited Use.
         </p>
         <p>
           <Strong>Données techniques.</Strong>{" "}Journaux de connexion et
@@ -112,7 +118,7 @@ export default function ConfidentialitePage() {
           <li>
             T&apos;envoyer les rappels de démarches à échéance :{" "}
             <Strong>exécution du contrat</Strong>. Tu peux les couper dans
-            Réglages &gt; Personnalisation.
+            Réglages &gt; Notifications.
           </li>
           <li>
             Sécuriser le service, prévenir les abus, garder une trace des

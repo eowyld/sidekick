@@ -45,8 +45,7 @@ const groupMusique = [
     key: "live",
     href: "/live",
     sub: [
-      { href: "/live", label: "Vue d'ensemble" },
-      { href: "/live/spectacles", label: "Spectacles & tournées" },
+      { href: "/live", label: "Spectacles & tournées" },
       { href: "/live/representations", label: "Représentations" },
       { href: "/live/repetitions", label: "Répétitions" },
       { href: "/live/prospection", label: "Prospection" },
@@ -70,7 +69,7 @@ const groupMusique = [
     key: "edition",
     href: "/edition",
     sub: [
-      { href: "/edition", label: "Catalogue" },
+      { href: "/edition", label: "Œuvres" },
       { href: "/edition/sync", label: "Synchronisation" },
     ],
   },
@@ -188,7 +187,7 @@ function NavGroup({
   const groupActive = pathname === href || pathname.startsWith(href + "/");
 
   // Module désactivé : retiré de la navigation, conformément à la promesse de
-  // la page Personnalisation ("les éléments désactivés disparaissent des menus").
+  // la page Réglages > Modules ("les éléments désactivés disparaissent des menus").
   // L'accès direct à l'URL reste possible — c'est la garde de route qui s'en charge.
   if (!enabled) return null;
 
