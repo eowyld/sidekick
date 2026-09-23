@@ -80,6 +80,7 @@ un produit qu'on n'ouvre pas.
   base (`user_subscriptions`), jamais l'état renvoyé par le client.
 - Verrouillage des fonctionnalités Pro côté serveur, pas seulement dans l'UI.
   `ModuleGuard` est une garde d'affichage, contournable (cf. `ALPHA.md`).
+  Détail dans le chantier 2.
 - Écran Réglages > Abonnement : offre en cours, facture, changement d'offre.
 - **Résiliation en ligne en trois clics** (art. L215-1-1 C. conso), obligatoire.
 - **Demande expresse d'exécution immédiate** à la souscription, avec le calcul
@@ -87,7 +88,43 @@ un produit qu'on n'ouvre pas.
 - Emails Brevo : confirmation de souscription avec CGV, échec de paiement,
   préavis de renouvellement annuel (art. L215-1).
 
-### 2. Facturation électronique (Iopole)
+### 2. Différenciation gratuit / Pro
+
+Le paiement ne sert à rien tant que le produit ne sait pas ce qu'un compte Pro
+a de plus. Aujourd'hui, rien dans le code ne distingue deux comptes : il faut
+une notion d'offre, une liste de droits, et chaque fonctionnalité Pro branchée
+dessus.
+
+- **Trancher la frontière** du tableau « Modèle économique » avec les chiffres
+  de J14 (factures émises, liens d'écoute créés, stockage par compte). Une fois
+  tranchée, elle ne bouge plus avant l'ouverture : les CGV et la landing la
+  citent.
+- **Une seule table des droits**, dans un fichier (`src/lib/plans.ts`) : pour
+  chaque offre, les fonctionnalités ouvertes et les quotas (stockage, liens
+  d'écoute actifs). Lue par le client pour l'affichage et par le serveur pour le
+  verrouillage, jamais deux listes à tenir.
+- **Un hook `usePlan()`** côté client, branché sur `user_subscriptions`, qui
+  expose l'offre et les droits. Même règle que l'identité de l'artiste : tout
+  écran qui touche une fonctionnalité Pro passe par lui.
+- **Verrouillage serveur** de chaque fonctionnalité Pro : émission de facture,
+  envoi Iopole, écriture des métadonnées audio, export comptable, presskit
+  public. Les quotas se contrôlent en base (policy RLS ou vérification dans la
+  route), pas seulement dans l'UI.
+- **Quotas** : 1 Go de stockage (contrôle à l'upload Drive et Phono),
+  3 liens d'écoute actifs (contrôle à la création et à la réactivation).
+- **Ce que voit un compte gratuit** : la fonctionnalité reste visible, avec un
+  badge Pro et un écran qui explique ce qu'elle apporte et renvoie vers
+  l'abonnement. Pas de bouton qui échoue sans rien dire.
+- **Rétrogradation** (résiliation, échec de paiement) : rien n'est supprimé.
+  Au-delà du quota, les fichiers restent lisibles et téléchargeables, mais on ne
+  peut plus en ajouter ; les liens d'écoute au-delà de 3 sont suspendus, pas
+  effacés, et reviennent au réabonnement. À écrire aussi dans les CGV.
+- **Comptes de l'alpha** : décider s'ils gardent un temps de Pro offert à
+  l'ouverture (une période de grâce évite que leurs liens d'écoute tombent le
+  16/11 sans prévenir). À annoncer par email 30 jours avant, avec la mise à
+  jour des CGU.
+
+### 3. Facturation électronique (Iopole)
 
 Coupée du périmètre alpha le 16/09, faute de code écrit et parce que
 l'obligation d'**émission** pour les TPE et PME ne tombe qu'au **1er septembre
@@ -106,7 +143,7 @@ Iopole**, qui reste la plateforme agréée. Pas d'immatriculation de PHÖS AGENC
 - ⚠️ Rappel : l'obligation de **réception** court depuis le 01/09/2026,
   l'**émission** pour les micro-entreprises au 01/09/2027.
 
-### 3. Réouverture du périmètre fermé
+### 4. Réouverture du périmètre fermé
 
 Retirer les entrées de `src/lib/coming-soon.ts`, une par une, chacune après
 recette :
@@ -125,12 +162,12 @@ recette :
 - ⚠️ Le presskit public expose des contenus : ajouter la mention d'information
   des visiteurs et vérifier qu'aucun fichier ne repasse par une URL publique.
 
-### 4. OAuth Outlook
+### 5. OAuth Outlook
 
 Provider Azure AD côté Supabase, scope `Mail.Send` via Microsoft Graph, bouton
 sur `/login` et `/inscription`. Détail dans `ALPHA.md`.
 
-### 5. Dette technique à solder avant de faire payer
+### 6. Dette technique à solder avant de faire payer
 
 Un client qui paie ne tolère pas ce qu'un testeur gratuit pardonne.
 
@@ -145,10 +182,64 @@ Un client qui paie ne tolère pas ce qu'un testeur gratuit pardonne.
 - Limiteur de débit partagé (aujourd'hui en mémoire par instance Vercel).
 - Service client : une adresse, un délai de réponse annoncé, une procédure.
 
-### 6. Produit, selon les chiffres de l'alpha
+### 7. Produit, selon les chiffres de l'alpha
 
-- Refonte UI de Projets et de Live, volontairement repoussées.
+- Liens de Projets restés en suspens à l'alpha (Contacts, Drive, si le
+  22/09 n'a pas suffi). Live et Projets ont été refondus avant l'ouverture.
 - Ce que PostHog désignera comme point de décrochage.
+
+### 8. Édition : lui trouver une raison d'être, ou la fondre ailleurs
+
+**Constat du 21/09.** Le module a été refondu pour l'alpha, puis on s'est rendu
+compte que sa proposition principale faisait doublon. L'espace membre SACEM
+gère la déclaration et fait déjà valider électroniquement chaque co-auteur.
+L'accord de répartition en ligne construit ce jour-là (lien personnel par
+co-auteur, validation ou contestation, versions) couvrait la même chose, en
+moins officiel. Il est **fermé pour l'alpha** (`EDITION_AGREEMENTS_OPEN` dans
+`src/lib/coming-soon.ts`, page publique `/accord` redirigée). Le code reste en
+place ; sa migration est rangée à part dans
+`supabase/pending/20260921220000_edition_agreements.sql`, à ne remettre dans
+`supabase/migrations/` que si on rouvre.
+
+Ce qui reste ouvert et garde de la valeur : la vue transversale que la SACEM
+ne peut pas avoir. Une œuvre sortie en Phono mais pas déclarée, ou jouée en
+Live sans programme déclaré. C'est une fonction de rappel plus qu'un module.
+
+**La question de fond : récupérer nous-mêmes les droits.** Tant que SIDEKICK
+ne fait que décrire ce que la SACEM gère, Édition restera secondaire. La seule
+façon d'en faire un vrai produit est de **collecter à la place de l'artiste**,
+comme un éditeur administrateur (le modèle de Songtrust ou Sentric) : on
+déclare et on collecte la part éditoriale, en France et à l'étranger, contre
+une commission. À instruire avant d'écrire une ligne de code :
+
+- **Statut et admission.** Ce qu'il faut pour être admis comme éditeur à la
+  SACEM (forme de société, catalogue minimum, capital, conditions d'admission
+  à vérifier auprès d'elle), et si PHÖS AGENCY peut le porter ou s'il faut une
+  structure dédiée.
+- **Contrats.** Chaque artiste signe un contrat d'édition ou d'administration
+  (art. L132-1 et suivants du CPI : exploitation permanente et suivie,
+  reddition des comptes au moins annuelle). C'est un engagement lourd envers
+  l'artiste, pas une case à cocher dans une app.
+- **Conflit d'intérêts.** SIDEKICK vend un outil à l'artiste. Prendre en plus
+  une part de ses droits change la relation : à écrire noir sur blanc dans les
+  CGV et dans le positionnement.
+- **Étranger.** C'est là que la valeur se trouve pour un indépendant (la SACEM
+  collecte déjà en France). Il faut des sous-éditeurs ou des accords directs
+  avec les sociétés étrangères, et la déclaration au format CWR.
+- **Alternative sans licence : le partenariat.** Brancher un administrateur
+  existant (Songtrust, Sentric…) en marque blanche ou en affiliation.
+  SIDEKICK prépare le catalogue, le partenaire collecte. Beaucoup moins de
+  risque ; c'est à comparer en premier.
+- **Juridique.** Avis de l'avocat du chantier CGV sur les trois points
+  ci-dessus, avant tout engagement.
+
+**Ce qui décide.** Les chiffres de l'alpha : part des inscrits qui cochent
+« édition » à l'onboarding, et usage réel du module au J14 et au J30. Si
+personne ne l'ouvre, on le fond dans Phono (l'œuvre comme fiche d'un titre)
+plutôt que d'investir dans la collecte.
+
+Hors des essentiels de la bêta : c'est un chantier de fond, qui ne bloque pas
+le 16/11 et ne doit pas le retarder.
 
 ---
 
@@ -189,8 +280,8 @@ plateforme agréée dans l'annuaire. C'est à écrire dans les CGU et à coder.
 | Semaines | Chantier |
 |---|---|
 | S1–S2 (22/09 → 03/10) | Correctifs d'alpha, écoute des testeurs, premiers chiffres à J14 |
-| S3–S4 (05/10 → 17/10) | Stripe de bout en bout, écran Abonnement, résiliation en ligne, CGV publiées |
-| S5–S6 (19/10 → 31/10) | **Lancer l'adhésion au médiateur de la consommation** (délai externe de plusieurs semaines, à faire maintenant pour être couvert le 16/11) · Iopole et Factur-X, dette technique (erreurs des hooks, lint) |
+| S3–S4 (05/10 → 17/10) | **Frontière gratuit / Pro tranchée** avec les chiffres de J14, table des droits et `usePlan()` · Stripe de bout en bout, écran Abonnement, résiliation en ligne, CGV publiées · **email aux comptes de l'alpha** sur l'offre et la mise à jour des CGU, au plus tard le 16/10 (30 j avant) |
+| S5–S6 (19/10 → 31/10) | **Lancer l'adhésion au médiateur de la consommation** (délai externe de plusieurs semaines, à faire maintenant pour être couvert le 16/11) · Verrouillage serveur des fonctionnalités Pro, quotas, écrans Pro, rétrogradation sans perte · Iopole et Factur-X, dette technique (erreurs des hooks, lint) |
 | S7 (02/11 → 07/11) | Réouverture Marketing, presskit, Contrats, Comptabilité, une par une |
 | S8 (09/11 → 14/11) | Outlook si le temps le permet, recette complète sur comptes vierges, paiements de test |
 | **Lun 16/11** | **Ouverture de la bêta payante** |
@@ -205,7 +296,8 @@ donc il se recalibre en route. Ce qui compte, c'est l'ordre.
 **Essentiels, dans cet ordre.** Ce sont eux qui déclenchent l'annonce :
 
 1. **Le paiement** de bout en bout (Stripe, verrouillage côté serveur,
-   résiliation en ligne).
+   résiliation en ligne), **avec la frontière gratuit / Pro** : sans elle,
+   l'abonnement n'ouvre rien.
 2. **Les CGV et le médiateur**, sans quoi le paiement ne peut pas s'ouvrir.
 3. **Iopole et Factur-X**, le seul argument qu'aucun outil anglophone ne tient.
 4. **Les erreurs silencieuses des hooks**, parce qu'un client qui paie ne
@@ -226,6 +318,12 @@ l'adhésion au médiateur aussi. Ce sont les deux à lancer tôt.
 À vérifier avant d'ouvrir, sur deux comptes vierges :
 
 - [ ] Souscription, paiement, facture reçue, accès Pro effectif.
+- [ ] Compte gratuit : chaque fonctionnalité Pro affiche son écran Pro, et
+      l'appel direct à la route serveur est refusé.
+- [ ] Quotas : upload refusé au-delà de 1 Go, 4e lien d'écoute refusé, avec un
+      message clair.
+- [ ] Rétrogradation d'un compte au-delà des quotas : fichiers lisibles,
+      liens suspendus puis rétablis au réabonnement, rien d'effacé.
 - [ ] Résiliation en trois clics, accès maintenu jusqu'à la fin de la période.
 - [ ] Rétractation dans les 14 jours, remboursement au prorata.
 - [ ] Échec de paiement : email reçu, accès rétrogradé sans perte de données.

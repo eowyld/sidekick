@@ -525,6 +525,330 @@ verts.
 
 ⬜ Reste de la journée : finalisation des **mixes**.
 
+### 🟡 Lundi 21/09 — identité de l'artiste (nom d'artiste ou nom propre)
+
+Oubli structurant : le produit ne connaissait pas le nom de l'utilisateur. Le
+seul champ était `artist_title` du presskit, fermé pour l'alpha, si bien que
+**tous les liens d'écoute affichaient « Artiste »** à leurs destinataires.
+
+- Colonnes `identity_mode` / `artist_name` sur `user_preferences`
+  (`20260921000000_artist_identity.sql`, **appliquée en production le 21/09**),
+  qui met aussi à jour la RPC `create_project_with_links` pour transmettre les
+  ayants droit d'une œuvre créée depuis un projet.
+- Onboarding en trois étapes, l'identité en premier ; les comptes existants la
+  voient une fois, seule, sur le tableau de bord.
+- Lien d'écoute signé par `artist_name` (repli presskit, puis « Artiste »).
+- Titres, albums, mixes pré-remplis avec le nom affiché ; œuvres pré-remplies
+  avec le **nom civil** et l'utilisateur comme ayant droit.
+- Réglages : carte « Identité artistique » et remplissage des champs vides.
+- Règles consignées dans `CLAUDE.md` (« Identité de l'artiste »).
+- Hors périmètre : prompts IA (génération en pause, à brancher à la
+  réactivation) et presskit (fermé).
+
+Vérifié en dev sur le compte de captures (`YOTON`, mode artiste) : étape
+d'onboarding, enregistrement, pré-remplissage des trois formulaires et de
+l'œuvre, carte de Réglages. **Non vérifié de bout en bout** : l'en-tête d'un
+lien d'écoute (le seul lien existant est protégé par mot de passe), la création
+d'un projet avec œuvre, et le bouton « Les remplir » (aucun champ vide en
+base) : à couvrir à la recette sur un compte vierge.
+
+Spec : `docs/superpowers/specs/2026-09-21-artist-identity-design.md`.
+Plan : `docs/superpowers/plans/2026-09-21-artist-identity.md`.
+
+### 🟡 Lundi 21/09 (suite) — refonte Live : « Spectacles & tournées » comme tour de contrôle
+
+Une tournée n'est pas un troisième genre de live, c'est **une étape après** un
+spectacle ou un DJ set. Le modèle se lit désormais en trois niveaux : le
+spectacle (l'objet), la tournée (une campagne de cet objet), la représentation
+(une occurrence). La « Vue d'ensemble » est absorbée par `/live`, qui garde
+l'intitulé **« Spectacles & tournées »**.
+
+- **`/live`** : une carte par spectacle / DJ set, avec l'état de l'objet, ses
+  tournées en lignes, ses dates hors tournée et sa prochaine échéance. Un
+  bandeau donne la prochaine échéance et deux compteurs. Une zone « À rattacher »
+  n'apparaît que s'il reste des tournées sans spectacle, des dates à venir sans
+  spectacle, ou des événements dont le spectacle contredit celui de leur
+  tournée.
+- **Une tournée a obligatoirement un spectacle** (choisi à la création, en
+  lecture seule ensuite). Une représentation joue un spectacle et, au besoin,
+  appartient à **une tournée de ce spectacle**. Une répétition peut aussi être
+  rattachée à une tournée. Une entrée de **prospection** peut l'être aussi
+  (`tour_id`). `details.productionId` est la seule source pour « quel
+  spectacle » ; `tourId` ne fait que regrouper.
+- **Progression calculée, forçable.** Les étapes que les données établissent se
+  calculent (dates confirmées, cachets, logistique, prospection acceptée ;
+  setlist, matériel, répétitions passées, fiche technique). Concept et Équipe
+  restent à cocher. Toute étape calculée peut être forcée « faite » ou « sans
+  objet », et affiche toujours ce que dit le calcul. Les coches d'avant la
+  refonte se lisent comme des forçages : aucune reprise de données.
+- **Fiche de tournée** : dates par statut, répétitions (avec l'alerte « aucune
+  répétition avant la première date »), prospection rattachée, itinéraire
+  (Leaflet, déménagé de l'ancienne Vue d'ensemble).
+- **Formulaire événement** : cascade Spectacle → Tournée (la liste ne propose
+  que les tournées du spectacle choisi, « Hors tournée » en premier).
+  Filtres par tournée sur Représentations, Répétitions et Prospection.
+- **Reprise** `migrate-live-tour-links.ts`, au chargement : un événement rattaché
+  à une tournée mais sans spectacle reçoit celui de sa tournée. Idempotente.
+- Logique pure dans `src/modules/live/lib/live-links.ts` et `live-progress.ts`,
+  règles vérifiables par `npx --yes tsx scripts/check-live-progress.ts`.
+
+✅ **Migration `20260921100000_live_prospection_tour.sql` (colonne `tour_id`)
+appliquée en production le 21/09** (`db push --linked`, précédé d'un dry-run qui
+ne contenait que cette migration). Elle est additive et nullable : l'ancien
+front, en ligne, l'ignore. Le nouveau front doit être déployé **après** elle
+(le hook envoie `tour_id` à chaque enregistrement de prospection).
+
+**Vérifié** : `npx tsc --noEmit`, ESLint sur le module Live (les deux seuls
+signalements sont dans `Sidebar.tsx`, antérieurs), les règles de
+`check-live-progress.ts`, `npm run build`, une relecture d'ensemble du code, puis
+**de bout en bout en dev sur le compte de captures** avec un jeu de test
+(1 spectacle, 2 tournées dont une orpheline, 4 dates, 1 répétition, 2 lieux de
+prospection, préfixe `zz-test-refonte-`, **supprimé ensuite : compteurs des
+quatre tables identiques à ceux d'avant**) : une quarantaine d'assertions, dont : les cartes et
+leurs compteurs, la zone « À rattacher » (les trois cas) et ses trois
+corrections, la reprise `migrate-live-tour-links` (une date rattachée à une
+tournée reçoit son spectacle, une contradiction n'est pas résolue d'office), la
+fiche de tournée (dates, répétition sans alerte, prospection, itinéraire), le
+forçage puis « Revenir au calcul », la cascade Spectacle → Tournée (tournées
+filtrées, détachement avec confirmation), le refus d'une date sans spectacle,
+le filtre de prospection par tournée, « Créer une date » depuis un lieu de la
+tournée. Aucune erreur JavaScript de page.
+
+Corrigés après la relecture : garde de suppression d'un live qui lisait des
+tranches peut-être non chargées ; « Créer une date » depuis un lieu de
+prospection perdait la tournée ; le lien « Hors tournée » d'une carte tombait
+sur une liste vide quand toutes les dates sont passées ; la carte d'itinéraire
+retombait au centre de la France pour un petit lieu absent d'OSM (elle retente
+désormais avec la ville) et se recyclait vide après un passage à zéro date.
+
+**Décision de produit à prendre** : la progression d'une tournée se calcule sur
+ses dates **à venir** (spec). Une fois sa dernière date passée, elle retombe à
+« Aucune date à venir » et ~25 %, avec « Prochaine étape · Dates confirmées »
+sur la carte. Le forçage « faite » est l'échappatoire, mais rien ne le dit. À
+trancher avant que des testeurs aient des tournées terminées : traiter une
+tournée dont toutes les dates sont passées comme terminée (étapes faites), ou
+l'archiver.
+
+**Non vérifié** : le rendu des tuiles de la carte n'a pas été vu (les lieux de
+test n'existent pas dans OpenStreetMap ; les positions des marqueurs sont
+cohérentes) ; le comportement quand une tranche Live est en panne (garde de
+suppression, `sliceError`) ; un DJ set (aucun sur le compte).
+
+À savoir : `public/images/landing/live.png` (généré par `scripts/shots.mjs` sur
+`/live`) montrait l'ancienne Vue d'ensemble ; il montrera la nouvelle page à la
+prochaine génération. Trois commentaires du module Phono
+(`CatalogHeader.tsx`, `lib/session.ts`, `lib/release-status.ts`) citent encore
+`LiveOverviewPage`, supprimé.
+
+Spec : `docs/superpowers/specs/2026-09-21-live-spectacles-tournees-design.md`.
+Plan : `docs/superpowers/plans/2026-09-21-live-spectacles-tournees.md`.
+
+### ✅ Lundi 21/09 (suite) — fiche technique et matériel : une seule source
+
+Le matériel vivait à trois endroits qui ne se parlaient pas (panneau « Listes de
+matériel », deux textes libres de la fiche technique, sélecteur de listes des
+dates). Il n'y en a plus qu'un : **un bloc Matériel en tête de la fiche
+technique**, partout où elle apparaît (spectacle, DJ set, tournée, date,
+répétition).
+
+- **Bloc Matériel** : les listes cochées (leurs éléments s'affichent, liés à la
+  liste, en lecture seule) + des ajouts (depuis l'inventaire ou en ligne libre),
+  face à une colonne **« À fournir par la salle »** (lignes libres). Quatre
+  catégories : Son, Lumière, Scène et implantation, Autre matériel. Chacune a un
+  champ **Détails**.
+- **Bouton « Copier une fiche technique »** : reprend contact, équipe, matériel,
+  listes et détails d'un autre spectacle ou DJ set (confirmation si la fiche
+  n'est pas vide, les fiches vides sont grisées).
+- **Module Matériel** : une catégorie à la création d'un matériel ; inventaire
+  regroupé et trié Son → Lumière → Scène → Autre, puis par nom ; listes idem.
+- **Dates et répétitions** : la checklist « Matériel à emporter » lit le matériel
+  apporté de la fiche ; leur second sélecteur de listes a disparu. Les cases déjà
+  cochées restent valables (même clé).
+- **Setlist** : sélecteur « Ajouter un album ou un EP » (titres dans l'ordre, ceux
+  déjà présents ignorés, un message le dit ; pas les singles) ; « Morceau libre /
+  reprise » devient « Morceau libre / nouveau titre ».
+- **PDF de fiche technique** et **feuille de route** : matériel par catégorie,
+  apporté / à fournir par la salle, listes développées.
+- **Étapes calculées** : « Matériel préparé » = une liste cochée ou un ajout ;
+  « Fiche technique prête » = contact **et** au moins un matériel ou un détail
+  (avant : contact et « Son et retours » renseignés).
+
+**Reprise sans migration de données** : l'ancienne fiche est convertie **à la
+lecture** (`normalizeTechnical`) ; la nouvelle forme s'écrit au prochain
+enregistrement de chaque fiche. L'ancien texte Scène / Son / Lumière devient le
+« Détails » de sa catégorie ; les anciens textes « apporté » et « à fournir » sont
+découpés ligne par ligne en éléments d'« Autre matériel ». Rien n'est perdu.
+
+✅ **Migration `20260921220000_live_equipment_category.sql` appliquée en
+production le 21/09** (colonne `category`, défaut `other`, `check` sur les quatre
+valeurs ; dry-run préalable : seule migration en attente). **Les cinq matériels
+déjà saisis sont passés en « Autre matériel »** : à reclasser depuis le module
+Matériel. Le nouveau front doit être déployé après elle (le hook envoie
+`category` à chaque enregistrement d'un matériel).
+
+**Vérifié** : `tsc`, ESLint, règles de `check-live-progress.ts` (étendues :
+conversion, idempotence, résolution du matériel apporté, étapes), `npm run
+build`, puis de bout en bout en dev sur le compte de captures avec un jeu de test
+(2 spectacles dont un à l'ancienne forme, 1 date, 1 répétition, 5 matériels, 1
+liste, 1 EP ; **supprimé ensuite, compteurs des six tables identiques à ceux
+d'avant**) : une cinquantaine d'assertions, dont la conversion de l'ancienne
+fiche, le défaut de la migration, les sélecteurs « depuis l'inventaire » (sans
+ce qui vient déjà d'une liste), l'enregistrement à la nouvelle forme et la
+disparition des anciennes clés, la copie (avec et sans confirmation), la
+checklist d'une date et l'enregistrement d'une case, le tri de l'inventaire, les
+albums (dont le refus d'un album vide), le PDF (contenu lu dans le fichier).
+
+**À savoir** : au premier export de PDF d'une session de dev, le serveur a une
+fois échoué à charger le morceau de code de `jspdf` (« Failed to load chunk »),
+puis a réussi ; ce n'est pas propre à cette fiche (la feuille de route, même
+bibliothèque, passait dans la même session). **Non vérifié** : les singles
+(exclus par choix), une fiche de tournée (même éditeur que le spectacle, non
+ouverte), le comportement quand une table Live est en panne.
+
+Spec : `docs/superpowers/specs/2026-09-21-live-fiche-technique-materiel-design.md`.
+Plan : `docs/superpowers/plans/2026-09-21-live-fiche-technique-materiel.md`.
+
+### 🟡 Lundi 21/09 (suite) — refonte Édition : l'accord entre co-auteurs et la vie de l'œuvre
+
+> **Décision du soir, 21/09 : l'accord en ligne est fermé pour l'alpha.**
+> L'espace membre SACEM fait déjà valider électroniquement chaque co-auteur ;
+> notre accord faisait doublon, en moins officiel. Fermé par
+> `EDITION_AGREEMENTS_OPEN = false` et `/accord` dans
+> `COMING_SOON_PUBLIC_PREFIXES` (`src/lib/coming-soon.ts`) : bloc Accord masqué,
+> étapes d'accord retirées de la frise, filtre « Accord en cours » retiré,
+> routes API en 404, page publique redirigée (`/accord` ajouté au `matcher`
+> de `proxy.ts`, sans quoi la redirection ne s'appliquait pas). La migration est sortie de
+> `supabase/migrations/` vers `supabase/pending/` : **rien à appliquer** pour
+> Édition. Ce qui reste ouvert : liste, fiche, clés SACEM corrigées,
+> récapitulatif de déclaration, vie de l'œuvre et ses alertes. La question de
+> fond (récupérer nous-mêmes les droits, ou fondre Édition dans Phono) part en
+> `BETA.md`, chantier 7. Le reste de cette section décrit ce qui a été
+> construit, y compris la partie fermée.
+
+Le module était un registre : on y recopiait ce qu'on savait déjà, sans rien
+en retirer, et l'espace membre SACEM fait mieux sur la déclaration elle-même.
+Décision prise en séance : Édition couvre ce que la SACEM ne voit pas, par
+construction.
+
+- **Avant la déclaration : l'accord de répartition.** Depuis la fiche d'une
+  œuvre, l'artiste envoie à chaque co-auteur un **lien personnel** (copié ou
+  envoyé par email, Brevo). Le co-auteur, sans compte, voit les parts DEP/DRM
+  de chacun, complète son nom civil, son IPI et s'il est sociétaire, puis
+  **valide ou conteste** avec un message. Tant que l'accord est en cours, la
+  répartition est figée ; la modifier crée une nouvelle version à revalider.
+  L'artiste reçoit un email à chaque contestation et quand tout le monde a
+  validé. Page publique : `/accord/[token]`.
+- **Après : la vie de l'œuvre.** Titres Phono liés (sortis ou non), concerts
+  où elle a été jouée (setlists Live), programme déclaré ou non, revenus
+  (emplacement vide, branché demain par la refonte Revenus). Alertes : œuvre
+  sortie non déclarée, programmes de concert à déclarer, accord contesté ou
+  sans réponse depuis 7 jours. Trois règles de tâches (`rules/edition.ts`).
+- **Live** : case « Programme déclaré à la SACEM » sur l'onglet Setlist d'une
+  représentation passée (`details.sacemProgramDeclared`, sans migration).
+- **UI** : catalogue en liste dense (filtres À faire / Accord en cours /
+  Déclarées), fiche en page `/edition/[id]` à trois onglets, fin de la grande
+  modale. `WorksPage.tsx` (1 623 lignes) découpé en `lib/` + `components/work/`.
+  Cycle de vie : Brouillon → Accord → Accord validé → Déclarée → Acceptée ;
+  les statuts stockés ne changent pas (Projets, RPC et démo les lisent).
+- **Bugs corrigés au passage** : clés SACEM avec arrangeur incohérentes (la DRM
+  auteur + compositeur + arrangeur + éditeur totalisait 87,5 %) ; camemberts
+  vides en mode « parts égales » ; boutons « Upload » de fichiers sans effet,
+  retirés. Les lectures localStorage mortes du calendrier (événements Édition)
+  et de `Tasks.tsx` (contexte IA, désormais `useCalendarData`) sont retirées.
+
+Migration `20260921220000_edition_agreements.sql` rangée dans
+`supabase/pending/`, **à ne pas appliquer** tant que l'accord reste fermé.
+
+**Vérifié** : `npx tsc --noEmit`, ESLint des fichiers touchés, `npm run build`,
+les règles de `npx --yes tsx scripts/check-edition-life.ts`, puis en dev sur le
+compte de captures (lecture seule, rien enregistré) : catalogue, fiche et ses
+trois onglets, création, lien inconnu. Page du co-auteur (desktop et mobile,
+affichage d'une erreur) et bloc Accord avec un accord contesté vus avec des
+réponses réseau simulées.
+
+**Non vérifié de bout en bout** (il faut la migration) : création réelle d'un
+accord, validation et contestation par le lien, envoi d'email, notifications à
+l'artiste, régénération d'un lien. La case « Programme déclaré » du Live n'a
+pas été vue à l'écran. À faire sur une œuvre de test avec deux adresses à soi.
+
+**À relire côté juridique, si l'accord rouvre** : la page du co-auteur
+collecte nom civil et IPI d'une personne qui n'a pas de compte ; la politique
+de confidentialité devra le couvrir.
+
+Spec : `docs/superpowers/specs/2026-09-21-edition-refonte-design.md`.
+Plan : `docs/superpowers/plans/2026-09-21-edition-refonte.md`.
+
+### 🟡 Lundi 21/09 (suite) — refonte des Réglages
+
+Six rubriques au lieu de quatre, dans une sidebar dédiée avec la rubrique
+active surlignée : **Compte** (profil, identité artistique, changement
+d'email, mot de passe à 8 caractères comme `/nouveau-mot-de-passe`,
+déconnexion des autres appareils), **Modules**, **Notifications** (rappels de
+démarches), **Intégrations** (ex-Configuration mail ; Outlook masqué sauf s'il
+est déjà connecté), **Facturation** (ex-Modèle de facture) et **Données et
+confidentialité** (mesure d'audience réversible depuis l'app, données
+d'exemple, export et suppression du compte par email pré-rempli, liens
+légaux). Briques communes dans `src/modules/settings/components/SettingsUI.tsx`,
+confirmations toutes en toast. `/settings/personnalisation` redirige vers
+`/settings/modules` ; textes qui citaient « Personnalisation » ou
+« Configuration mail » corrigés (confidentialité, email de rappel,
+onboarding, liens d'écoute).
+
+Facturation : carte **Statut utilisé**, reliée à Admin > Statuts, qui affiche
+ce que l'en-tête imprimera (adresse, SIRET, TVA, IBAN) avec les champs
+manquants, un lien Modifier ou Compléter, et l'aperçu PDF construit sur le
+vrai statut (même construction que l'éditeur de facture).
+
+Vérifié en dev sur le compte de captures : les 6 rubriques et la redirection
+s'affichent sans erreur console. **Non vérifié** : le changement d'email de
+bout en bout (le lien de confirmation repasse par `/auth/callback`, à tester
+sur une adresse jetable, pas sur le compte de captures) et l'interrupteur de
+mesure d'audience (PostHog inactif en local).
+
+**Changement d'email testé en local le 21/09 : lien reçu mais inopérant.**
+Le lien portait `redirect_to=https://sidekickartists.com` : l'adresse de
+retour demandée n'est pas dans les Redirect URLs, Supabase retombe sur la Site
+URL. **La case URL Configuration de la recette est donc toujours à faire**, et
+elle touche aussi la confirmation d'inscription et la récupération de mot de
+passe. Côté code : un `?code=` qui arrive sur `/` est renvoyé vers
+`/auth/callback` (`proxy.ts`), le premier lien de la double confirmation ne
+finit plus sur `/login?error=oauth`, et le callback redirige via
+`requestOrigin` (il renvoyait vers `0.0.0.0:3000` en dev, sans les cookies de
+session). Mot de passe actuel demandé avant tout changement d'email ou de mot
+de passe. Le 22/09 : suivi en trois étapes du changement d'adresse
+(`EmailChangeSteps`), et toutes les erreurs d'authentification passent par
+`authErrorMessage` (`src/lib/auth-errors.ts`, par code d'erreur puis par
+texte) : plus aucun message Supabase en anglais à l'écran. Messages d'erreur de
+`/api/mail/send` traduits aussi. Puis **règle générale** : toute erreur
+affichée passe par `userErrorMessage(err, repli)` (`src/lib/user-error.ts`),
+qui traduit les erreurs connues (Postgres, Storage, réseau, session), garde nos
+messages français et remplace tout texte anglais inconnu par le repli. Branché
+dans les hooks (erreurs de chargement, toast de rollback Phono, Drive) et dans
+une vingtaine d'écrans ; routes API qui renvoyaient `error.message` ou de
+l'anglais traduites (liens d'écoute, calendrier, presskit, métadonnées…).
+Changement d'email : bouton « Renvoyer les liens » sur l'étape en cours
+(délai de 60 s ; Supabase régénère les deux liens, le suivi repart à l'étape 1).
+**Liens des emails sur le site, plus sur `…supabase.co` (22/09).** Les modèles
+utilisent `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=…` au lieu de
+`{{ .ConfirmationURL }}`, et `/auth/callback` valide le jeton par `verifyOtp` :
+lien lisible, et qui marche ouvert sur un autre appareil (plus besoin du code
+verifier PKCE). **À coller dans Supabase** pour les 3 modèles (inscription, mot
+de passe oublié, changement d'adresse), détail dans `docs/email-setup.md`.
+Suppose les Redirect URLs en allowlist.
+
+**Tranché le 21/09 : seuls un statut auto-entrepreneur ou une association
+facturent.** Règle unique `canIssueInvoices` / `billingStatuses` dans
+`statuts-form-config.ts`, appliquée à la liste des factures, à l'éditeur et à
+la carte des Réglages : un intermittent n'est plus proposé ni pris par défaut
+(il l'était, étant le premier statut du compte de captures). Une facture déjà
+rattachée à un statut qui ne facture pas n'est **pas déplacée d'office**
+quand plusieurs statuts facturent : la liste la signale, l'éditeur force le
+choix du statut avant d'enregistrer. Avec un seul statut qui facture, le
+rattrapage existant la rattache à lui. Le compte de captures a une facture
+dans ce cas (FAC-2026-001, rattachée à Intermittent) : à corriger à la main.
+SASU et artiste-auteur exclus aussi, par décision (déjà masqués à la
+création). Comptabilité (fermée) non touchée.
+
 ### ✅ Semaine 3 (14/09 → 18/09)
 
 Mêmes deux règles qu'avant : la donnée avant l'interface, et les blocages
@@ -560,9 +884,9 @@ les refontes fait visiter des écrans qui n'existent plus.
 | Sam 19/09 | **Finir Phono et Projets** — ~~page album~~ faite · ~~dernier lien localStorage `CatalogPage.tsx:185`~~ fait · **mixes** en finalisation · **trancher `ffmpeg`** au passage, la refonte du catalogue s'appuie dessus |
 | Dim 20/09 | Repos |
 | Lun 21/09 | **Refonte Live** · **refonte Édition** (le catalogue était déjà au programme du 15/09, non traité) |
-| Mar 22/09 | **Refonte Revenus** · **mini-refonte de la landing** · `handleMutationError()` sur les 20 hooks — c'est le bon moment, les composants ont fini de bouger |
+| Mar 22/09 | **Refonte Revenus** · **mini-refonte de la landing** · `handleMutationError()` sur les 20 hooks — c'est le bon moment, les composants ont fini de bouger · **finaliser Projets et le relier à tous les modules**, dernière refonte de la liste (section dédiée ci-dessous) · **en fin de journée, une fois la dernière refonte terminée : check-up des automatismes** (notifications, ajout automatique au calendrier, tâches ; section dédiée ci-dessous) · **rappels par email des événements du calendrier**, dans le digest existant (section dédiée ci-dessous) · **puis messages d'information en bas à droite** sur les changements importants (section dédiée ci-dessous) |
 | Mer 23/09 | **Journée entière : onboarding, compte démo, tutoriel** (section dédiée ci-dessous) |
-| Jeu 24/09 | **Matin** : Supabase Pro, DPA, service client, **finalisation et vérification des surveys** · **recette de déploiement** sur 2 comptes vierges dont un mono-secteur · **purge PostHog** · **ouverture** |
+| Jeu 24/09 | **Matin** : Supabase Pro, DPA, service client, **finalisation et vérification des surveys** · **recette de déploiement** sur 2 comptes vierges dont un mono-secteur · **purge PostHog** · **retirer l'avertissement « phase de test » de Google** (section dédiée ci-dessous, la démarche est à lancer avant) · **ouverture** |
 
 🔴 **Ce qui bloque l'ouverture, et rien d'autre** : l'abonnement **Supabase Pro**
 (sans lui, aucune sauvegarde de la base), la **recette de déploiement** sur
@@ -574,6 +898,256 @@ ils décident de la date.
 journée déborde, ce qui saute est l'ouverture, pas la recette. Une recette non
 passée se paie sur les premiers comptes réels, une ouverture décalée d'un jour
 ne coûte rien à personne.
+
+### ⬜ Mardi 22/09 — finaliser Projets et le relier à tous les modules
+
+**Dernière refonte de la liste, après Live, Édition, Phono et Revenus.** Un
+projet (un album, une tournée, une création) est ce qui traverse tous les
+modules. Il doit donc être branché sur leur version finale, pas sur des écrans
+qui bougent encore. Cela remplace la décision du 07/09, où Projets se limitait
+à sa migration Supabase (voir « Décisions prises »).
+
+État des liens au 21/09 (champs `project_id` / `projectId`,
+`useProjectLinks`, RPC `create_project_with_links`) :
+
+| Module | Lien avec Projets |
+|---|---|
+| Phono | ✅ `PhonoSection`, titres rattachés (`TrackEditPage`, `TracksTab`) |
+| Live | ✅ `LiveSection`, dates, répétitions, spectacles |
+| Édition | ✅ `EditionSection`, œuvres (`WorksPage`, `WorkEditPage`) |
+| Revenus | ✅ factures et relevés ventilés par projet (`ProjectBreakdown`) |
+| Budget, Création, Admin, Marketing | onglets du projet (`BudgetTab`, `CreationTab`, `AdminTab`, `MarketingTab`) ; Marketing est fermé pour l'alpha |
+| Tâches | ⬜ aucun lien |
+| Calendrier | ⬜ aucun lien direct (seulement via les événements des modules) |
+| Contacts | ⬜ aucun lien |
+| Drive | ⬜ aucun lien |
+
+À faire :
+
+- **Vérifier les liens existants dans les deux sens**, sur les écrans refondus.
+  Un titre rattaché à un projet apparaît dans le projet, et le projet
+  apparaît sur la fiche du titre. Même vérification pour les dates Live, les
+  œuvres et les factures. Détacher ou supprimer d'un côté met l'autre à jour,
+  sans lien orphelin.
+- **Brancher ce qui manque**, dans cet ordre :
+  1. **Tâches** : rattacher une tâche à un projet, et afficher les tâches du
+     projet dans sa vue d'ensemble.
+  2. **Calendrier** : filtrer par projet, et afficher la chronologie du projet
+     (sorties, dates, sessions).
+  3. **Contacts** : les intervenants du projet.
+  4. **Drive** : un dossier par projet.
+
+  Si la journée ne suffit pas, les derniers de la liste passent à la bêta. Il
+  vaut mieux un lien absent qu'un lien à moitié fait.
+- **Finaliser l'écran lui-même** : vue d'ensemble lisible, écran vide soigné
+  (c'est le premier écran d'un testeur sans données d'exemple), archives.
+- **Données d'exemple** : les projets de `src/lib/demo-seed.ts` doivent être
+  reliés à des titres, des dates et des œuvres du jeu d'exemple. C'est la
+  vitrine de ces liens, et le tutoriel du mercredi passera par là.
+- **Identité de l'artiste** : une œuvre créée depuis un projet reste sous le
+  nom civil (règle 3 de `CLAUDE.md`), et un titre sous `releaseArtist`.
+
+### ⬜ Mardi 22/09, fin de journée — check-up des automatismes
+
+**À faire quand toutes les refontes sont terminées, pas avant.** Les refontes
+Live, Édition, Phono, Projets et Revenus ont changé les écrans qui créent les
+données. Ce qui se déclenche tout seul à partir de ces données a pu casser sans
+bruit : un événement qui n'arrive plus au calendrier, un rappel qui ne part
+plus, une suggestion de tâche sur un champ renommé. Personne ne le voit en
+recette si on ne le cherche pas. Et c'est ce que le tutoriel du mercredi va
+mettre en avant.
+
+Un seul passage, module par module, sur le compte de démo puis sur un compte
+vierge :
+
+- **Notifications.**
+  - Rappels de démarches par email (`app/api/cron/reminders`) : un rappel
+    part bien pour une démarche à échéance, l'interrupteur en Réglages le
+    coupe, le lien de l'email mène au bon écran.
+  - Emails transactionnels (inscription, récupération de mot de passe, lien
+    d'écoute) : envoyés et reçus, pas seulement « acceptés » par Brevo
+    (cf. l'épisode du 18/09).
+  - Messages dans l'app (toasts `sonner`, il n'y a pas de centre de
+    notifications) : ceux qui confirment une action, surtout celles qui
+    touchent le calendrier ou les tâches, s'affichent encore et disent vrai.
+- **Ajout automatique au calendrier** (`src/lib/calendar-sync.ts`). Pour chaque
+  source, créer, modifier la date, puis supprimer, et vérifier que le
+  calendrier suit à chaque fois, sans doublon ni événement orphelin :
+  - Live : dates et répétitions.
+  - Phono : sessions et sorties de titres, d'albums et de mixes.
+  - Admin : démarches, début et fin de statut.
+  - Revenus : factures.
+  - Édition.
+  - Tâches.
+  - Vérifier aussi l'export iCal (`/api/calendar/ical/[token]`), et que le
+    calendrier respecte les modules désactivés.
+- **Tâches.**
+  - Suggestions algorithmiques (`src/modules/tasks/rules/`, un fichier par
+    module) : chaque règle se déclenche encore sur les données refondues, et
+    aucune ne lit un champ disparu.
+  - Suggestions IA (`app/api/tasks/ai-suggestions`) : pas de doublon avec les
+    règles, et le cache du jour tient.
+  - Tâches créées depuis un module : le lien remonte vers la bonne fiche.
+
+Ce qui ne marche plus se corrige le jour même si c'est court. Sinon, la
+fonctionnalité se ferme ou le tutoriel l'évite, mais on ne l'ouvre pas cassée.
+
+### ⬜ Mardi 22/09, fin de journée (suite) — rappels par email des événements du calendrier
+
+À faire avec le check-up de l'ajout automatique au calendrier : une fois que
+chaque module y dépose bien ses événements, on peut les rappeler par email.
+
+État au 21/09 : le seul rappel par email est le digest quotidien des
+**démarches Admin** (`app/api/cron/reminders`, horizon de 14 jours). Rien ne
+prévient d'un concert, d'une session studio ou d'une sortie à venir.
+
+- **Étendre le digest existant, sans créer un second email.** Le même envoi
+  quotidien regroupe les démarches à échéance et les événements des prochains
+  jours. Il y a deux raisons :
+  - la règle de la route, « un seul email par personne, jamais un par
+    élément », c'est la différence entre un rappel utile et du harcèlement ;
+  - le quota Brevo gratuit de 300 envois par jour est partagé avec
+    l'inscription et le contact, et un second email par utilisateur le
+    doublerait.
+- **Horizon plus court que les démarches** : le jour même et la veille pour un
+  concert ou une session, 7 jours avant une sortie. Un événement de dans deux
+  semaines n'a pas besoin d'un rappel aujourd'hui.
+- **Quels événements** : ceux de `calendar_events` pour les modules activés
+  (Live, Phono, Revenus, Édition, Tâches avec échéance, et les événements
+  personnels). Ceux des modules désactivés n'y figurent pas. Les échéances
+  Admin restent traitées par la partie démarches, pour ne rien envoyer en
+  double.
+- **Réglages > Notifications** : un interrupteur pour les rappels d'événements,
+  à côté de celui des démarches (`reminders_enabled`). Les deux se coupent
+  séparément.
+- **Email** : l'heure et le lieu quand ils existent, et un lien vers
+  l'événement dans l'app.
+- ✅ **Corrigé le 21/09** : `SITE_URL` retombait sur `https://sidekick.tools`
+  (pas notre domaine) si `NEXT_PUBLIC_SITE_URL` manquait. La route importe
+  maintenant la constante partagée de `src/lib/site.ts`
+  (`sidekickartists.com`).
+- **Recette** : créer un concert pour le lendemain, déclencher la route à la
+  main, et vérifier qu'un seul email arrive avec la démarche et l'événement.
+  Couper l'interrupteur des événements : il ne reste que les démarches.
+
+### ⬜ Mardi 22/09, fin de journée (suite) — messages d'information en bas à droite
+
+Même logique que le check-up : **une fois les refontes terminées**, en une
+seule passe sur toute l'app. Quand une action a un effet que l'utilisateur ne
+voit pas à l'écran, un petit message en bas à droite le lui dit. Par exemple :
+un événement ajouté au calendrier, une tâche créée, un email parti, un fichier
+passé en privé. Sans ce message, il ne sait pas que ça a marché, ou il ne
+découvre l'effet que plus tard, par surprise.
+
+État au 21/09 : les messages passent par `sonner` (`toast.success` ×37,
+`toast.error` ×35). Ils sont présents dans Édition, Live, Phono, Projets,
+Réglages et une page Admin. Ils sont absents de Revenus, Calendrier, Contacts,
+Tâches et du tableau de bord.
+
+- 🔴 **Deux `<Toaster>` sont montés** : l'un dans `app/layout.tsx:155`
+  (`position="bottom-right"`), l'autre dans `app/(app)/layout.tsx:59`. Dans
+  l'app, un message peut donc s'afficher deux fois. Garder celui de la racine
+  et retirer l'autre, puis vérifier qu'un `toast()` ne s'affiche qu'une fois.
+- **Inventaire, module par module**, des actions qui méritent un message :
+  - effet dans un autre module : ajout au calendrier, tâche générée, lien vers
+    un contact ;
+  - envoi vers l'extérieur : email, invitation, lien d'écoute partagé ;
+  - action destructrice ou difficile à défaire : suppression, archivage,
+    effacement des données d'exemple ;
+  - opération longue : import de relevés, upload, export de métadonnées.
+- **Pas de message sur tout.** Une saisie qu'on voit s'afficher n'en a pas
+  besoin. Trop de messages, et plus personne ne les lit.
+- **Une seule façon d'écrire** : une phrase courte qui dit ce qui s'est passé
+  (« Ajouté au calendrier »), et un bouton « Voir » ou « Annuler » quand c'est
+  utile. Pas de tiret cadratin dans ces textes.
+- **Les erreurs passent par le même canal** : `handleMutationError()`, posé le
+  même jour, affiche ses messages ici. Les deux chantiers se font ensemble,
+  pour qu'un rollback ne reste plus silencieux.
+
+### ⬜ Mardi 22/09, fin de journée (suite) — formulaires de création : réutiliser ce qui est déjà saisi
+
+Ajouté le 22/09. **Le temps de saisie est une vraie barrière** : un artiste qui
+doit tout retaper à chaque titre, date ou démarche abandonne avant d'avoir vu
+ce que l'outil lui rend. Même logique que les messages d'information : une
+seule passe sur tous les formulaires de création, **une fois les refontes
+terminées**.
+
+État au 22/09 : « Dupliquer » n'existe que sur les titres Phono
+(`TrackRow.tsx`), et seule l'équipe Live (`TeamBlock.tsx`) propose des valeurs
+déjà saisies.
+
+- **Suggérer les valeurs déjà saisies** sur les champs libres qui se répètent :
+  lieux, villes, salles, labels, distributeurs, organismes, collaborateurs,
+  ayants droit. Une frappe, et les entrées précédentes remontent.
+- **Choisir une personne dans les Contacts** plutôt que la retaper, partout où
+  un formulaire demande un nom de personne ou de structure.
+- **Dupliquer un élément existant** (une date de tournée, une œuvre, une
+  facture, une session) : le formulaire s'ouvre pré-rempli, on ne change que ce
+  qui diffère.
+- **Reprendre le dernier choix** pour les champs qui changent rarement d'une
+  saisie à l'autre (statut, type, devise, taux).
+- **Pré-remplir depuis le contexte** : créer depuis un projet, un titre ou une
+  date reprend ce qui s'y rattache (projet, artiste, date).
+- **Garder le formulaire court** : n'afficher d'emblée que les champs
+  nécessaires à la création, le reste se complète après.
+- **Respecter l'identité de l'artiste** : les pré-remplissages d'artiste
+  passent toujours par `useArtistIdentity()` (cf. `CLAUDE.md`), jamais par une
+  valeur réutilisée d'une autre saisie.
+- **Recette** : chronométrer la création d'un titre, d'une date de tournée et
+  d'une œuvre sur un compte qui a déjà des données, avant et après.
+
+### ✅ Mardi 22/09, fin de journée (suite) — logo d'artiste et Personnalisation
+
+Demandé en cours de journée : un logo facultatif, deux versions (fonds clairs
+et fonds sombres, chacune avec repli sur l'autre), proposé à l'onboarding et
+géré dans Réglages > Compte (`ArtistLogoCard`), avec un interrupteur par
+export — factures, fiche technique, liens d'écoute (page **et** mail
+d'invitation, même réglage pour les deux).
+
+Au passage, **Facturation** et **Fiche technique** fusionnent en une seule
+rubrique **Personnalisation** (`/settings/personnalisation?doc=factures|
+fiche-technique`), couleur et police communes aux deux onglets. Les anciennes
+adresses redirigent. Boutons « Personnaliser » ajoutés depuis l'éditeur de
+facture et depuis la fiche technique (date et spectacle), à côté du bouton de
+téléchargement.
+
+Voir `docs/superpowers/specs/2026-09-22-artist-logo-design.md` et
+`docs/superpowers/plans/2026-09-22-artist-logo.md`.
+
+- Migration `20260922000000_artist_logo.sql` appliquée en production le
+  22/09 : `artist_logo`, `artist_logo_dark`, `artist_logo_exports` sur
+  `user_preferences`. Le logo n'existait pas encore chez les deux comptes de
+  production, rien à reprendre depuis `invoice_template.logoDataUrl`. Cette
+  clé reste lisible en base pour l'instant (écart assumé du plan) : le code
+  déployé avant ce chantier la lit encore, elle est retirée à la prochaine
+  écriture du modèle de facture par chaque compte, pas par la migration.
+- Vérifié en dev, compte `SHOT_EMAIL` : upload des deux versions, persistance
+  après rechargement, ligne d'état dans les deux onglets de Personnalisation,
+  interrupteur qui retire bien l'image (`/Subtype /Image` absent d'un export
+  PDF de fiche technique une fois l'interrupteur coupé, présent une fois
+  rétabli), page `/ecoute/<slug>` et écran d'identification. Logos de test
+  retirés du compte après vérification.
+- `tsc` et `npm run lint` propres sur les fichiers touchés (le lint global
+  porte des erreurs préexistantes, module Tasks et `tailwind.config.ts`, sans
+  rapport avec ce chantier).
+- Pas de commit : à faire sur demande, après relecture.
+
+Complété le 23/09, sur demande :
+- Le switch de compte (« Afficher sur », Réglages > Compte) est aussi repris
+  tel quel dans Personnalisation, sous « Logo sur ce document » (onglets
+  Factures et Fiche technique), activé par défaut.
+- Liens d'écoute : logo replacé en haut à droite de l'en-tête, plus grand, en
+  incrustation sur la pochette (`ListeningPlayer.tsx`). Interrupteur
+  **par lien**, à côté du choix de la cover dans l'éditeur du lien —
+  `user_listening_links.show_logo`, migration
+  `20260923000000_listening_show_logo.sql` appliquée en production le 23/09,
+  colonne booléenne, défaut vrai, aucune donnée existante affectée. Le compte
+  et le lien doivent tous deux l'autoriser pour que le logo sorte sur ce lien
+  précis (page, mail d'invitation).
+- Vérifié en dev, aller-retour complet : interrupteur du lien coupé →
+  `logoUrl` absent de la charge JSON publique ; réactivé → présent. Position
+  du logo vérifiée par capture. Mot de passe du lien de test et logo du
+  compte de test restaurés/retirés après vérification.
 
 ### ⬜ Mercredi 23/09 — onboarding, compte démo, tutoriel
 
@@ -638,7 +1212,7 @@ Factur-X avait été réintégré le 15/09, pour livraison les 16 et 17. Ressort
 16/09 : rien n'était écrit, le planning de la semaine était déjà pris par le
 légal, et l'obligation d'émission pour les TPE et PME ne tombe qu'au 1er
 septembre 2027. Aucun utilisateur n'en a besoin pour l'alpha. Le chantier part
-à la bêta (`BETA.md`, chantier 2, avec Iopole).
+à la bêta (`BETA.md`, chantier 3, avec Iopole).
 
 La carte `ProductProof` qui l'annonçait est remplacée par les clés de
 répartition SACEM, qui existent vraiment. C'était le seul endroit du produit à
@@ -648,6 +1222,42 @@ promettre Factur-X, et le laisser aurait été une pratique commerciale trompeus
 `handleMutationError()` est placé après les refontes UI volontairement : les
 composants auront bougé, autant poser les messages d'erreur une seule fois, à
 la fin.
+
+### ⬜ Jeudi 24/09, avant l'ouverture — sortir Google OAuth de la phase de test
+
+Aujourd'hui, l'écran de consentement Google affiche l'avertissement de phase
+de test, avec « Google n'a pas validé cette application ». Un testeur qui voit
+ça à sa première connexion peut croire à une arnaque et partir. En mode
+« Testing », il y a aussi deux effets de bord : seuls les comptes ajoutés à la
+main comme testeurs peuvent se connecter, et les jetons expirent au bout de
+7 jours. C'est la cause probable des déconnexions Gmail (`invalid_grant`, voir
+« Pièges connus »).
+
+- **Google Cloud Console > Écran de consentement OAuth** : passer le statut de
+  publication de « Testing » à « In production ».
+- **Vérification Google.** Le scope `gmail.send`
+  (`app/api/mail/oauth/google/start/route.ts`) est un scope sensible. Tant que
+  Google ne l'a pas validé, l'avertissement « application non validée » reste
+  affiché, même en production. Le dossier demande :
+  - la page d'accueil et `/confidentialite` sur `sidekickartists.com`,
+    domaine vérifié dans la Search Console ;
+  - le logo et le nom de l'application ;
+  - une justification de l'usage de `gmail.send` ;
+  - une vidéo qui montre l'envoi depuis l'app.
+- ⚠️ **Délai externe de plusieurs jours à plusieurs semaines.** Il faut
+  déposer le dossier **dès maintenant**, pas le 24. Si Google n'a pas validé à
+  l'ouverture, il y a deux solutions :
+  - fermer la connexion Gmail pour l'alpha, puisque l'envoi reste possible
+    sans elle ;
+  - ou laisser l'avertissement, et prévenir dans l'onboarding que Google le
+    montre encore.
+- **À vérifier** : si la connexion à l'app par Google (Supabase) et l'envoi
+  Gmail utilisent le même projet Google, ils partagent le même écran de
+  consentement. Dans ce cas, l'avertissement touche aussi la connexion simple.
+  Avec deux projets séparés, la connexion simple (email, profil) peut sortir de
+  la phase de test sans vérification lourde.
+- **Contrôle** : se connecter avec un compte Google qui n'est pas dans la liste
+  des testeurs. Il ne doit y avoir ni blocage ni avertissement.
 
 ### 🟡 Projets — liens localStorage résiduels, lundi 14/09
 
@@ -846,14 +1456,34 @@ nécessaire.
 
 - [ ] Inscription depuis la landing → email de confirmation reçu → le lien
       ouvre l'app connectée, pas une page d'erreur.
-- [ ] Onboarding : choix des secteurs, puis données d'exemple. Vérifier que la
-      carte de suppression apparaît bien dans Réglages > Personnalisation.
+- [ ] Onboarding en **trois étapes** : identité (nom d'artiste ou nom propre),
+      secteurs, puis données d'exemple. Vérifier que la carte de suppression
+      apparaît bien dans Réglages > Personnalisation.
+- [ ] Identité de l'artiste (21/09) : migration `20260921000000_artist_identity.sql`
+      appliquée en production (fait le 21/09). Sur un compte vierge, un lien
+      d'écoute **sans mot de passe** affiche le nom choisi en en-tête, pas
+      « Artiste ». Créer une œuvre depuis Projets : l'utilisateur figure dans
+      les ayants droit, au nom civil.
+- [ ] Refonte Live (21/09) : migration `20260921100000_live_prospection_tour.sql`
+      (colonne `tour_id`) **déjà appliquée en production le 21/09** ; le front
+      se déploie donc sans précaution d'ordre. Après bascule, sur un compte
+      vierge : créer un spectacle, monter une tournée depuis sa carte, lui
+      rattacher une date, une répétition et un lieu de prospection, vérifier que
+      la fiche de tournée les montre et que sa progression bouge.
+- [ ] Fiche technique et matériel (21/09) : migration
+      `20260921220000_live_equipment_category.sql` **déjà appliquée en production
+      le 21/09**. Après bascule, sur un compte vierge : créer un matériel avec sa
+      catégorie, une liste, puis sur un spectacle cocher la liste, ajouter un
+      élément et une ligne « à fournir par la salle », copier la fiche sur un
+      second spectacle, exporter le PDF, et vérifier la checklist d'une date.
 - [ ] Notification d'inscription reçue sur `hello@` / `SIGNUP_NOTIFY_TO`.
 - [ ] **Mot de passe oublié** : demander le lien, le recevoir, le suivre,
       définir un nouveau mot de passe, se reconnecter avec. Puis rouvrir le
       même lien une seconde fois — l'écran « lien expiré » doit s'afficher, pas
       une erreur technique.
-- [ ] Connexion Google.
+- [ ] Connexion Google, avec un compte **absent de la liste des testeurs** :
+      pas d'écran « phase de test », pas d'avertissement « application non
+      validée ».
 
 **Rappels de démarches**
 
@@ -882,6 +1512,10 @@ nécessaire.
 Le module est ouvert dans le périmètre : il doit être *fiable*, pas *beau*. Un
 projet qui disparaît au changement de navigateur tue l'alpha, un projet moche
 non. PostHog dira au J14 si la refonte vaut le coup.
+**Remplacée le 21/09** : Projets est finalisé et relié à tous les modules le
+mardi 22/09, comme dernière refonte avant le check-up des automatismes. Le
+projet est ce qui relie les modules entre eux ; ouvrir l'alpha avec des liens
+partiels montrerait six outils séparés plutôt qu'un seul.
 
 **Alpha gratuite et ouverte, pas de paiement du tout.** Ni tunnel Stripe, ni
 Payment Link, ni invitations : l'inscription est libre depuis la landing. Une
@@ -939,7 +1573,7 @@ calendrier est migré vers Supabase. Non traité, hors périmètre du jour.
 
 ---
 
-## ✅ Export de métadonnées — remis en état le samedi 19/09
+## ✅ Export de métadonnées — remis en état et vérifié en ligne le samedi 19/09
 
 **Tranché : on garde la fonctionnalité et on la fait marcher en production**
 (option `ffmpeg-static`). Trois murs, pas un seul :
@@ -989,16 +1623,28 @@ coupe-circuit). Rien à poser sur Vercel.
 
 `npx tsc --noEmit` et `npm run build` verts.
 
-🔴 **Non vérifiable en local, à contrôler à la première mise en production :**
+✅ **Vérifié sur Vercel le 19/09**, preview de `claude-edits` (commit `85ebdad`,
+URL `sidekick-git-claude-edits-…vercel.app`, franchie par un secret
+« Protection Bypass for Automation ») :
 
-- Le plafond de 4,5 Mo n'est **pas appliqué par `next dev`** : seule la prod dira
-  si le flux le contourne vraiment. Faire un export réel après déploiement.
+| Contrôle | Résultat |
+|---|---|
+| Export d'un fichier hébergé | **200, 8 201 424 octets en 6,1 s** |
+| Plafond de 4,5 Mo | **contourné** — le flux fait son office, aucun 413 |
+| Intégrité | décodage sans erreur, 3:21 complètes |
+| Tags | titre, artiste, album, `publisher`, `composer`, `TSRC`/`ISRC`, date |
+| Binaire réellement exécuté | `encoder: Lavf61.1.100`, contre `Lavf60.3.100` en local — c'est bien le binaire **Linux** de `ffmpeg-static`, donc bit exécutable préservé et `postinstall` passé |
+| Dépôt ponctuel de 6,8 Mo par l'interface | zip de 13 Mo en 16,3 s, aucune requête en échec |
+| Fichier temporaire après export | supprimé, aucun résidu dans `Phono/Catalogue` |
+
+Les trois inconnues de la liste ci-dessous sont donc levées. Il en reste une,
+qui ne se voit qu'à froid :
+
 - Le binaire de `ffmpeg-static` est téléchargé au `postinstall`, pour la
-  plateforme de build (Linux x64 chez Vercel). C'est une **dépendance réseau au
-  moment du build** : si GitHub est indisponible, le build casse.
-- Le **bit exécutable** du binaire doit survivre au bundling. Si l'export
-  répond 500 en production, c'est le premier point à regarder (`EACCES` dans le
-  `stderr` désormais journalisé).
+  plateforme de build. C'est une **dépendance réseau au moment du build** : si
+  GitHub est indisponible, le build casse. Rien à faire, juste à savoir.
+- ⚠️ Le secret de bypass d'automatisation a été activé pour ce test. **À
+  révoquer ou régénérer** dans Settings → Deployment Protection.
 
 `fluent-ffmpeg` reste dans `package.json` sans aucun appelant — à retirer.
 
@@ -1135,9 +1781,78 @@ son lecteur passe par `/api/phono/signed-audio`, qui vérifie le propriétaire.
 
 - 18 hooks sur 20 sans `catch` : les erreurs Supabase font un rollback silencieux,
   sans message à l'utilisateur (10 `toast.error` dans tout le code)
-- Refonte UI de Live et Marketing : hors périmètre alpha. Marketing est fermé,
-  Live est jugé utilisable en l'état. À reprendre après l'ouverture en suivant
-  ce que PostHog montrera.
+- Refonte UI de Marketing : hors périmètre alpha, le module est fermé. À
+  reprendre après l'ouverture en suivant ce que PostHog montrera. (Live a été
+  refondu le 21/09, voir plus haut.)
+
+**Passage d'architecture du 21/09** (lecture du code, pas de test de charge) —
+ce qui freinera après l'ouverture, par ordre de priorité :
+
+1. ✅ **Tests et CI** — posés le 21/09 : `npm test` (17 tests unitaires, Node
+   natif, aucune dépendance), `npm run test:smoke` (6 tests HTTP sans
+   identifiants, contre un serveur lancé), `.github/workflows/ci.yml` (types +
+   tests unitaires). Le lint n'y est pas : 57 erreurs antérieures. La CI n'a
+   **jamais tourné** (fichier écrit, pas encore poussé). **Manque** : un
+   test d'isolation entre deux comptes (RLS), qui demande deux comptes de test.
+2. 🟡 **Jetons OAuth mail dans `user_metadata`**, lisibles depuis le navigateur.
+   Étape 2 faite le 21/09 : les callbacks écrivent aussi dans
+   `user_mail_connections`, `mail/send` lit la table puis les métadonnées,
+   « Déconnecter » supprime la ligne. Migration
+   `20260921200000_user_mail_connections.sql` **appliquée en production le 21/09**
+   (`db push --linked`, dry-run d'abord). Vérifié en ligne : 1 connexion Gmail
+   reprise, colonne `refresh_token` refusée au navigateur (42501), adresse
+   lisible. Nettoyage des métadonnées
+   (étape 3) après un vrai envoi depuis la table :
+   `docs/superpowers/plans/2026-09-21-mail-tokens-table.md`.
+
+   🔴 **Bug trouvé au passage, corrigé** : `/auth/callback` stockait
+   `provider_token` (un access token d'une heure, scopes `email profile`) comme
+   `gmail_refresh_token`. Tout compte inscrit avec Google voyait « Gmail
+   connecté » sans pouvoir rien envoyer. **Ce n'est pas la cause du token
+   expiré d'Eliott** : son jeton était un vrai refresh token (`1//`), que Google
+   refuse (`invalid_grant`, testé le 21/09). Cause restante : écran de
+   consentement en mode « Testing » (7 jours) ou révocation. Se reconnecter. Le callback n'écrit plus rien ; les faux jetons
+   (`ya29.`) sont traités comme non connectés partout (bouton de connexion
+   affiché) et exclus de la reprise SQL.
+
+   🔴 **Second bug, corrigé le 21/09** : les routes OAuth construisaient
+   `redirect_uri` avec `req.nextUrl.origin`, qui vaut l'adresse d'écoute du
+   serveur. Avec `next dev -H 0.0.0.0`, Google recevait `http://0.0.0.0:3000/…`
+   et bloquait (« doesn't comply with Google's OAuth 2.0 policy »,
+   `invalid_request`). `src/lib/request-origin.ts` lit `Host` /
+   `X-Forwarded-Host`. URI de retour enregistrées sur le client Google :
+   `http://localhost:3000/…` et `https://sidekickartists.com/…` (pas `www`).
+   Depuis un autre appareil via l'IP locale, Google refuse toujours (IP
+   privée) : tester sur `localhost` ou en production.
+3. ✅ **Cron de rappels** (`cron/reminders`) — lecture paginée (la limite par
+   défaut de 1 000 lignes ignorait silencieusement le reste), envois par 5 en
+   parallèle, budget de temps de 240 s, plafond de 250 mails par passage
+   (`REMINDERS_MAX_PER_RUN`, sous les 300/jour de Brevo), les plus en retard
+   d'abord. **Non testé en production** : les crons ne tournent que là.
+4. 🟡 **Troncature à 1 000 lignes dans les hooks** — au-delà de 1 000 lignes par
+   table et par utilisateur, PostgREST tronque sans erreur. `src/lib/fetch-all.ts`
+   lit page par page (tri terminé par `id`), branché le 21/09 sur les huit tables
+   qui peuvent grossir : tâches, contacts, événements du calendrier, royalties
+   manuelles, factures, missions d'intermittence, dates de tournée, prospection.
+   Vérifié en dev connecté : requêtes paginées, toutes en 200. **Restent en
+   lecture simple** : les tables petites par nature (albums, statuts, listes de
+   matériel…) et Marketing (fermé) ; `user_mailing_contacts` sera à passer au
+   `fetchAll` à sa réouverture.
+5. ⬜ **Huit composants de plus de 1 000 lignes** (`GlobalCalendarPage` 1 847,
+   `MailingPage` 1 797…) : à découper au fil des retouches.
+6. 🟡 **Limiteur de débit partagé** — `rate-limit-shared.ts` (fonction
+   Postgres `rate_limit_hit`, atomique) branché sur les 4 routes limitées.
+   Migration `20260921210000_rate_limits.sql` **appliquée en production le
+   21/09** ; vérifié : 2e appel refusé avec `retry_after` 60 s, fonction refusée
+   au navigateur (42501). Repli en mémoire si la base ne répond pas.
+
+Envoi de mail depuis le formulaire de lien d'écoute : un token Google expiré
+(`invalid_grant`) donne maintenant « La connexion à Gmail a expiré » et un
+bouton « Reconnecter mon adresse », au lieu d'une erreur anglaise générique.
+**Cause de l'expiration non confirmée** : si l'écran de consentement Google est
+en mode « Testing », les tokens expirent au bout de 7 jours et la sortie de ce
+mode passe par la vérification Google du scope `gmail.send`, qui peut prendre
+plusieurs semaines. **À vérifier dans la Google Cloud Console avant le 24/09.**
 
 Traité dans le planning, plus de la dette :
 
