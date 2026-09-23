@@ -16,6 +16,7 @@ import type { AudioAttachment } from "@/lib/sidekick-store";
 import type { DriveAudioUsage } from "@/modules/phono/lib/audio-usage";
 import { cn, focusRing } from "@/lib/utils";
 import { DrivePickerDialog } from "./DrivePickerDialog";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Forme des deux entrées d'attachement. Sans bordure, ce n'étaient que deux
@@ -199,7 +200,7 @@ export function AudioAttachField({
         peaks,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(userErrorMessage(e, "Le fichier audio n’a pas pu être importé. Réessaie."));
     } finally {
       setPhase({ kind: "idle" });
     }
@@ -251,7 +252,7 @@ export function AudioAttachField({
         peaks,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(userErrorMessage(e, "Ce fichier du Drive n’a pas pu être rattaché. Réessaie."));
     } finally {
       setPhase({ kind: "idle" });
     }

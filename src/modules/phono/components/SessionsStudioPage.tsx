@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { AudioWaveform, CalendarDays, Plus, Search } from "lucide-react";
 import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageError } from "@/components/ui/page-error";
@@ -18,6 +26,7 @@ import {
   sessionTimestamp,
 } from "@/modules/phono/lib/session";
 import { SessionsHeader } from "./sessions/SessionsHeader";
+import { SessionPanel } from "./sessions/SessionPanel";
 import { SessionRow, type SessionThumb } from "./sessions/SessionRow";
 
 type Scope = "all" | "upcoming" | "past";
@@ -30,9 +39,13 @@ const SCOPES: Array<[Scope, string]> = [
 
 export function SessionsStudioPage() {
   const router = useRouter();
-  const { sessions, albums, tracks, mixes, loading, error } = usePhonoData();
+  const { sessions, setSessions, albums, tracks, mixes, loading, error } =
+    usePhonoData();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>("all");
+  /** Session dépliée sur place. `null` = liste entièrement repliée. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<StudioSession | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -72,13 +85,20 @@ export function SessionsStudioPage() {
     return groups;
   }, [filtered]);
 
-  /** Pochettes des éléments de catalogue liés, résolues une fois pour la liste. */
-  const thumbsBySession = useMemo(() => {
+  /**
+   * Tout le catalogue indexé par id. Les sessions ne référencent que des ids :
+   * lignes et panneau y puisent titres et pochettes.
+   */
+  const catalogById = useMemo(() => {
     const byId = new Map<string, SessionThumb>();
     for (const a of albums) byId.set(a.id, { id: a.id, title: a.title, cover: a.cover });
     for (const t of tracks) byId.set(t.id, { id: t.id, title: t.title, cover: t.cover });
     for (const m of mixes) byId.set(m.id, { id: m.id, title: m.title, cover: m.cover });
+    return byId;
+  }, [albums, tracks, mixes]);
 
+  /** Pochettes des éléments liés, résolues une fois pour toutes les lignes. */
+  const thumbsBySession = useMemo(() => {
     const map = new Map<string, SessionThumb[]>();
     for (const s of sessions) {
       const ids = [
@@ -89,12 +109,12 @@ export function SessionsStudioPage() {
       map.set(
         s.id,
         ids
-          .map((id) => byId.get(id))
+          .map((id) => catalogById.get(id))
           .filter((thumb): thumb is SessionThumb => thumb !== undefined)
       );
     }
     return map;
-  }, [sessions, albums, tracks, mixes]);
+  }, [sessions, catalogById]);
 
   if (loading) return <PageLoader />;
   if (error)
@@ -106,8 +126,34 @@ export function SessionsStudioPage() {
       />
     );
 
-  const openSession = (id: string) =>
+  /**
+   * Déplie une session. Le panneau prend la place de sa ligne : si la portée
+   * ou la recherche l'excluent de la liste, il n'aurait nulle part où
+   * s'afficher — on lève alors ce qui la masque plutôt que de ne rien faire.
+   */
+  const openSession = (id: string) => {
+    if (!filtered.some((s) => s.id === id)) {
+      setQuery("");
+      setScope("all");
+    }
+    setExpandedId(id);
+  };
+
+  const editSession = (id: string) =>
     router.push(`/phono/sessions-studio/${id}`);
+
+  const confirmDelete = (session: StudioSession) => {
+    setSessions((prev) => prev.filter((s) => s.id !== session.id));
+    setPendingDelete(null);
+    if (expandedId === session.id) setExpandedId(null);
+  };
+
+  // Un `expandedId` qui ne correspond plus à rien (session supprimée, ou
+  // masquée par un filtre changé depuis) vaut « replié » : pas d'état fantôme
+  // à nettoyer dans un effet.
+  const expanded = expandedId
+    ? filtered.find((s) => s.id === expandedId) ?? null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -188,14 +234,28 @@ export function SessionsStudioPage() {
                     <span className="h-px flex-1 bg-[rgba(245,245,245,0.07)]" />
                   </div>
                   <div className="space-y-2">
-                    {group.map((s) => (
-                      <SessionRow
-                        key={s.id}
-                        session={s}
-                        thumbs={thumbsBySession.get(s.id) ?? []}
-                        onOpen={() => openSession(s.id)}
-                      />
-                    ))}
+                    {group.map((s) =>
+                      // Le panneau prend la place de sa ligne, il ne s'ajoute
+                      // pas en dessous : la liste garde la même longueur et le
+                      // détail s'ouvre exactement là où on a cliqué.
+                      expanded?.id === s.id ? (
+                        <SessionPanel
+                          key={s.id}
+                          session={s}
+                          catalog={catalogById}
+                          onEdit={() => editSession(s.id)}
+                          onDelete={() => setPendingDelete(s)}
+                          onClose={() => setExpandedId(null)}
+                        />
+                      ) : (
+                        <SessionRow
+                          key={s.id}
+                          session={s}
+                          thumbs={thumbsBySession.get(s.id) ?? []}
+                          onOpen={() => openSession(s.id)}
+                        />
+                      )
+                    )}
                   </div>
                 </section>
               ))}
@@ -208,6 +268,42 @@ export function SessionsStudioPage() {
           )}
         </>
       )}
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Supprimer « {pendingDelete?.title || "Session sans titre"} » ?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-[#F5F5F5]/70">
+              La session est retirée de ton planning, avec ses participants,
+              ses coûts et sa fiche de présence. Les titres, albums et mixes
+              qu&apos;elle référence restent dans le catalogue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => pendingDelete && confirmDelete(pendingDelete)}
+            >
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

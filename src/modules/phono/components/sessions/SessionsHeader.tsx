@@ -31,6 +31,13 @@ const MONTH_LONG = new Intl.DateTimeFormat("fr-FR", {
   month: "long",
   year: "numeric",
 });
+/**
+ * Repère sous chaque barre du graphique. Pas une lettre seule : le français a
+ * deux « J » (janvier, juin, juillet) et deux « A » (avril, août) qui se
+ * suivent à quelques barres d'écart sur un an glissant — illisible sans
+ * survol. Trois lettres lèvent l'ambiguïté sans s'étaler.
+ */
+const MONTH_SHORT = new Intl.DateTimeFormat("fr-FR", { month: "short" });
 
 /**
  * Bandeau de tête des sessions studio : la prochaine échéance, le rythme de
@@ -50,15 +57,19 @@ export function SessionsHeader({
       (a, b) => sessionTimestamp(a) - sessionTimestamp(b)
     )[0];
 
-    const studioCost = sessions.reduce(
+    // Coûts et temps de studio comptés sur les seules sessions **à venir** :
+    // ce qui reste à engager. Un cumul de toute l'histoire mélangeait une
+    // session d'il y a deux ans et une réservation du mois prochain, et ne
+    // répondait à aucune question qu'on se pose en ouvrant la page.
+    const studioCost = upcoming.reduce(
       (sum, s) => sum + (s.studioCost ?? 0),
       0
     );
-    const otherCosts = sessions.reduce(
+    const otherCosts = upcoming.reduce(
       (sum, s) => sum + (s.otherCosts ?? 0),
       0
     );
-    const minutes = sessions.reduce(
+    const minutes = upcoming.reduce(
       (sum, s) => sum + sessionDurationMinutes(s),
       0
     );
@@ -80,6 +91,9 @@ export function SessionsHeader({
         future: offset > 0,
         current: offset === 0,
         label: MONTH_LONG.format(d),
+        // "janv.", "juin"… : le point final alourdit trois des douze mois,
+        // on le retire pour garder des repères de longueur homogène.
+        short: MONTH_SHORT.format(d).replace(".", ""),
       });
     }
 
@@ -133,13 +147,37 @@ export function SessionsHeader({
             />
           ))}
         </div>
+        {/* Un repère par barre, dans le même flex-1 gap-[3px] qu'elles : sans
+            lui le graphique se lit comme une forme, pas comme une chronologie.
+            Une lettre seule suffit, le titre au survol donne le mois entier. */}
+        <div className="mt-1 flex gap-[3px]">
+          {stats.months.map((m) => (
+            <p
+              key={m.key}
+              title={m.label}
+              className={cn(
+                "flex-1 truncate text-center text-[8px] uppercase leading-none tracking-tight",
+                m.current ? "font-semibold text-[#F0FF00]/70" : "text-[#F5F5F5]/25"
+              )}
+            >
+              {m.short}
+            </p>
+          ))}
+        </div>
         <p className="mt-2 text-[10px] text-[#F5F5F5]/30">Sur un an glissant</p>
       </Card>
 
-      <Card label="Coûts enregistrés">
+      <Card label="Coûts à venir">
         <p className="flex items-baseline gap-1 text-[28px] font-extralight leading-none tabular-nums text-[#F5F5F5]">
           {total.toLocaleString("fr-FR")}
           <span className="text-base text-[#F5F5F5]/50">€</span>
+        </p>
+        <p className="mt-1 text-xs text-[#F5F5F5]/45">
+          {stats.upcomingCount === 0
+            ? "aucune session planifiée"
+            : `sur ${stats.upcomingCount} session${
+                stats.upcomingCount > 1 ? "s" : ""
+              } planifiée${stats.upcomingCount > 1 ? "s" : ""}`}
         </p>
         <dl className="mt-3 space-y-1.5 text-[11px]">
           {/* Le détail n'apporte rien quand tout est à zéro : trois lignes de
@@ -159,7 +197,7 @@ export function SessionsHeader({
             >
               <dt className="inline-flex items-center gap-1.5">
                 <Clock3 size={11} />
-                Temps de studio
+                Temps réservé
               </dt>
               <dd className="tabular-nums">{formatDuration(stats.minutes)}</dd>
             </div>

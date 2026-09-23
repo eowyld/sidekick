@@ -232,6 +232,32 @@ export function SessionEditPage({ sessionId }: { sessionId: string | null }) {
     [value.trackIds]
   );
 
+  /**
+   * Aligne les titres cochés sur les albums cochés : un album coché amène ses
+   * titres avec lui (une session « Album X » a forcément travaillé ses
+   * titres), un album décoché retire les siens — sauf ceux qu'un autre album
+   * encore coché référence aussi, ou que l'artiste a cochés à la main sans
+   * qu'aucun album coché ne les couvre (ce cas est laissé tel quel, jamais
+   * retiré automatiquement).
+   */
+  const syncTracksToAlbums = (nextAlbumIds: string[]): string[] => {
+    const prevAlbumIds = value.albumIds ?? [];
+    const added = nextAlbumIds.filter((id) => !prevAlbumIds.includes(id));
+    const removed = prevAlbumIds.filter((id) => !nextAlbumIds.includes(id));
+    if (added.length === 0 && removed.length === 0) return value.trackIds ?? [];
+
+    const trackIdsOf = (albumId: string) =>
+      phono.albums.find((a) => a.id === albumId)?.trackIds ?? [];
+    const stillCovered = new Set(nextAlbumIds.flatMap(trackIdsOf));
+    const removedTrackIds = new Set(removed.flatMap(trackIdsOf));
+
+    const kept = (value.trackIds ?? []).filter(
+      (id) => !removedTrackIds.has(id) || stillCovered.has(id)
+    );
+    const toAdd = added.flatMap(trackIdsOf);
+    return [...new Set([...kept, ...toAdd])];
+  };
+
   if (phono.loading || contactsData.loading) return <PageLoader />;
   if (sessionId && !existing)
     return (
@@ -518,7 +544,7 @@ export function SessionEditPage({ sessionId }: { sessionId: string | null }) {
                 title="Albums & EP"
                 items={phono.albums.map((a) => ({ id: a.id, label: a.title }))}
                 selected={value.albumIds ?? []}
-                onChange={(albumIds) => set({ albumIds })}
+                onChange={(albumIds) => set({ albumIds, trackIds: syncTracksToAlbums(albumIds) })}
               />
               <CheckList
                 title="Titres"
