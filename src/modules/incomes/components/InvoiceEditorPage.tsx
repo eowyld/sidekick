@@ -5,7 +5,8 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { ArrowLeft, ArrowRight, FileText, Pen, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Palette, Pen, Plus, Save, Trash2 } from "lucide-react";
+import { personalizationHref } from "@/modules/settings/components/PersonalizationPage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,8 +20,10 @@ import { PageError } from "@/components/ui/page-error";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useAdminData } from "@/hooks/useAdminData";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
+import { logoFor } from "@/lib/artist-logo";
 import { useIncomesData, type InvoiceLine } from "@/hooks/useIncomesData";
-import { formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
+import { billingStatuses, formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
 import { cn } from "@/lib/utils";
 import type { InvoiceDocumentData } from "./pdf/InvoiceDocument";
 import {
@@ -117,8 +120,12 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
-  const { statuses, loading: adminLoading } = useAdminData();
+  const { statuses: allStatuses, loading: adminLoading } = useAdminData();
+  // Seuls les statuts qui facturent (AE, association) sont proposés : un
+  // intermittent ne facture pas. Tout ce qui suit travaille sur cette liste.
+  const statuses = useMemo(() => billingStatuses(allStatuses), [allStatuses]);
   const { invoiceTemplate, invoiceFooterNote, setInvoiceFooterNote } = usePreferencesData();
+  const { logo, logoExports } = useArtistIdentity();
   const { invoices, setInvoices, loading, error } = useIncomesData();
   const isEditMode = !!invoiceId;
   const currentInvoice = useMemo(
@@ -154,7 +161,13 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     extraInfo: "",
   });
   const [clientDialogError, setClientDialogError] = useState<string>("");
-  const billingStatusFromQuery = searchParams.get("billingStatus");
+  const rawBillingStatusFromQuery = searchParams.get("billingStatus");
+  // Un lien peut porter l'id d'un statut qui ne facture pas (facture rattachée
+  // à un intermittent avant la règle) : on l'ignore.
+  const billingStatusFromQuery =
+    rawBillingStatusFromQuery && statuses.some((st) => st.id === rawBillingStatusFromQuery)
+      ? rawBillingStatusFromQuery
+      : null;
 
   const legacyClients = useMemo<SavedInvoiceClient[]>(
     () =>
@@ -210,10 +223,18 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
         bic: profile.bic || undefined,
       },
       template: invoiceTemplate,
+      logo: logoFor(logo, logoExports, "invoices"),
     };
-  }, [form, statuses, selectedBillingStatusId, invoiceTemplate, selectedClientId, allClients]);
+  }, [form, statuses, selectedBillingStatusId, invoiceTemplate, logo, logoExports, selectedClientId, allClients]);
 
   const hasMultipleStatuses = statuses.length > 1;
+  const misattachedStatusId =
+    currentInvoice?.statutJuridiqueId && !statuses.some((st) => st.id === currentInvoice.statutJuridiqueId)
+      ? currentInvoice.statutJuridiqueId
+      : null;
+  const misattachedStatusName = misattachedStatusId
+    ? allStatuses.find((st) => st.id === misattachedStatusId)?.nom ?? "un statut supprimé"
+    : null;
   const singleStatus = statuses.length === 1 ? statuses[0] : null;
   const fallbackStatusId = statuses[0]?.id ?? null;
 
@@ -232,8 +253,16 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     if (isEditMode) {
       if (!currentInvoice) return;
       const mappedStatusId = currentInvoice.statutJuridiqueId ?? null;
-      const fallbackStatusId = mappedStatusId ?? billingStatusFromQuery ?? statuses[0]?.id ?? null;
-      setSelectedBillingStatusId(fallbackStatusId);
+      const mappedIsBilling = !!mappedStatusId && statuses.some((st) => st.id === mappedStatusId);
+      // Rattachée à un statut qui ne facture pas : avec un seul statut valide la
+      // réponse est certaine, sinon le choix revient à l'utilisateur (le bouton
+      // d'enregistrement reste désactivé tant qu'il n'a pas choisi).
+      const initialStatusId = mappedIsBilling
+        ? mappedStatusId
+        : mappedStatusId
+          ? singleStatus?.id ?? null
+          : billingStatusFromQuery ?? statuses[0]?.id ?? null;
+      setSelectedBillingStatusId(initialStatusId);
       setForm({
         number: currentInvoice.number,
         client: currentInvoice.client,
@@ -267,6 +296,7 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
     isEditMode,
     invoiceFooterNote,
     statuses,
+    singleStatus?.id,
   ]);
 
   useEffect(() => {
@@ -528,9 +558,9 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             Retour
           </Button>
-          <Button variant="outline" size="sm" onClick={() => router.push("/settings/facturation")}>
-            <FileText className="mr-1.5 h-4 w-4" />
-            Modèle
+          <Button variant="outline" size="sm" onClick={() => router.push(personalizationHref("factures"))}>
+            <Palette className="mr-1.5 h-4 w-4" />
+            Personnaliser
           </Button>
           <Button
             size="sm"
@@ -572,7 +602,9 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
                 </SelectContent>
               </Select>
             ) : (
-              <p className="min-w-0 text-xs text-[#F5F5F5]/60">Aucun statut disponible dans Admin.</p>
+              <p className="min-w-0 text-xs text-[#F5F5F5]/60">
+                Aucun statut auto-entrepreneur ou association dans Admin.
+              </p>
             )}
             <Link
               href="/admin"
@@ -588,6 +620,12 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
             </Link>
           </div>
         </CardContent>
+        {misattachedStatusName && (
+          <p className="px-6 pb-3 text-xs text-amber-300">
+            Cette facture était rattachée à « {misattachedStatusName} », qui ne facture pas.
+            {hasMultipleStatuses ? " Choisis le statut qui l’émet, puis enregistre." : " Enregistre pour la rattacher au bon statut."}
+          </p>
+        )}
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -836,9 +874,9 @@ export function InvoiceEditorPage({ invoiceId }: { invoiceId?: string }) {
       <Card>
         <div className="flex items-center justify-between px-6 py-5">
           <h2 className="text-base font-semibold tracking-tight text-[#F5F5F5]">Aperçu PDF</h2>
-          <Button variant="outline" size="sm" onClick={() => router.push("/settings/facturation")}>
-            <FileText className="mr-1.5 h-4 w-4" />
-            Modèle
+          <Button variant="outline" size="sm" onClick={() => router.push(personalizationHref("factures"))}>
+            <Palette className="mr-1.5 h-4 w-4" />
+            Personnaliser
           </Button>
         </div>
         <CardContent className="pt-0">

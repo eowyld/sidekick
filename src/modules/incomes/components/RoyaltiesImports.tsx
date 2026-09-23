@@ -13,6 +13,7 @@ import { parseTuneCore } from "../parsers/tunecore";
 import { parseCdBaby } from "../parsers/cdbaby";
 import { parseSoundCloud } from "../parsers/soundcloud";
 import { RoyaltiesManualModal } from "./RoyaltiesManualModal";
+import { userErrorMessage } from "@/lib/user-error";
 
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
@@ -101,7 +102,7 @@ export function RoyaltiesImports({
         posthog?.capture("royalties_import_uploaded", { module: "incomes" });
         posthog?.capture("item_created", { module: "incomes" });
       } catch (err) {
-        setErrors((prev) => ({ ...prev, [distributor]: (err as Error).message }));
+        setErrors((prev) => ({ ...prev, [distributor]: userErrorMessage(err, "Ce fichier n’a pas pu être lu. Vérifie qu’il vient bien de ce distributeur.") }));
       }
     };
     reader.readAsText(file, "UTF-8");

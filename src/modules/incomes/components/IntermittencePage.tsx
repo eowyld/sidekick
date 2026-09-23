@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 import { useIncomesData } from "@/hooks/useIncomesData";
@@ -28,6 +29,7 @@ type IntermittenceView = "dashboard" | "missions";
 const ALL_STATUTS = "__all__";
 
 export function IntermittencePage() {
+  const { confirm, confirmDialog } = useConfirm();
   const posthog = usePostHog();
   const { missions: allMissions, setMissions: setIntermittenceMissions, loading, error } = useIncomesData();
   const { statuses, loading: statusesLoading } = useAdminData();
@@ -108,13 +110,12 @@ export function IntermittencePage() {
     setEditingMission(null);
   };
 
-  const handleDeleteMission = (id: string) => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm("Voulez-vous vraiment supprimer cette mission ? Cette action est irréversible.")
-    ) {
-      return;
-    }
+  const handleDeleteMission = async (id: string) => {
+    const ok = await confirm({
+      title: "Supprimer cette mission ?",
+      description: "La mission sera définitivement supprimée.",
+    });
+    if (!ok) return;
     setIntermittenceMissions((prev) => prev.filter((m) => m.id !== id));
   };
 
@@ -232,6 +233,8 @@ export function IntermittencePage() {
         defaultStatutId={effectiveStatutId !== ALL_STATUTS ? effectiveStatutId : undefined}
         selectedStatutName={selectedStatut?.nom}
       />
+
+      {confirmDialog}
     </div>
   );
 }

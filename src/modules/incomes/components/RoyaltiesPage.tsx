@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useIncomesData } from "@/hooks/useIncomesData";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -14,15 +15,8 @@ import type {
 } from "../parsers/royalties-types";
 
 export function RoyaltiesPage() {
+  const { confirm, confirmDialog } = useConfirm();
   const { imports, setImport, manualEntries, setManualEntries, loading, error } = useIncomesData();
-  if (loading) return <PageLoader />;
-  if (error) return (
-    <PageError
-      title="Impossible de charger tes revenus"
-      description="Vérifie ta connexion ou réessaie dans quelques instants."
-      onRetry={() => mutate("user_incomes")}
-    />
-  );
   const [lastTab, setLastTab] = useState<TabId>("distrokid");
 
   const allEntries: RoyaltyEntry[] = useMemo(() => {
@@ -44,10 +38,23 @@ export function RoyaltiesPage() {
     setManualEntries((prev) => prev.map((e) => (e.id === entry.id ? entry : e)));
   };
 
-  const handleDeleteManual = (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Supprimer cette entrée ?")) return;
+  const handleDeleteManual = async (id: string) => {
+    const ok = await confirm({
+      title: "Supprimer cette entrée ?",
+      description: "L'entrée sera retirée de tes royalties.",
+    });
+    if (!ok) return;
     setManualEntries((prev) => prev.filter((e) => e.id !== id));
   };
+
+  if (loading) return <PageLoader />;
+  if (error) return (
+    <PageError
+      title="Impossible de charger tes revenus"
+      description="Vérifie ta connexion ou réessaie dans quelques instants."
+      onRetry={() => mutate("user_incomes")}
+    />
+  );
 
   return (
     <div className="space-y-8 bg-[#101010] px-2 py-4 text-[#F5F5F5] md:px-4 md:py-6">
@@ -79,8 +86,10 @@ export function RoyaltiesPage() {
         onTabChange={setLastTab}
         onAddManual={handleAddManual}
         onEditManual={handleEditManual}
-        onDeleteManual={handleDeleteManual}
+        onDeleteManual={(id) => void handleDeleteManual(id)}
       />
+
+      {confirmDialog}
     </div>
   );
 }

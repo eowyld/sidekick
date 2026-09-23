@@ -2,6 +2,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { usePostHog } from "posthog-js/react"
 import { Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import { CopyrightDashboard } from "./CopyrightDashboard"
 import { CopyrightHistorique } from "./CopyrightHistorique"
 
 export function CopyrightPage() {
+  const { confirm, confirmDialog } = useConfirm()
   const posthog = usePostHog()
   const [releves, setReleves] = useState<CopyrightReleve[]>([])
   const [filter, setFilter] = useState<PeriodFilter>({ mode: "global" })
@@ -89,13 +91,12 @@ export function CopyrightPage() {
     setFilter({ mode: "custom", from: customFrom, to: val })
   }
 
-  const handleDeleteReleve = (id: string) => {
-    if (
-      !window.confirm(
-        "Supprimer ce relevé ? Les données ne seront plus prises en compte dans le dashboard.",
-      )
-    )
-      return
+  const handleDeleteReleve = async (id: string) => {
+    const ok = await confirm({
+      title: "Supprimer ce relevé ?",
+      description: "Ses données ne seront plus prises en compte dans le dashboard.",
+    })
+    if (!ok) return
     setReleves(prev => prev.filter(r => r.id !== id))
   }
 
@@ -171,7 +172,9 @@ export function CopyrightPage() {
 
       <div className="border-t border-[rgba(245,245,245,0.08)]" />
 
-      <CopyrightHistorique releves={releves} onDelete={handleDeleteReleve} />
+      <CopyrightHistorique releves={releves} onDelete={(id) => void handleDeleteReleve(id)} />
+
+      {confirmDialog}
     </div>
   )
 }

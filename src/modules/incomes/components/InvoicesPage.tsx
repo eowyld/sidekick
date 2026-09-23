@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
@@ -32,8 +32,10 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useIncomesData, type Invoice } from "@/hooks/useIncomesData";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
+import { logoFor } from "@/lib/artist-logo";
 import { useProjectsData } from "@/hooks/useProjectsData";
-import { formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
+import { billingStatuses, formatStatusAddressLines } from "@/modules/admin/data/statuts-form-config";
 import { InvoiceDocument, type InvoiceDocumentData } from "./pdf/InvoiceDocument";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -49,6 +51,7 @@ export function InvoicesPage() {
   const { projects } = useProjectsData();
   const projectsMap = Object.fromEntries(projects.map((p) => [p.id, p]));
   const { invoiceTemplate } = usePreferencesData();
+  const { logo, logoExports } = useArtistIdentity();
   const [savedClients] = useLocalStorage<{ id: string; name: string; address: string; siret: string; vatNumber?: string; email?: string; phone?: string; extraInfo?: string }[]>("incomes:invoice-clients", []);
   const [selectedStatusId, setSelectedStatusId] = useLocalStorage<string | null>(
     "incomes:selected-billing-status",
@@ -63,7 +66,9 @@ export function InvoicesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const availableStatuses = statuses;
+  // Seuls les statuts qui facturent (AE, association) : un intermittent ne
+  // facture pas, il n'est ni proposé ni utilisé comme statut par défaut.
+  const availableStatuses = useMemo(() => billingStatuses(statuses), [statuses]);
   const hasMultipleStatuses = availableStatuses.length > 1;
   const singleStatus = availableStatuses.length === 1 ? availableStatuses[0] : null;
   const effectiveStatusId = hasMultipleStatuses
@@ -80,7 +85,10 @@ export function InvoicesPage() {
   // Toujours lier chaque facture à un statut Admin. Avec un seul statut on force
   // la liaison, pour que l’ajout ultérieur d’un 2e statut ne fasse pas
   // « disparaître » l’historique ; avec plusieurs, on rattache les factures
-  // orphelines au premier statut (tri nom Admin).
+  // orphelines au premier statut (tri nom Admin). Une facture rattachée à un
+  // statut qui ne facture pas (intermittent) n'est pas déplacée d'office quand
+  // plusieurs statuts facturent : on ne peut pas deviner le bon, elle est
+  // signalée plus bas (`misattachedInvoices`).
   //
   // Rattrapage ponctuel : une seule passe par montage. Sans ce garde-fou, un
   // échec d’écriture Supabase déclencherait un rollback, qui relancerait l’effet,
@@ -116,6 +124,11 @@ export function InvoicesPage() {
     if (availableStatuses.length === 1) return availableStatuses[0]?.id ?? null;
     return null;
   };
+
+  const billingIds = new Set(availableStatuses.map((s) => s.id));
+  const misattachedInvoices = hasMultipleStatuses
+    ? invoices.filter((inv) => inv.statutJuridiqueId && !billingIds.has(inv.statutJuridiqueId))
+    : [];
 
   const scopedInvoices = invoices.filter((invoice) => {
     if (!effectiveStatusId) return true;
@@ -206,6 +219,7 @@ export function InvoicesPage() {
         bic: profile.bic || undefined,
       },
       template,
+      logo: logoFor(logo, logoExports, "invoices"),
     };
 
     const blob = await pdf(<InvoiceDocument data={docData} />).toBlob();
@@ -278,7 +292,9 @@ export function InvoicesPage() {
                 </SelectContent>
               </Select>
             ) : (
-              <p className="min-w-0 text-xs text-[#F5F5F5]/60">Aucun statut disponible dans Admin.</p>
+              <p className="min-w-0 text-xs text-[#F5F5F5]/60">
+                Aucun statut auto-entrepreneur ou association dans Admin.
+              </p>
             )}
             <Link
               href="/admin"
@@ -295,6 +311,28 @@ export function InvoicesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {misattachedInvoices.length > 0 && (
+        <div className="rounded-md border border-amber-500/30 px-4 py-3 text-sm">
+          <p className="text-[#F5F5F5]/85">
+            {misattachedInvoices.length > 1
+              ? `${misattachedInvoices.length} factures sont rattachées à un statut qui ne facture pas.`
+              : "Une facture est rattachée à un statut qui ne facture pas."}{" "}
+            Ouvre-la et choisis le statut auto-entrepreneur ou association qui l&apos;émet.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {misattachedInvoices.map((inv) => (
+              <Link
+                key={inv.id}
+                href={`/incomes/facturation/${inv.id}`}
+                className="text-xs text-[#F0FF00] underline-offset-2 hover:underline"
+              >
+                {inv.number} · {inv.client}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

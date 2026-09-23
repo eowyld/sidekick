@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ export function IntermittenceMissions({
   onEditMission,
   onDeleteMission
 }: IntermittenceMissionsProps) {
+  const { confirm, confirmDialog } = useConfirm();
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
 
@@ -102,19 +104,16 @@ export function IntermittenceMissions({
     0
   );
 
-  const handleInternalDelete = (id: string) => {
+  const handleInternalDelete = async (id: string) => {
     if (onDeleteMission) {
       onDeleteMission(id);
       return;
     }
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Voulez-vous vraiment supprimer cette mission ? Cette action est irréversible."
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Supprimer cette mission ?",
+      description: "La mission sera définitivement supprimée.",
+    });
+    if (!ok) return;
     setIntermittenceMissions(
       (prev) => prev.filter((m) => m.id !== id)
     );
@@ -362,7 +361,7 @@ export function IntermittenceMissions({
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 shrink-0 rounded-full border-[rgba(248,113,113,0.4)] bg-transparent text-rose-300 hover:bg-[rgba(127,29,29,0.6)]"
-                            onClick={() => handleInternalDelete(mission.id)}
+                            onClick={() => void handleInternalDelete(mission.id)}
                             aria-label="Supprimer"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -377,6 +376,8 @@ export function IntermittenceMissions({
           </div>
         </CardContent>
       </Card>
+
+      {confirmDialog}
     </div>
   );
 }
