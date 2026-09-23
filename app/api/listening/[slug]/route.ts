@@ -5,6 +5,7 @@ import {
   getServiceSupabase,
   isAccessCookieValid,
   linkState,
+  listeningLogo,
   resolveLinkRow,
 } from "@/lib/listening-public";
 import type { PublicListeningLink } from "@/lib/listening-types";
@@ -41,7 +42,7 @@ export async function GET(
   // puis le presskit (fermé pour l'alpha, mais peut-être renseigné avant),
   // puis un libellé neutre. `user_presskit_profile` ne porte pas de colonne
   // `artist_name` : son nom est `artist_title`, `streaming_artist_name` en repli.
-  const [{ data: prefs }, { data: profile }] = await Promise.all([
+  const [{ data: prefs }, { data: profile }, logo] = await Promise.all([
     supabase
       .from("user_preferences")
       .select("artist_name")
@@ -52,6 +53,7 @@ export async function GET(
       .select("artist_title, streaming_artist_name")
       .eq("user_id", row.user_id)
       .maybeSingle(),
+    row.show_logo ? listeningLogo(supabase, row.user_id) : Promise.resolve(undefined),
   ]);
 
   // Bucket privé, et l'adresse reste sur notre domaine : la pochette est
@@ -78,6 +80,8 @@ export async function GET(
         "Artiste"
       );
     })(),
+    // Le data URL ne transite pas dans la charge : `/logo` le sert.
+    logoUrl: logo ? `/api/listening/${encodeURIComponent(slug)}/logo` : undefined,
     requiresPassword: Boolean(row.password_hash),
     expiresAt: row.expires_at ?? undefined,
     allowDownload: row.allow_download,

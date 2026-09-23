@@ -46,6 +46,8 @@ export interface ListeningLink {
   expiresAt?: string;
   allowDownload: boolean;
   presskitUrl?: string;
+  /** Propre à ce lien, à côté du réglage de compte (`artist_logo_exports.listening`) : les deux doivent être vrais. */
+  showLogo: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +61,8 @@ export interface PublicListeningLink {
   introMessage: string;
   coverUrl?: string;
   artistName: string;
+  /** Route du logo de l'artiste, absente s'il n'en a pas ou l'a masqué ici. */
+  logoUrl?: string;
   requiresPassword: boolean;
   expiresAt?: string;
   allowDownload: boolean;
@@ -85,9 +89,30 @@ export interface ListeningSessionStat {
   plays: ListeningPlayStat[];
 }
 
+/**
+ * Agrégat par titre, sessions identifiées et anonymes confondues. Les positions
+ * atteintes ne sont rattachées à personne : elles servent à dessiner où
+ * l'attention décroche dans le morceau.
+ */
+export interface ListeningItemStat {
+  itemId: string;
+  listeners: number;
+  listenedMs: number;
+  /** Position la plus lointaine atteinte, une entrée par session. */
+  reachedMs: number[];
+  completions: number;
+  /** Lectures au-delà de la première, toutes sessions confondues. */
+  replays: number;
+  downloads: number;
+}
+
 export interface ListeningLinkStats {
   linkId: string;
   sessionCount: number;
+  /** Date d'ouverture de chaque session, pour la courbe d'activité. */
+  sessionDates: string[];
+  totalListenedMs: number;
+  itemStats: Record<string, ListeningItemStat>;
   identifiedSessions: ListeningSessionStat[];
   anonymousSessionCount: number;
   /** Agrégat anonyme : itemId → millisecondes écoutées, tous visiteurs confondus. */

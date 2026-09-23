@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, Disc3, Download, Eye, EyeOff, Headphones, ListMusic, Lock, Music2, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, Disc3, Download, Eye, EyeOff, Headphones, ImagePlus, ListMusic, Lock, Music2, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { usePhonoData } from "@/hooks/usePhonoData";
 import { useListeningData } from "@/hooks/useListeningData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
+import { logoFor } from "@/lib/artist-logo";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { formatDuration } from "@/lib/audio-peaks";
 import type { ListeningItem, ListeningLink } from "@/lib/listening-types";
@@ -21,8 +24,12 @@ import { normalizeTrackGuests } from "@/modules/phono/lib/track";
 import { mixFormatLabel, normalizeMix } from "@/modules/phono/lib/mix";
 import { ProtectionSummary } from "./listening/ProtectionSummary";
 import { cn, focusRing } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 type DraftItem = Omit<ListeningItem, "id">;
+
+/** Identité d'une entrée dans la sélection : une version d'un titre, ou un mix. */
+const itemKey = (item: DraftItem) => `${item.kind}:${item.sourceId}:${item.versionId ?? ""}`;
 type CatalogTab = "tracks" | "albums" | "mixes";
 
 const CATALOG_TABS: Array<{ key: CatalogTab; label: string }> = [
@@ -35,6 +42,7 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
   const router = useRouter();
   const { tracks, albums, mixes: mixesRaw } = usePhonoData();
   const { createLink, updateLink } = useListeningData();
+  const { logo, logoExports } = useArtistIdentity();
   const [title, setTitle] = useState(link?.title ?? "");
   const [introMessage, setIntroMessage] = useState(link?.introMessage ?? "");
   const [passwordEnabled, setPasswordEnabled] = useState(Boolean(link?.hasPassword));
@@ -46,6 +54,13 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
   const [expiresAt, setExpiresAt] = useState(link?.expiresAt?.slice(0, 10) ?? "");
   const [allowDownload, setAllowDownload] = useState(link?.allowDownload ?? false);
   const [presskitUrl, setPresskitUrl] = useState(link?.presskitUrl ?? "");
+  // `undefined` = image automatique (cover du premier titre), `null` = aucune
+  // image, une chaîne = image choisie par l'artiste.
+  const [coverOverride, setCoverOverride] = useState<string | null | undefined>(link?.coverPath);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [showLogo, setShowLogo] = useState(link?.showLogo ?? true);
+  const accountLogo = logoFor(logo, logoExports, "listening");
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<DraftItem[]>(() =>
     (link?.items ?? []).map(({ position, groupLabel, kind, sourceId, versionId, snapshot, audioPath, durationMs, peaks }) => ({ position, groupLabel, kind, sourceId, versionId, snapshot, audioPath, durationMs, peaks }))
   );
@@ -55,9 +70,22 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
   const [error, setError] = useState<string | null>(null);
 
   const mixes = useMemo(() => mixesRaw.map(normalizeMix), [mixesRaw]);
+  /** Image reprise du premier titre qui en a une, tant que rien n'est choisi. */
+  const autoCover = items.find((item) => item.snapshot.cover)?.snapshot.cover;
+  const effectiveCover = coverOverride === undefined ? autoCover : coverOverride ?? undefined;
+  /** Covers présentes dans la sélection, proposées en un clic. */
+  const selectionCovers = useMemo(() => {
+    const seen = new Set<string>();
+    for (const item of items) {
+      const cover = item.snapshot.cover;
+      if (cover && /^(https?:|data:|blob:)/.test(cover)) seen.add(cover);
+    }
+    return [...seen].slice(0, 6);
+  }, [items]);
   const initialSignature = useMemo(() => JSON.stringify({
     title: link?.title ?? "", introMessage: link?.introMessage ?? "", expiresAt: link?.expiresAt?.slice(0, 10) ?? "",
-    allowDownload: link?.allowDownload ?? false, presskitUrl: link?.presskitUrl ?? "",
+    allowDownload: link?.allowDownload ?? false, presskitUrl: link?.presskitUrl ?? "", coverPath: link?.coverPath ?? "",
+    showLogo: link?.showLogo ?? true,
     items: (link?.items ?? []).map((item) => ({
       position: item.position,
       groupLabel: item.groupLabel,
@@ -72,7 +100,7 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
   }), [link]);
   const effectiveExpiresAt = expiryEnabled ? expiresAt : "";
   const effectiveHasPassword = passwordEnabled && (Boolean(password) || Boolean(link?.hasPassword));
-  const dirty = JSON.stringify({ title, introMessage, expiresAt: effectiveExpiresAt, allowDownload, presskitUrl, items }) !== initialSignature
+  const dirty = JSON.stringify({ title, introMessage, expiresAt: effectiveExpiresAt, allowDownload, presskitUrl, coverPath: effectiveCover ?? "", showLogo, items }) !== initialSignature
     || password !== ""
     || passwordEnabled !== Boolean(link?.hasPassword);
   useUnsavedChangesGuard(dirty && !busy);
@@ -153,29 +181,39 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
     if (item) setItems((previous) => [...previous, item]);
   }
 
+  /**
+   * Ajoute un album. Une version déjà ajoutée seule est *absorbée* par le
+   * groupe : on la retire de sa place pour la replacer dans le bloc de
+   * l'album. Sans cela, l'album s'affichait amputé de cette piste — et comme
+   * elle comptait quand même comme sélectionnée, le bouton « + » de l'album
+   * pouvait être grisé sans qu'aucun groupe n'existe.
+   * Une version déjà rattachée à un autre album n'est pas volée.
+   */
   function addAlbum(albumId: string) {
     const album = albums.find((candidate) => candidate.id === albumId);
     if (!album) return;
-    const selectedKeys = new Set(
-      items.map((item) => `${item.kind}:${item.sourceId}:${item.versionId ?? ""}`)
-    );
+    const groupedKeys = new Set(items.filter((item) => item.groupLabel).map(itemKey));
+    const standaloneKeys = new Set(items.filter((item) => !item.groupLabel).map(itemKey));
     const added: DraftItem[] = [];
+    const addedKeys = new Set<string>();
+    const absorbedKeys = new Set<string>();
     for (const trackId of album.trackIds ?? []) {
       const track = playableTracks.find((candidate) => candidate.id === trackId);
       if (!track) continue;
       for (const version of albumTrackVersions(album, track)) {
         if (!version.audioPath) continue;
         const key = `track:${track.id}:${version.id}`;
-        if (selectedKeys.has(key)) continue;
+        if (groupedKeys.has(key) || addedKeys.has(key)) continue;
         const item = buildItem(track, version.id, album.title);
-        if (item && !item.snapshot.cover && album.cover) item.snapshot.cover = album.cover;
-        if (item) {
-          added.push(item);
-          selectedKeys.add(key);
-        }
+        if (!item) continue;
+        if (!item.snapshot.cover && album.cover) item.snapshot.cover = album.cover;
+        if (standaloneKeys.has(key)) absorbedKeys.add(key);
+        added.push(item);
+        addedKeys.add(key);
       }
     }
-    if (added.length) setItems((previous) => [...previous, ...added]);
+    if (!added.length) return;
+    setItems((previous) => [...previous.filter((item) => !absorbedKeys.has(itemKey(item))), ...added]);
   }
 
 
@@ -225,21 +263,21 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
         expiresAt: effectiveExpiresAt ? new Date(effectiveExpiresAt).toISOString() : null,
         allowDownload,
         presskitUrl: presskitUrl.trim() || null,
-        coverPath: cover || undefined,
+        coverPath: effectiveCover || undefined,
+        showLogo,
         items: items.map((item, index) => ({ ...item, position: index })),
       };
       if (link) await updateLink(link.id, input);
       else await createLink(input);
       router.push("/phono/liens-ecoute");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(userErrorMessage(reason, "Le lien d’écoute n’a pas pu être enregistré. Réessaie."));
     } finally {
       setBusy(false);
     }
   }
 
   const canPublish = title.trim().length > 0 && items.length > 0 && items.every((item) => item.audioPath);
-  const cover = items.find((item) => item.snapshot.cover)?.snapshot.cover;
 
   function leave() {
     if (dirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
@@ -291,7 +329,10 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
                       const track = playableTracks.find((candidate) => candidate.id === trackId);
                       return track ? albumTrackVersions(album, track).filter((version) => version.audioPath).map((version) => ({ trackId, versionId: version.id })) : [];
                     });
-                    const selectedCount = albumItems.filter(({ trackId, versionId }) => items.some((item) => item.kind === "track" && item.sourceId === trackId && item.versionId === versionId)).length;
+                    // Une piste ajoutée seule ne compte pas comme « dans l'album » :
+                    // seul le rattachement au groupe fait foi, sinon le bouton se
+                    // grise alors que l'album n'a pas encore son bloc.
+                    const selectedCount = albumItems.filter(({ trackId, versionId }) => items.some((item) => item.kind === "track" && item.sourceId === trackId && item.versionId === versionId && item.groupLabel === album.title)).length;
                     return <SourceRow key={album.id} title={album.title} subtitle={`${album.artist || "Artiste"} · ${selectedCount}/${albumItems.length} piste${albumItems.length > 1 ? "s" : ""}`} cover={album.cover} icon={Disc3} disabled={albumItems.length === 0 || selectedCount >= albumItems.length} onAdd={() => addAlbum(album.id)} />;
                   })}
                   {catalogTab === "mixes" && filteredMixes.map((mix) => {
@@ -316,6 +357,97 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
           <Section number="02" title="Présentation" description="Donne du contexte au destinataire.">
             <div className="space-y-2"><Label htmlFor="link-title">Titre du lien</Label><Input id="link-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Promo EP — automne 2026" aria-invalid={!title.trim()} /><p className="text-xs text-[#F5F5F5]/40">Visible en tête de la page d&apos;écoute.</p></div>
             <div className="space-y-2"><Label htmlFor="link-intro">Message d&apos;introduction</Label><Textarea id="link-intro" value={introMessage} onChange={(event) => setIntroMessage(event.target.value)} rows={4} placeholder="Bonjour, voici les titres dont nous avons parlé…" /></div>
+            <div className="space-y-2">
+              <Label className="block">Image de la page</Label>
+              <div className="flex flex-wrap items-start gap-4">
+                <span className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/[0.12] bg-black/20">
+                  {effectiveCover && /^(https?:|data:|blob:)/.test(effectiveCover) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={effectiveCover} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImagePlus className="h-5 w-5 text-[#F5F5F5]/25" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (!file) return;
+                      setCoverError(null);
+                      try {
+                        setCoverOverride(await readCoverImage(file));
+                      } catch (reason) {
+                        setCoverError(userErrorMessage(reason, "Image illisible."));
+                      }
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => coverInputRef.current?.click()}>
+                      <ImagePlus className="mr-2 h-3.5 w-3.5" /> Importer une image
+                    </Button>
+                    {effectiveCover && (
+                      <Button variant="ghost" size="sm" onClick={() => { setCoverOverride(null); setCoverError(null); }}>
+                        Retirer
+                      </Button>
+                    )}
+                  </div>
+                  {selectionCovers.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-[#F5F5F5]/40">Ou une cover de la sélection :</span>
+                      {selectionCovers.map((candidate) => (
+                        <button
+                          key={candidate}
+                          type="button"
+                          onClick={() => { setCoverOverride(candidate); setCoverError(null); }}
+                          aria-label="Utiliser cette cover"
+                          aria-pressed={effectiveCover === candidate}
+                          className={cn(
+                            "h-9 w-9 overflow-hidden rounded-md border transition-colors",
+                            focusRing,
+                            effectiveCover === candidate ? "border-[#F0FF00]" : "border-white/[0.12] hover:border-white/30"
+                          )}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={candidate} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-[#F5F5F5]/40">
+                    {coverOverride === undefined
+                      ? "Par défaut, la cover du premier titre de la sélection."
+                      : coverOverride === null
+                        ? "Aucune image : la page affiche un dégradé."
+                        : "Image choisie pour cette page."}
+                  </p>
+                  {coverError && <p className="text-xs text-red-300">{coverError}</p>}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-white/[0.08] bg-black/15 p-4">
+              <div className="min-w-0">
+                <Label htmlFor="link-show-logo" className="cursor-pointer">Afficher le logo</Label>
+                <p className="mt-1 text-xs text-[#F5F5F5]/40">
+                  {accountLogo ? (
+                    "Au-dessus de la pochette, sur la page et dans le mail d'invitation."
+                  ) : (
+                    <>
+                      Aucun logo importé pour l&apos;instant, réglable dans{" "}
+                      <Link href="/settings" className="underline-offset-2 hover:text-[#F5F5F5] hover:underline">
+                        Réglages &gt; Compte
+                      </Link>
+                      .
+                    </>
+                  )}
+                </p>
+              </div>
+              <Switch id="link-show-logo" checked={showLogo} onCheckedChange={setShowLogo} />
+            </div>
             <div className="space-y-2"><Label htmlFor="link-presskit">Presskit associé <span className="text-[#F5F5F5]/35">— facultatif</span></Label><Input id="link-presskit" type="url" value={presskitUrl} onChange={(event) => setPresskitUrl(event.target.value)} placeholder="https://…" /></div>
           </Section>
 
@@ -373,11 +505,47 @@ export function ListeningLinkComposer({ link }: { link: ListeningLink | null }) 
         </div>
 
         <div className="lg:sticky lg:top-6">
-          <ListeningSummary title={title} items={items} cover={cover} expiresAt={effectiveExpiresAt} allowDownload={allowDownload} hasPassword={effectiveHasPassword} canPublish={canPublish} busy={busy} onSave={() => void save()} />
+          <ListeningSummary title={title} items={items} cover={effectiveCover} expiresAt={effectiveExpiresAt} allowDownload={allowDownload} hasPassword={effectiveHasPassword} canPublish={canPublish} busy={busy} onSave={() => void save()} />
         </div>
       </div>
     </div>
   );
+}
+
+/** Côté le plus long d'une image de page, en pixels. */
+const MAX_COVER_PX = 1200;
+
+/**
+ * Lit une image locale en data URL, réduite si elle est grande.
+ *
+ * L'image est stockée dans la ligne du lien et renvoyée à chaque visiteur :
+ * une photo de 6 Mo sortie d'un téléphone rendrait la page interminable à
+ * charger, pour un cadre qui ne fait que quelques centaines de pixels.
+ */
+async function readCoverImage(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Choisis un fichier image.");
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Lecture du fichier impossible."));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("Image illisible."));
+    element.src = dataUrl;
+  });
+  const longest = Math.max(image.width, image.height);
+  if (longest <= MAX_COVER_PX && dataUrl.length < 400_000) return dataUrl;
+  const scale = Math.min(1, MAX_COVER_PX / longest);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(image.width * scale);
+  canvas.height = Math.round(image.height * scale);
+  const context = canvas.getContext("2d");
+  if (!context) return dataUrl;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 /** Date locale au format `YYYY-MM-DD` — `toISOString()` décalerait d'un jour le soir. */

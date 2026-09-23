@@ -4,6 +4,7 @@ import type {
   ListeningLink,
   ListeningLinkStats,
   ListeningPlayStat,
+  ListeningItemStat,
   ListeningSessionStat,
 } from "@/lib/listening-types";
 
@@ -56,6 +57,7 @@ function rowToLink(row: Record<string, unknown>): ListeningLink {
     expiresAt: (row.expires_at as string) ?? undefined,
     allowDownload: Boolean(row.allow_download),
     presskitUrl: (row.presskit_url as string) ?? undefined,
+    showLogo: row.show_logo !== false,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -64,7 +66,7 @@ function rowToLink(row: Record<string, unknown>): ListeningLink {
 }
 
 const LINK_SELECT =
-  "id, slug, title, intro_message, cover_path, password_hash, expires_at, allow_download, presskit_url, is_active, created_at, updated_at, user_listening_link_items(*)";
+  "id, slug, title, intro_message, cover_path, password_hash, expires_at, allow_download, presskit_url, show_logo, is_active, created_at, updated_at, user_listening_link_items(*)";
 
 export async function fetchListeningLinks(
   supabase: SupabaseClient,
@@ -89,6 +91,7 @@ export interface ListeningLinkInput {
   expiresAt?: string | null;
   allowDownload: boolean;
   presskitUrl?: string | null;
+  showLogo: boolean;
   items: Array<Omit<ListeningItem, "id">>;
 }
 
@@ -130,6 +133,7 @@ export async function createListeningLink(
       expires_at: input.expiresAt ?? null,
       allow_download: input.allowDownload,
       presskit_url: input.presskitUrl ?? null,
+      show_logo: input.showLogo,
       is_active: true,
     })
     .select("id")
@@ -157,6 +161,7 @@ export async function updateListeningLink(
     expires_at: input.expiresAt ?? null,
     allow_download: input.allowDownload,
     presskit_url: input.presskitUrl ?? null,
+    show_logo: input.showLogo,
     updated_at: new Date().toISOString(),
   };
 
@@ -271,6 +276,9 @@ export async function fetchListeningStats(
   let completionSum = 0;
   let completionCount = 0;
   let lastPlayedAt: string | undefined;
+  let totalListenedMs = 0;
+  const sessionDates: string[] = [];
+  const itemStats: Record<string, ListeningItemStat> = {};
 
   for (const raw of (sessions ?? []) as Record<string, unknown>[]) {
     const plays: ListeningPlayStat[] = (
@@ -284,10 +292,29 @@ export async function fetchListeningStats(
       downloaded: Boolean(p.downloaded),
     }));
 
+    sessionDates.push(raw.created_at as string);
+
     for (const play of plays) {
       if (play.downloaded) downloadCount += 1;
       completionSum += play.completed ? 1 : 0;
       completionCount += 1;
+      totalListenedMs += play.listenedMs;
+
+      const item = (itemStats[play.itemId] ??= {
+        itemId: play.itemId,
+        listeners: 0,
+        listenedMs: 0,
+        reachedMs: [],
+        completions: 0,
+        replays: 0,
+        downloads: 0,
+      });
+      item.listeners += 1;
+      item.listenedMs += play.listenedMs;
+      item.reachedMs.push(play.maxPositionMs);
+      if (play.completed) item.completions += 1;
+      item.replays += Math.max(0, play.playCount - 1);
+      if (play.downloaded) item.downloads += 1;
     }
 
     const seenAt = raw.last_seen_at as string;
@@ -314,6 +341,9 @@ export async function fetchListeningStats(
   return {
     linkId,
     sessionCount: (sessions ?? []).length,
+    sessionDates,
+    totalListenedMs,
+    itemStats,
     identifiedSessions: identified,
     anonymousSessionCount,
     anonymousListenedMsByItem,

@@ -31,27 +31,40 @@ export function ListeningRoomClient({ slug, inviteId }: Props) {
     { revalidateOnFocus: false }
   );
 
-  // Seules les transitions décidées par le visiteur sont en état local.
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [identified, setIdentified] = useState(false);
+  /**
+   * Identité retenue pour la mesure d'écoute.
+   *
+   * Lien nominatif : le nom est déjà connu, c'est tout l'intérêt de l'envoi
+   * personnalisé — on ouvre directement l'écoute, attribuée à ce nom, sans
+   * redemander au destinataire de le retaper. Sinon, c'est la porte
+   * d'identification qui le fournit (ou `null` s'il la passe anonymement).
+   */
+  const [declared, setDeclared] = useState<{ name: string | null } | null>(null);
+  const identity = data?.inviteName ? { name: data.inviteName } : declared;
 
-  async function startSession(visitorName: string | null) {
-    try {
-      const res = await fetch(`/api/listening/${slug}/session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorName, inviteId }),
-      });
-      if (res.ok) {
-        const { sessionId: id } = (await res.json()) as { sessionId: string };
-        setSessionId(id);
+  // La session passe par SWR plutôt que par un effet : c'est un appel au
+  // serveur déclenché par l'identité retenue, pas une synchronisation d'état.
+  // L'écoute n'attend pas sa réponse — une session absente rend la mesure
+  // anonyme, elle n'empêche jamais d'écouter.
+  const { data: sessionId = null } = useSWR<string | null>(
+    identity && data?.state === "ok"
+      ? ["listening-session", slug, inviteId, identity.name]
+      : null,
+    async () => {
+      try {
+        const res = await fetch(`/api/listening/${slug}/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitorName: identity?.name ?? null, inviteId }),
+        });
+        if (!res.ok) return null;
+        return ((await res.json()) as { sessionId: string }).sessionId;
+      } catch {
+        return null;
       }
-    } catch {
-      // Une session non créée ne doit jamais empêcher d'écouter : la mesure
-      // est secondaire par rapport à l'écoute elle-même.
-    }
-    setIdentified(true);
-  }
+    },
+    { revalidateOnFocus: false, revalidateOnReconnect: false, shouldRetryOnError: false }
+  );
 
   if (isLoading || !data) {
     return (
@@ -89,13 +102,12 @@ export function ListeningRoomClient({ slug, inviteId }: Props) {
     );
   }
 
-  if (!identified) {
+  if (!identity) {
     return (
       <IdentityGate
         title={data.link.title}
         artistName={data.link.artistName}
-        prefilledName={data.inviteName ?? ""}
-        onSubmit={(name) => void startSession(name)}
+        onSubmit={(name) => setDeclared({ name })}
       />
     );
   }

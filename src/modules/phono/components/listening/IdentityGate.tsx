@@ -8,22 +8,20 @@ import { Input } from "@/components/ui/input";
 interface IdentityGateProps {
   title: string;
   artistName: string;
-  prefilledName: string;
   onSubmit: (visitorName: string | null) => void;
 }
 
 /**
- * Le champ est pré-rempli quand le lien vient d'un envoi mail. Le passage sans
+ * Porte d'identification des liens partagés tels quels. Un lien nominatif ne
+ * passe pas par ici : son destinataire est déjà connu. Le passage sans
  * identification est un vrai bouton lisible, jamais un lien caché : cette porte
  * ne doit jamais bloquer l'accès à la musique.
+ *
+ * Jamais le logo ici, même si le lien l'affiche par ailleurs : cette page est
+ * volontairement neutre, avant que le visiteur sache ce qu'il va écouter.
  */
-export function IdentityGate({
-  title,
-  artistName,
-  prefilledName,
-  onSubmit,
-}: IdentityGateProps) {
-  const [name, setName] = useState(prefilledName);
+export function IdentityGate({ title, artistName, onSubmit }: IdentityGateProps) {
+  const [name, setName] = useState("");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(240,255,0,0.09),transparent_36%),#101010] p-6">

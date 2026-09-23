@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import type { LinkState } from "@/lib/listening-types";
+import { logoFor, type LogoExports } from "@/lib/artist-logo";
 
 /**
  * Client service role : les pages publiques n'ont pas de session Supabase,
@@ -86,6 +87,7 @@ export interface LinkRow {
   expires_at: string | null;
   allow_download: boolean;
   presskit_url: string | null;
+  show_logo: boolean;
   is_active: boolean;
 }
 
@@ -96,7 +98,7 @@ export async function resolveLinkRow(
   const { data, error } = await supabase
     .from("user_listening_links")
     .select(
-      "id, user_id, slug, title, intro_message, cover_path, password_hash, expires_at, allow_download, presskit_url, is_active"
+      "id, user_id, slug, title, intro_message, cover_path, password_hash, expires_at, allow_download, presskit_url, show_logo, is_active"
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -127,4 +129,30 @@ export function linkState(row: LinkRow | null): LinkState {
 /** Empreinte d'IP : distinguer des sessions sans conserver d'adresse en clair. */
 export function hashIp(ip: string): string {
   return createHmac("sha256", hmacSecret()).update(ip).digest("hex").slice(0, 32);
+}
+
+// ─── Logo de l'artiste ──────────────────────────────────────────────────────
+
+/**
+ * Le logo à montrer sur le lien d'écoute (version pour fonds sombres, repli
+ * sur la claire), ou `undefined` si l'artiste n'en a pas ou l'a masqué ici.
+ * Requête à part : une base sans les colonnes du logo ne doit pas faire
+ * tomber le reste de la charge (nom d'artiste compris).
+ */
+export async function listeningLogo(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<string | undefined> {
+  const { data, error } = await supabase
+    .from("user_preferences")
+    .select("artist_logo, artist_logo_dark, artist_logo_exports")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  const row = data as {
+    artist_logo: string | null;
+    artist_logo_dark: string | null;
+    artist_logo_exports: Partial<LogoExports> | null;
+  };
+  return logoFor({ light: row.artist_logo, dark: row.artist_logo_dark }, row.artist_logo_exports, "listening");
 }
