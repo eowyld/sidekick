@@ -193,10 +193,22 @@ conditionnels MSO pour Outlook) sont dans **`docs/email-templates/`** :
 
 | Fichier | Template Supabase | Variables clés |
 |---|---|---|
-| `confirm-signup.html` | Confirm signup | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
-| `reset-password.html` | Reset Password | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
-| `magic-link.html` | Magic Link | `{{ .ConfirmationURL }}`, `{{ .Token }}` |
-| `change-email.html` | Change Email Address | `{{ .ConfirmationURL }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .Token }}` |
+| `confirm-signup.html` | Confirm signup | `{{ .RedirectTo }}`, `{{ .TokenHash }}`, `{{ .Token }}` |
+| `reset-password.html` | Reset Password | `{{ .RedirectTo }}`, `{{ .TokenHash }}`, `{{ .Token }}` |
+| `magic-link.html` | Magic Link | `{{ .RedirectTo }}`, `{{ .TokenHash }}`, `{{ .Token }}` |
+| `change-email.html` | Change Email Address | `{{ .RedirectTo }}`, `{{ .TokenHash }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .Token }}` |
+| `notification-email-changed.html` | Security notifications › Email address changed | `{{ .OldEmail }}`, `{{ .Email }}` |
+| `notification-password-changed.html` | Security notifications › Password changed | `{{ .Email }}`, `{{ .SiteURL }}` |
+
+**Liens (22/09) : jamais `{{ .ConfirmationURL }}`.** Il pointe sur le domaine
+technique `…supabase.co/auth/v1/verify`. Les modèles construisent le lien sur
+le site : `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=…` (`email` pour
+l'inscription et le lien magique, `recovery`, `email_change`), validé par
+`app/(auth)/auth/callback/route.ts` via `verifyOtp`. `{{ .RedirectTo }}` est
+l'adresse de retour passée par l'app, toujours de la forme
+`<origine>/auth/callback?next=…` : le `&` qui suit suppose ce `?`. Si l'adresse
+n'est pas dans les Redirect URLs, Supabase la remplace par la Site URL, sans
+`?`, et le lien est cassé : l'allowlist est donc obligatoire.
 
 Pour chacun : **Authentication → Email Templates** → sélectionne le template →
 colle le contenu du fichier dans le champ *Message body* → renseigne l'objet

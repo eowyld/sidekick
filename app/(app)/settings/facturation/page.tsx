@@ -1,5 +1,6 @@
-import { InvoiceTemplatePage } from "@/modules/settings/components/InvoiceTemplatePage";
+import { redirect } from "next/navigation";
 
+// Fusionnée dans Personnalisation le 22/09.
 export default function SettingsInvoiceTemplateRoute() {
-  return <InvoiceTemplatePage />;
+  redirect("/settings/personnalisation?doc=factures");
 }

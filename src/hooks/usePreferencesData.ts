@@ -9,6 +9,8 @@ import {
   type InvoiceTemplate,
 } from "@/lib/sidekick-store";
 import type { IdentityMode } from "@/lib/artist-identity";
+import { normalizeLogoExports, type LogoExports, type LogoVariant } from "@/lib/artist-logo";
+import { userErrorMessage } from "@/lib/user-error";
 
 const KEY = "user_preferences";
 
@@ -45,6 +47,12 @@ type PreferencesRow = {
   identity_mode: IdentityMode | null;
   /** Nom affiché, renseigné dès que `identity_mode` l'est. */
   artist_name: string | null;
+  /** Logo pour fonds clairs (data URL PNG), NULL = pas de logo. */
+  artist_logo: string | null;
+  /** Logo pour fonds sombres, NULL = repli sur `artist_logo`. */
+  artist_logo_dark: string | null;
+  /** Interrupteurs par export ; clé absente = affiché. */
+  artist_logo_exports: Partial<LogoExports>;
 };
 
 /**
@@ -73,6 +81,7 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
   // une base à jour sur les rappels mais pas encore sur la facturation doit
   // continuer à servir `reminders_enabled` et `demo_seed`.
   const SELECTS = [
+    `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note, identity_mode, artist_name, artist_logo, artist_logo_dark, artist_logo_exports`,
     `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note, identity_mode, artist_name`,
     `${BASE_COLUMNS}, demo_seed, reminders_enabled, invoice_template, invoice_footer_note`,
     `${BASE_COLUMNS}, demo_seed, reminders_enabled`,
@@ -103,7 +112,22 @@ async function fetchPreferences(): Promise<PreferencesRow | null> {
     identity_mode:
       ((data as { identity_mode?: IdentityMode | null }).identity_mode) ?? null,
     artist_name: ((data as { artist_name?: string | null }).artist_name) ?? null,
+    artist_logo: ((data as { artist_logo?: string | null }).artist_logo) ?? null,
+    artist_logo_dark: ((data as { artist_logo_dark?: string | null }).artist_logo_dark) ?? null,
+    artist_logo_exports:
+      ((data as { artist_logo_exports?: Partial<LogoExports> | null }).artist_logo_exports) ?? {},
   };
+}
+
+/**
+ * Le logo vivait dans le modèle de facture avant le 22/09 (`logoDataUrl`). Il
+ * est passé dans `artist_logo` ; la clé restée en base est ignorée à la
+ * lecture et effacée à la prochaine écriture du modèle.
+ */
+function withoutLegacyLogo(template: InvoiceTemplate): InvoiceTemplate {
+  const { logoDataUrl: _legacy, ...rest } = template as InvoiceTemplate & { logoDataUrl?: string };
+  void _legacy;
+  return rest;
 }
 
 export function usePreferencesData() {
@@ -114,7 +138,7 @@ export function usePreferencesData() {
     mutate: mutateLocal,
   } = useSWR<PreferencesRow | null>(KEY, fetchPreferences);
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger tes préférences. Réessaie dans un instant.") : null;
 
   // Référence stable tant que la ligne SWR ne change pas : `enabledModules` est
   // une dépendance de useMemo dans Tasks.tsx, un nouvel objet à chaque rendu y
@@ -127,9 +151,16 @@ export function usePreferencesData() {
    * dans l'éditeur de facture, qui recalcule l'aperçu PDF.
    */
   const invoiceTemplate = useMemo(
-    () => ({ ...DEFAULT_INVOICE_TEMPLATE, ...(row?.invoice_template ?? {}) }),
+    () => withoutLegacyLogo({ ...DEFAULT_INVOICE_TEMPLATE, ...(row?.invoice_template ?? {}) }),
     [row]
   );
+
+  /** Mémoïsé : dépendance des aperçus PDF, comme `invoiceTemplate`. */
+  const artistLogo = useMemo(
+    () => ({ light: row?.artist_logo ?? null, dark: row?.artist_logo_dark ?? null }),
+    [row]
+  );
+  const artistLogoExports = useMemo(() => normalizeLogoExports(row?.artist_logo_exports), [row]);
 
   /**
    * Applique un patch optimiste sur la ligne locale, puis l'upsert. `payload`
@@ -150,6 +181,9 @@ export function usePreferencesData() {
         invoice_footer_note: row?.invoice_footer_note ?? null,
         identity_mode: row?.identity_mode ?? null,
         artist_name: row?.artist_name ?? null,
+        artist_logo: row?.artist_logo ?? null,
+        artist_logo_dark: row?.artist_logo_dark ?? null,
+        artist_logo_exports: row?.artist_logo_exports ?? {},
         ...patch,
       };
       mutateLocal(nextRow, false);
@@ -197,11 +231,11 @@ export function usePreferencesData() {
   /** Modèle visuel des PDF de facture. Le patch est fusionné sur le défaut. */
   const setInvoiceTemplate = useCallback(
     (patch: Partial<InvoiceTemplate>) => {
-      const next: InvoiceTemplate = {
+      const next: InvoiceTemplate = withoutLegacyLogo({
         ...DEFAULT_INVOICE_TEMPLATE,
         ...(row?.invoice_template ?? {}),
         ...patch,
-      };
+      });
       persist({ invoice_template: next }, { invoice_template: next });
     },
     [row, persist]
@@ -230,6 +264,24 @@ export function usePreferencesData() {
       );
     },
     [persist]
+  );
+
+  /** Pose ou retire (`null`) une version du logo de l'artiste. */
+  const setArtistLogo = useCallback(
+    (variant: LogoVariant, value: string | null) => {
+      const column = variant === "light" ? "artist_logo" : "artist_logo_dark";
+      persist({ [column]: value }, { [column]: value });
+    },
+    [persist]
+  );
+
+  /** Interrupteurs d'affichage du logo, fusionnés sur l'état courant. */
+  const setArtistLogoExports = useCallback(
+    (patch: Partial<LogoExports>) => {
+      const next = { ...normalizeLogoExports(row?.artist_logo_exports), ...patch };
+      persist({ artist_logo_exports: next }, { artist_logo_exports: next });
+    },
+    [row, persist]
   );
 
   /**
@@ -303,6 +355,10 @@ export function usePreferencesData() {
     identityMode: row?.identity_mode ?? null,
     artistName: row?.artist_name ?? "",
     setArtistIdentity,
+    artistLogo,
+    artistLogoExports,
+    setArtistLogo,
+    setArtistLogoExports,
     onboardingCompleted: Boolean(row?.onboarding_completed_at),
     onboardingSectors: row?.onboarding_sectors ?? [],
     /** false tant que le chargement n'a pas eu lieu — évite le flash de sidebar. */
