@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { LiveHeader } from "./shared/LiveUI";
+import { useSearchParams } from "next/navigation";
+import { tourOptions } from "../lib/live-links";
+import { LiveHeader, WriteError } from "./shared/LiveUI";
 import { Fragment, useMemo, useState, type FormEvent } from "react";
 import {
   Archive,
@@ -81,6 +83,7 @@ const STATUS_RANK: Record<Status, number> = {
 };
 
 const STATUS_FILTER_ALL = "__all__";
+const TOUR_FILTER_ALL = "__all__";
 const AUTO_RELANCE_DAYS = 21;
 const AUTO_RELANCE_STATUSES: Status[] = ["En attente", "En discussion"];
 
@@ -107,6 +110,7 @@ const emptyForm = {
   status: "À contacter" as Status,
   notes: "",
   reliabilityTier: "neutral" as ReliabilityTier,
+  tourId: "",
 };
 
 const SORTABLE_COLUMNS = [
@@ -446,7 +450,7 @@ function DetailField({
 }
 
 export function ProspectionPage() {
-  const { prospection: entries, setProspection: setEntries, loading, error } = useLiveData();
+  const { prospection: entries, setProspection: setEntries, productions, loading, error, sliceError } = useLiveData();
   const { contacts, setContacts, loading: contactsLoading, error: contactsError } = useContactsData();
 
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
@@ -456,6 +460,9 @@ export function ProspectionPage() {
   const [form, setForm] = useState(emptyForm);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(STATUS_FILTER_ALL);
+  const params = useSearchParams();
+  // Arrivée depuis une fiche de tournée : la liste s'ouvre sur ses lieux.
+  const [tourFilter, setTourFilter] = useState<string>(params.get("tourId") ?? TOUR_FILTER_ALL);
   const [sortKey, setSortKey] = useState<SortKey>("venueName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [touchpointDrafts, setTouchpointDrafts] = useState<Record<string, TouchpointDraft>>({});
@@ -482,7 +489,7 @@ export function ProspectionPage() {
 
   const startCreate = () => {
     setEditingId("new");
-    setForm(emptyForm);
+    setForm({ ...emptyForm, tourId: tourFilter === TOUR_FILTER_ALL ? "" : tourFilter });
   };
 
   const startEdit = (entry: ProspectionEntry) => {
@@ -498,6 +505,7 @@ export function ProspectionPage() {
       status: coerceStatus(entry.status),
       notes: entry.notes ?? "",
       reliabilityTier: entry.reliabilityTier ?? "neutral",
+      tourId: entry.tourId ?? "",
     });
   };
 
@@ -594,6 +602,7 @@ export function ProspectionPage() {
           touchpoints,
           reliabilityTier: form.reliabilityTier,
           lastContact: undefined,
+          tourId: form.tourId || undefined,
         },
         ...prev,
       ]);
@@ -614,6 +623,7 @@ export function ProspectionPage() {
                 status: form.status,
                 notes: notes || undefined,
                 reliabilityTier: form.reliabilityTier,
+                tourId: form.tourId || undefined,
               }
             : entry
         )
@@ -731,10 +741,12 @@ export function ProspectionPage() {
   const activeEntries = entriesWithDerived.filter((entry) => coerceStatus(entry.status) !== "Archivé");
   const archivedEntries = entriesWithDerived.filter((entry) => coerceStatus(entry.status) === "Archivé");
 
+  const filteredByTour = tourFilter === TOUR_FILTER_ALL ? activeEntries : activeEntries.filter((entry) => entry.tourId === tourFilter);
+
   const filteredByStatus =
     statusFilter === STATUS_FILTER_ALL
-      ? activeEntries
-      : activeEntries.filter((entry) => normalizeText(computeDisplayStatus({ status: entry.status, lastContact: entry.computedLastContact })) === normalizeText(statusFilter));
+      ? filteredByTour
+      : filteredByTour.filter((entry) => normalizeText(computeDisplayStatus({ status: entry.status, lastContact: entry.computedLastContact })) === normalizeText(statusFilter));
 
   const filteredEntries =
     normalizedSearch === ""
@@ -769,13 +781,15 @@ export function ProspectionPage() {
   );
 
   const importableContacts = [...contacts].sort((a, b) => compareText(getContactDisplayName(a), getContactDisplayName(b)));
+  const tourChoices = tourOptions(productions);
 
   if (loading) return <PageLoader />;
-  if (error) {
+  const loadError = sliceError("prospection");
+  if (loadError) {
     return (
       <PageError
         title="Impossible de charger la prospection live"
-        description="Vérifie ta connexion ou réessaie dans quelques instants."
+        description={loadError}
         onRetry={() => mutate("user_live")}
       />
     );
@@ -784,6 +798,7 @@ export function ProspectionPage() {
   return (
     <div className="space-y-6">
       <LiveHeader title="Prospection" description="Trouve tes prochaines scènes et garde le fil de chaque échange." actions={<Button onClick={startCreate} size="sm"><Plus size={14} className="mr-2"/>Ajouter un prospect</Button>} />
+      <WriteError message={error} />
 
       <div className="border border-[rgba(245,245,245,0.08)] bg-[rgba(44,44,46,0.3)]">
         <div className="flex flex-col gap-3 border-b border-[rgba(245,245,245,0.08)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -805,6 +820,19 @@ export function ProspectionPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {tourChoices.length > 0 && (
+                <Select value={tourFilter} onValueChange={setTourFilter}>
+                  <SelectTrigger className="h-7 w-full text-xs sm:w-[200px]">
+                    <SelectValue placeholder="Toutes les tournées" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TOUR_FILTER_ALL}>Toutes les tournées</SelectItem>
+                    {tourChoices.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
         </div>
@@ -812,7 +840,7 @@ export function ProspectionPage() {
         {entries.length === 0 ? (
           <EmptyState icon={Target} title="Aucune prospection en cours" description="Ajoute tes lieux cibles et suis tes relances multi-canaux." action={{ label: "Ajouter un lieu", onClick: startCreate }} />
         ) : sortedEntries.length === 0 ? (
-          <NoResult query={searchTerm || undefined} hasFilters={statusFilter !== STATUS_FILTER_ALL} onReset={() => { setSearchTerm(""); setStatusFilter(STATUS_FILTER_ALL); }} />
+          <NoResult query={searchTerm || undefined} hasFilters={statusFilter !== STATUS_FILTER_ALL || tourFilter !== TOUR_FILTER_ALL} onReset={() => { setSearchTerm(""); setStatusFilter(STATUS_FILTER_ALL); setTourFilter(TOUR_FILTER_ALL); }} />
         ) : (
           <div className="overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]">
             <table className="w-full min-w-[980px] border-collapse text-sm table-fixed">
@@ -919,7 +947,7 @@ export function ProspectionPage() {
                                         Archiver
                                       </Button>
                                     )}
-                                    <Button asChild size="sm" variant="secondary"><Link href={`/live/representations/nouvelle?prospectId=${entry.id}`}>Créer une date</Link></Button>
+                                    <Button asChild size="sm" variant="secondary"><Link href={`/live/representations/nouvelle?prospectId=${entry.id}${entry.tourId ? `&tourId=${entry.tourId}` : ""}`}>Créer une date</Link></Button>
                                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); startEdit(entry); }} className="gap-1.5 text-[#F5F5F5]/60 hover:text-[#F5F5F5]">
                                       <Pencil className="h-3.5 w-3.5" />
                                       Modifier
@@ -1315,6 +1343,23 @@ export function ProspectionPage() {
                     <Input id="city" value={form.city} onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))} placeholder="Paris" />
                   </div>
                 </div>
+
+                {tourChoices.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tourId" className="text-xs text-[#F5F5F5]/55">Tournée</Label>
+                    <Select value={form.tourId || "__none"} onValueChange={(v) => setForm((prev) => ({ ...prev, tourId: v === "__none" ? "" : v }))}>
+                      <SelectTrigger id="tourId">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">Hors tournée</SelectItem>
+                        {tourChoices.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="border-t border-[rgba(245,245,245,0.06)] pt-4">
                   <div className="mb-3 flex items-center justify-between">

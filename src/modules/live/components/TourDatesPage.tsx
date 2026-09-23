@@ -12,29 +12,34 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useLiveData } from "@/hooks/useLiveData";
 import { DATE_STEPS, dateISO, todayISO, progress, KIND_META } from "../lib/live-model";
 import { STATUS_META } from "../data/statusMeta";
-import { LiveHeader, ProgressBar, Segments, Choice } from "./shared/LiveUI";
+import { showsOf, tourOptions } from "../lib/live-links";
+import { LiveHeader, ProgressBar, Segments, Choice, WriteError } from "./shared/LiveUI";
 export function TourDatesPage() {
-    const { tourDates: dates, productions, loading, error } = useLiveData();
+    const { tourDates: dates, productions, loading, error, sliceError } = useLiveData();
     const params = useSearchParams();
-    const [period, setPeriod] = useState("upcoming");
+    const [period, setPeriod] = useState(params.get("period") === "past" ? "past" : "upcoming");
     const [search, setSearch] = useState("");
-    const [tour, setTour] = useState("");
+    // `tourId=hors` : les dates jouées hors tournée (lien « Hors tournée » d'une carte).
+    const [tour, setTour] = useState(params.get("tourId") ?? "");
+    const [show, setShow] = useState(params.get("productionId") ?? "");
     const [status, setStatus] = useState(params.get("status") || "");
     if (loading)
         return <PageLoader />;
-    if (error)
-        return <PageError title="Impossible de charger tes dates" description={error} onRetry={() => mutate("user_live")}/>;
+    const loadError = sliceError("tourDates");
+    if (loadError)
+        return <PageError title="Impossible de charger tes dates" description={loadError} onRetry={() => mutate("user_live")}/>;
     const upcoming = dates.filter(d => dateISO(d.date) >= todayISO()).sort((a, b) => dateISO(a.date).localeCompare(dateISO(b.date)));
     const next = upcoming[0];
     const remaining = upcoming.filter(d => progress(DATE_STEPS, d.details?.preparation).percent < 100).length;
-    const shown = dates.filter(d => (period === "past" ? dateISO(d.date) < todayISO() : dateISO(d.date) >= todayISO()) && (!tour || d.details?.tourId === tour) && (!status || d.status === status) && `${d.venue} ${d.city} ${d.organisateur}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a, b) => period === "past" ? dateISO(b.date).localeCompare(dateISO(a.date)) : dateISO(a.date).localeCompare(dateISO(b.date)));
+    const shown = dates.filter(d => (period === "past" ? dateISO(d.date) < todayISO() : dateISO(d.date) >= todayISO()) && (!show || d.details?.productionId === show) && (!tour || (tour === "hors" ? !d.details?.tourId : d.details?.tourId === tour)) && (!status || d.status === status) && `${d.venue} ${d.city} ${d.organisateur}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a, b) => period === "past" ? dateISO(b.date).localeCompare(dateISO(a.date)) : dateISO(a.date).localeCompare(dateISO(b.date)));
     const create = `/live/representations/nouvelle${params.get("projectId") ? `?projectId=${encodeURIComponent(params.get("projectId")!)}` : ""}`;
     return <div>
     <LiveHeader title="Représentations" description="La prochaine scène en ligne de mire. Chaque détail à sa place." actions={<><Button asChild variant="outline">
-        <Link href="/live/spectacles"><Route size={14} className="mr-2"/>Spectacles & tournées</Link>
+        <Link href="/live"><Route size={14} className="mr-2"/>Spectacles & tournées</Link>
         </Button><Button asChild>
         <Link href={create}><Plus size={14} className="mr-2"/>Nouvelle date</Link>
         </Button></>}/>
+    <WriteError message={error}/>
     <div className="mb-6 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         {next ? <Link href={`/live/representations/${next.id}`} className="group relative overflow-hidden rounded-xl border border-[#F0FF00]/20 p-6" style={{ background: "radial-gradient(ellipse at top right,rgba(240,255,0,.13),transparent 65%),rgba(44,44,46,.5)" }}>
         <div className="mb-5 flex items-center justify-between">
@@ -85,10 +90,11 @@ export function TourDatesPage() {
     </div>
     </div>
     <Segments value={period} onChange={setPeriod} items={[{ id: "upcoming", label: "À venir", count: upcoming.length }, { id: "past", label: "Passées", count: dates.length - upcoming.length }]}/>
-    <div className="my-5 grid items-end gap-3 md:grid-cols-[1fr_220px_180px]">
+    <div className="my-5 grid items-end gap-3 md:grid-cols-[1fr_200px_220px_160px]">
     <Input aria-label="Rechercher une date" placeholder="Rechercher un lieu, une ville…" value={search} onChange={e => setSearch(e.target.value)}/>
-    <Choice label="Tournée" optional value={tour} onChange={setTour} options={productions.filter(p => p.kind === "tour").map(p => ({ value: p.id, label: p.title }))}/>
-    <Choice label="Statut" optional value={status} onChange={setStatus} options={Object.keys(STATUS_META).map(value => ({ value, label: value }))}/>
+    <Choice label="Spectacle" optional noneLabel="Tous" value={show} onChange={v => { setShow(v); setTour(""); }} options={showsOf(productions).map(p => ({ value: p.id, label: p.title }))}/>
+    <Choice label="Tournée" optional noneLabel="Toutes" value={tour} onChange={setTour} options={[{ value: "hors", label: "Hors tournée" }, ...tourOptions(productions, show || undefined)]}/>
+    <Choice label="Statut" optional noneLabel="Tous" value={status} onChange={setStatus} options={Object.keys(STATUS_META).map(value => ({ value, label: value }))}/>
     </div>
     <div className="space-y-2">
         {shown.map(d => {

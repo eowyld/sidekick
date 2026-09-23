@@ -1,6 +1,7 @@
 "use client";
 import { isValidDateFr } from "@/lib/date-format";
 import { useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, ClipboardCheck, Clock3, FileDown, FileText, MapPin, Mic2, Plus, Save, Trash2, Users } from "lucide-react";
@@ -9,6 +10,7 @@ import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
@@ -18,12 +20,15 @@ import { useContactsData } from "@/hooks/useContactsData";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { createDefaultRepresentationTimetable, type TourStatus } from "../data/defaultRepresentations";
 import { STATUS_META } from "../data/statusMeta";
-import { DATE_STEPS, dateFR, dateISO, emptyTechnical, money, newProduction, type LiveDetails, type LiveProduction } from "../lib/live-model";
-import { exportLivePDF, setlistSection, technicalSections, type DocumentSection } from "../lib/live-pdf";
+import { DATE_STEPS, dateFR, dateISO, emptyTechnical, money, newProduction, todayISO, type LiveDetails, type LiveProduction } from "../lib/live-model";
+import { showsOf, tourOptions } from "../lib/live-links";
+import { cloneTechnical, resolveBrought } from "../lib/live-equipment";
+import { exportLivePDF, setlistSection, type DocumentSection } from "../lib/live-pdf";
 import { Choice, LiveHeader, Panel, Preparation, Segments, TextField } from "./shared/LiveUI";
 import { SetlistEditor } from "./shared/SetlistEditor";
 import { TechnicalEditor } from "./shared/TechnicalEditor";
-import { EquipmentPicker } from "./shared/EquipmentPicker";
+import { useTechnicalPdf } from "./shared/useTechnicalPdf";
+import { EquipmentChecklist } from "./shared/EquipmentChecklist";
 import { LogisticsEditor } from "./shared/LogisticsEditor";
 import { LiveIncomePanel } from "./shared/LiveIncomePanel";
 type EventDraft = {
@@ -53,11 +58,17 @@ export function EventEditPage({ id, rehearsal = false }: {
     if (live.loading)
         return <PageLoader />;
     const source = rehearsal ? live.rehearsals.find(r => String(r.id) === id) : live.tourDates.find(d => String(d.id) === id);
-    if ((id && !source) || (!id && live.error))
-        return <PageError title={id ? "Événement introuvable" : "Impossible de charger Live"} description={live.error || "Cet événement a peut-être été supprimé."} onRetry={() => mutate("user_live")}/>;
+    // Une tranche en panne rend la liste vide : sans ce test, un événement bien
+    // présent en base serait annoncé « introuvable ».
+    const loadError = live.sliceError(rehearsal ? "rehearsals" : "tourDates");
+    if (loadError)
+        return <PageError title="Impossible de charger Live" description={loadError} onRetry={() => mutate("user_live")}/>;
+    if (id && !source)
+        return <PageError title="Événement introuvable" description="Cet événement a peut-être été supprimé." onRetry={() => mutate("user_live")}/>;
     const tour = live.productions.find(p => p.id === params.get("tourId"));
-    const show = live.productions.find(p => p.id === (params.get("productionId") || tour?.productionId));
-    const initialDetails: LiveDetails = { productionId: show?.id, tourId: tour?.id, setlist: show?.setlist.map(t => ({ ...t })) ?? [], technical: show?.technical ?? emptyTechnical(), equipmentListIds: [...new Set([...(show?.equipmentListIds ?? []), ...(tour?.equipmentListIds ?? [])])] };
+    // Une tournée n'emmène qu'un spectacle : s'il y a une tournée, c'est le sien.
+    const show = live.productions.find(p => p.id === (tour?.productionId || params.get("productionId")));
+    const initialDetails: LiveDetails = { productionId: show?.id, tourId: tour?.id, setlist: show?.setlist.map(t => ({ ...t })) ?? [], technical: show ? cloneTechnical(show.technical) : emptyTechnical(), equipmentListIds: [...new Set([...(show?.equipmentListIds ?? []), ...(tour?.equipmentListIds ?? [])])] };
     const r = source as RehearsalItem | undefined;
     const d = source as TourDate | undefined;
     const prospect = live.prospection.find(p => p.id === params.get("prospectId"));
@@ -75,7 +86,9 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
     const router = useRouter();
     const live = useLiveData();
     const { projects, setProjects } = useProjectsData();
+    const { confirm, confirmDialog } = useConfirm();
     const { contacts } = useContactsData();
+    const downloadTechnical = useTechnicalPdf();
     const [form, setForm] = useState(initial);
     const [baseline, setBaseline] = useState(JSON.stringify(initial));
     const [tab, setTab] = useState("essential");
@@ -91,21 +104,40 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
     const details = (v: Partial<LiveDetails>) => setForm(prev => ({ ...prev, details: { ...prev.details, ...v } }));
     const base = rehearsal ? "/live/repetitions" : "/live/representations";
     const production = live.productions.find(p => p.id === form.details.productionId);
-    const linkedProjects = projects.filter(p => p.id === projectId || (rehearsal ? p.linkedRehearsals.includes(form.id) : p.linkedTourDates.includes(form.id)) || p.id === production?.projectId || p.id === live.productions.find(t => t.id === form.details.tourId)?.projectId);
-    const applyShow = (id: string) => { const p = live.productions.find(x => x.id === id); if (id && form.details.setlist?.length && id !== form.details.productionId && !window.confirm("Remplacer la setlist de cet événement par celle du spectacle ?"))
-        return; details({ productionId: id || undefined, ...(p ? { setlist: p.setlist.map(t => ({ ...t })), technical: { ...p.technical }, equipmentListIds: [...new Set([...(form.details.equipmentListIds ?? []), ...p.equipmentListIds])] } : {}) }); };
-    const applyTour = (id: string) => {
-        const tour = live.productions.find(p => p.id === id);
-        const show = !form.details.productionId ? live.productions.find(p => p.id === tour?.productionId) : undefined;
+    const tour = live.productions.find(t => t.id === form.details.tourId);
+    const linkedProjects = projects.filter(p => p.id === projectId || (rehearsal ? p.linkedRehearsals.includes(form.id) : p.linkedTourDates.includes(form.id)) || p.id === production?.projectId || p.id === tour?.projectId);
+    const applyShow = async (id: string) => {
+        const p = live.productions.find(x => x.id === id);
+        if (id && form.details.setlist?.length && id !== form.details.productionId && !(await confirm({ title: "Remplacer la setlist ?", description: "La setlist de cet événement sera remplacée par celle du spectacle.", confirmLabel: "Remplacer" })))
+            return;
+        details({
+            productionId: id || undefined,
+            // Une tournée appartient à un seul spectacle : en changer l'en détache.
+            ...(tour && tour.productionId !== id ? { tourId: undefined } : {}),
+            ...(p ? { setlist: p.setlist.map(t => ({ ...t })), technical: cloneTechnical(p.technical), equipmentListIds: [...new Set([...(form.details.equipmentListIds ?? []), ...p.equipmentListIds])] } : {}),
+        });
+    };
+    const applyTour = async (id: string) => {
+        const next = live.productions.find(p => p.id === id);
+        const show = next ? live.productions.find(p => p.id === next.productionId) : undefined;
+        // Choisir une tournée impose son spectacle, même si un autre était choisi.
+        const switching = show && show.id !== form.details.productionId ? show : undefined;
+        if (switching && form.details.setlist?.length && !(await confirm({ title: "Remplacer la setlist ?", description: `Cette tournée emmène « ${switching.title} ». La setlist de cet événement sera remplacée par celle de ce spectacle.`, confirmLabel: "Remplacer" })))
+            return;
         details({
             tourId: id || undefined,
-            ...(show ? { productionId: show.id, setlist: show.setlist.map(t => ({ ...t })), technical: { ...show.technical } } : {}),
-            equipmentListIds: [...new Set([...(form.details.equipmentListIds ?? []), ...(tour?.equipmentListIds ?? []), ...(show?.equipmentListIds ?? [])])],
+            ...(switching ? { productionId: switching.id, setlist: switching.setlist.map(t => ({ ...t })), technical: cloneTechnical(switching.technical) } : {}),
+            equipmentListIds: [...new Set([...(form.details.equipmentListIds ?? []), ...(next?.equipmentListIds ?? []), ...(switching?.equipmentListIds ?? [])])],
         });
     };
     const save = async () => {
         if (!form.title.trim() || !isValidDateFr(dateFR(form.date))) {
             toast.error(rehearsal ? "Renseigne le nom et la date de la répétition." : "Renseigne le lieu et la date de la représentation.");
+            setTab("essential");
+            return;
+        }
+        if (!rehearsal && !form.details.productionId) {
+            toast.error("Choisis le spectacle ou le DJ set joué à cette date.");
             setTab("essential");
             return;
         }
@@ -138,11 +170,11 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
             router.replace(`${base}/${form.id}`);
         }
     };
-    const roadmap = () => { const sections: DocumentSection[] = [{ title: "Lieu & contact", lines: [form.title, [form.address, form.city].filter(Boolean).join(", "), form.organiser, form.details.contact ?? ""] }, { title: "Horaires", lines: rehearsal ? [`${form.time} — ${form.details.endTime ?? ""}`] : form.timetable.map(t => `${t.time}  ${t.activity}`) }, { title: "Transport", lines: (form.details.transports ?? []).map(t => `${t.type} — ${t.details}`) }, { title: "Logement", lines: (form.details.lodgings ?? []).map(t => `${t.type} — ${t.details}`) }, { title: "Matériel", lines: live.equipmentInventory.filter(i => live.equipmentLists.filter(l => form.details.equipmentListIds?.includes(l.id)).some(l => l.itemIds.includes(i.id))).map(i => `${form.details.equipmentChecked?.[i.id] ? "[OK]" : "[  ]"} ${i.quantity} × ${i.name}`) }, setlistSection(form.details.setlist ?? []), { title: "Notes", lines: [form.note] }]; void exportLivePDF(`Feuille de route — ${form.title}`, `${dateFR(form.date)} · ${form.city}`, sections); };
+    const roadmap = () => { const sections: DocumentSection[] = [{ title: "Lieu & contact", lines: [form.title, [form.address, form.city].filter(Boolean).join(", "), form.organiser, form.details.contact ?? ""] }, { title: "Horaires", lines: rehearsal ? [`${form.time} — ${form.details.endTime ?? ""}`] : form.timetable.map(t => `${t.time}  ${t.activity}`) }, { title: "Transport", lines: (form.details.transports ?? []).map(t => `${t.type} — ${t.details}`) }, { title: "Logement", lines: (form.details.lodgings ?? []).map(t => `${t.type} — ${t.details}`) }, { title: "Matériel", lines: resolveBrought(form.details.technical ?? emptyTechnical(), form.details.equipmentListIds ?? [], live.equipmentLists, live.equipmentInventory).map(l => `${form.details.equipmentChecked?.[l.key] ? "[OK]" : "[  ]"} ${l.quantity} × ${l.name}`) }, setlistSection(form.details.setlist ?? []), { title: "Notes", lines: [form.note] }]; void exportLivePDF(`Feuille de route — ${form.title}`, `${dateFR(form.date)} · ${form.city}`, sections); };
     const publishSetlist = async () => { if (!templateName.trim()) {
         toast.error("Donne un nom au spectacle.");
         return;
-    } const p: LiveProduction = { ...newProduction(production?.kind === "dj" ? "dj" : templateKind), title: templateName.trim(), setlist: (form.details.setlist ?? []).map(t => ({ ...t })), technical: form.details.technical ?? emptyTechnical(), equipmentListIds: form.details.equipmentListIds ?? [] }; setSaving(true); if (await live.setProductions(prev => [...prev, p])) {
+    } const p: LiveProduction = { ...newProduction(production?.kind === "dj" ? "dj" : templateKind), title: templateName.trim(), setlist: (form.details.setlist ?? []).map(t => ({ ...t })), technical: cloneTechnical(form.details.technical ?? emptyTechnical()), equipmentListIds: form.details.equipmentListIds ?? [] }; setSaving(true); if (await live.setProductions(prev => [...prev, p])) {
         details({ productionId: p.id });
         setTemplateOpen(false);
         toast.success("Spectacle créé. Enregistre l’événement pour conserver son association.");
@@ -177,8 +209,8 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
         <div className="md:col-span-2">
         <TextField label="Adresse" value={form.address} onChange={address => patch({ address })}/>
         </div>
-        <Choice label="Spectacle / DJ set" value={form.details.productionId} optional onChange={applyShow} options={live.productions.filter(p => p.kind !== "tour").map(p => ({ value: p.id, label: p.title }))}/>
-        {!rehearsal && <Choice label="Tournée" value={form.details.tourId} optional onChange={applyTour} options={live.productions.filter(p => p.kind === "tour").map(p => ({ value: p.id, label: p.title }))}/>}
+        <Choice label={rehearsal ? "Spectacle / DJ set" : "Spectacle / DJ set *"} value={form.details.productionId} optional={rehearsal} placeholder="Choisir le live joué" onChange={(v) => void applyShow(v)} options={showsOf(live.productions).map(p => ({ value: p.id, label: p.title }))}/>
+        <Choice label="Tournée" value={form.details.tourId} optional noneLabel="Hors tournée" onChange={(v) => void applyTour(v)} options={tourOptions(live.productions, form.details.productionId)}/>
         </div>
         </Panel>{!rehearsal && <Panel title="Déroulé de la journée" icon={Clock3} color="#38BDF8" action={<Button size="xs" variant="secondary" onClick={() => { const t = [...form.timetable]; t.splice(Math.max(0, t.length - 1), 0, { time: "", activity: "", kind: "step" }); patch({ timetable: t }); }}><Plus size={12} className="mr-1"/>Étape</Button>}>
             <div className="space-y-3">
@@ -202,7 +234,7 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
         {rehearsal && <><TextField label="Objectifs de la séance" area value={form.details.goals ?? ""} onChange={goals => details({ goals })} placeholder="Transitions à travailler, morceaux à reprendre…"/><TextField label="Compte rendu" area value={form.details.report ?? ""} onChange={report => details({ report })}/></>}
         <TextField label="Notes" area value={form.note} onChange={note => patch({ note })}/>
         </div>
-        </Panel>{rehearsal && <><EquipmentPicker listIds={form.details.equipmentListIds ?? []} onChange={equipmentListIds => details({ equipmentListIds })} checked={form.details.equipmentChecked ?? {}} onCheck={equipmentChecked => details({ equipmentChecked })}/><Panel title="Rémunérations de la séance" icon={Users} color="#34D399" action={<Button size="xs" variant="secondary" onClick={() => patch({ remunerations: [...form.remunerations, { id: Date.now(), label: "", amount: "" }] })}>Ajouter</Button>}>
+        </Panel>{rehearsal && <><EquipmentChecklist sheet={form.details.technical ?? emptyTechnical()} listIds={form.details.equipmentListIds ?? []} checked={form.details.equipmentChecked ?? {}} onCheck={equipmentChecked => details({ equipmentChecked })} onOpenTechnical={() => setTab("technical")}/><Panel title="Rémunérations de la séance" icon={Users} color="#34D399" action={<Button size="xs" variant="secondary" onClick={() => patch({ remunerations: [...form.remunerations, { id: Date.now(), label: "", amount: "" }] })}>Ajouter</Button>}>
             <div className="space-y-3">
                 {form.remunerations.map(r => <div key={r.id} className="flex items-end gap-2">
                 <div className="flex-1">
@@ -225,8 +257,16 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
         {tab === "setlist" && <><div className="flex items-center justify-between gap-4 rounded-lg border border-[#F5F5F5]/10 p-4">
         <p className="text-xs text-[#F5F5F5]/55">Cette setlist appartient à {rehearsal ? "la répétition" : "la date"}. Tes adaptations ne modifient pas le spectacle.</p>
         <Button variant="secondary" size="sm" onClick={() => setTemplateOpen(true)}>Créer un spectacle à partir de cette setlist</Button>
-        </div><SetlistEditor value={form.details.setlist ?? []} onChange={setlist => details({ setlist })} dj={production?.kind === "dj"}/></>}
-        {tab === "logistics" && <><LogisticsEditor value={form.details.transports ?? []} onChange={transports => details({ transports })}/><LogisticsEditor lodging value={form.details.lodgings ?? []} onChange={lodgings => details({ lodgings })}/><EquipmentPicker listIds={form.details.equipmentListIds ?? []} onChange={equipmentListIds => details({ equipmentListIds })} checked={form.details.equipmentChecked ?? {}} onCheck={equipmentChecked => details({ equipmentChecked })}/><Panel title="Documents & références" icon={FileText} action={<Button size="xs" variant="secondary" onClick={() => details({ documents: [...(form.details.documents ?? []), { id: Date.now(), type: "other", note: "" }] })}>Ajouter</Button>}>
+        </div>
+        {!rehearsal && !!form.date && dateISO(form.date) < todayISO() && <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#A78BFA]/25 bg-[#A78BFA]/[.06] p-4">
+        <Checkbox checked={form.details.sacemProgramDeclared === true} onCheckedChange={v => details({ sacemProgramDeclared: v === true })} className="mt-0.5"/>
+        <span>
+        <span className="block text-sm font-medium">Programme déclaré à la SACEM</span>
+        <span className="mt-1 block text-xs text-[#F5F5F5]/55">Déclarer la setlist d’un concert permet de toucher les droits d’exécution publique des œuvres jouées. Tes œuvres le reprennent dans Édition.</span>
+        </span>
+        </label>}
+        <SetlistEditor value={form.details.setlist ?? []} onChange={setlist => details({ setlist })} dj={production?.kind === "dj"}/></>}
+        {tab === "logistics" && <><LogisticsEditor value={form.details.transports ?? []} onChange={transports => details({ transports })}/><LogisticsEditor lodging value={form.details.lodgings ?? []} onChange={lodgings => details({ lodgings })}/><EquipmentChecklist sheet={form.details.technical ?? emptyTechnical()} listIds={form.details.equipmentListIds ?? []} checked={form.details.equipmentChecked ?? {}} onCheck={equipmentChecked => details({ equipmentChecked })} onOpenTechnical={() => setTab("technical")}/><Panel title="Documents & références" icon={FileText} action={<Button size="xs" variant="secondary" onClick={() => details({ documents: [...(form.details.documents ?? []), { id: Date.now(), type: "other", note: "" }] })}>Ajouter</Button>}>
         <div className="space-y-3">
             {(form.details.documents ?? []).map(d => <div key={d.id} className="flex items-end gap-2">
             <div className="flex-1">
@@ -247,9 +287,7 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
             </Button>)}
         {!linkedProjects.length && <p className="text-sm text-[#F5F5F5]/50">Cette date est indépendante. Tu peux l’associer depuis un projet.</p>}
         </Panel></>}
-        {tab === "technical" && <><div className="flex justify-end">
-        <Button variant="outline" onClick={() => void exportLivePDF(`Fiche technique — ${form.title}`, `${dateFR(form.date)} · ${form.city}`, technicalSections(form.details.technical ?? emptyTechnical()))}><FileDown size={14} className="mr-2"/>Exporter en PDF</Button>
-        </div><TechnicalEditor value={form.details.technical ?? emptyTechnical()} onChange={technical => details({ technical })}/></>}
+        {tab === "technical" && <TechnicalEditor value={form.details.technical ?? emptyTechnical()} listIds={form.details.equipmentListIds ?? []} onChange={({ technical, listIds }) => details({ technical, equipmentListIds: listIds })} onDownload={() => void downloadTechnical({ title: form.title || "Date", meta: [{ label: "Date", value: dateFR(form.date) }, { label: "Lieu", value: form.title }, { label: "Adresse", value: [...new Set([form.address.trim(), form.city.trim()].filter(Boolean))].join(", ") }, { label: "Spectacle", value: production?.title ?? "" }], setlist: form.details.setlist, sheet: form.details.technical ?? emptyTechnical(), listIds: form.details.equipmentListIds ?? [], schedule: rehearsal ? undefined : form.timetable })}/>}
     </div>
     <aside className="space-y-4 xl:sticky xl:top-6">
         {!rehearsal && <Panel title="Préparation de la date" icon={ClipboardCheck}>
@@ -266,12 +304,16 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
         {production && <Link href={`/live/spectacles/${production.id}`} className="block text-[#F0FF00] hover:underline">
         {production.title}
         </Link>}
+        {tour && <Link href={`/live/spectacles/${tour.id}`} className="block text-[#38BDF8] hover:underline">
+        {tour.title}
+        </Link>}
     {form.address && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${form.address} ${form.city}`)}`} target="_blank" rel="noopener noreferrer" className="block hover:text-[#F0FF00]">Ouvrir l’itinéraire ↗</a>}
     <p>
     {dirty ? "Modifications non enregistrées" : "Toutes les modifications sont enregistrées"}
     </p>
     </div>
     </Panel>
+    <Button className="w-full" disabled={saving} onClick={() => void save()}><Save size={14} className="mr-2"/>{saving ? "Enregistrement…" : "Enregistrer"}</Button>
     {created && <Button variant="ghost" size="sm" className="text-rose-300" onClick={() => setDeleting(true)}><Trash2 size={13} className="mr-2"/>Supprimer {rehearsal ? "la répétition" : "la date"}</Button>}
     </aside>
     </fieldset>
@@ -301,5 +343,6 @@ function EventForm({ initial, rehearsal, isNew, projectId, source }: {
     </DialogFooter>
     </DialogContent>
     </Dialog>
+    {confirmDialog}
     </div>;
 }

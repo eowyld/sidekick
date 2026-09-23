@@ -51,7 +51,7 @@ try {
   await page.fill("#email", process.env.SHOT_EMAIL);
   await page.fill("#password", process.env.SHOT_PASSWORD);
   await Promise.all([page.waitForURL(url => !url.pathname.startsWith("/login"), { timeout: 30000 }), page.click('button[type="submit"]')]);
-  for (const [path, name] of [["/live/representations", "dates"], ["/live/spectacles", "spectacles"], ["/live/repetitions", "repetitions"], ["/live/materiel", "materiel"]]) {
+  for (const [path, name] of [["/live/representations", "dates"], ["/live", "spectacles"], ["/live/repetitions", "repetitions"], ["/live/materiel", "materiel"]]) {
     await page.goto(base + path);
     await page.getByRole("heading", { level: 1 }).waitFor();
     await page.screenshot({ path: `/tmp/sidekick-live-review/${name}.png`, fullPage: true });

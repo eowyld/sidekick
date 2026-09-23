@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Boxes, CheckCircle2, ClipboardList, Package, Pencil, Plus, Trash2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { mutate } from "swr";
@@ -11,9 +11,31 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLiveData, type EquipmentInventoryItem, type EquipmentList } from "@/hooks/useLiveData";
-import { Choice, LiveHeader, Segments, TextField } from "./shared/LiveUI";
+import { CategoryTag, Choice, LiveHeader, Segments, TextField } from "./shared/LiveUI";
+import { EQUIPMENT_CATEGORIES } from "../lib/live-model";
+import { CATEGORY_COLOR, compareByCategory, normalizeCategory } from "../lib/live-equipment";
 const conditions = ["Neuf", "Bon", "Moyen", "A réparer"];
 const colors: Record<string, string> = { Neuf: "#34D399", Bon: "#38BDF8", Moyen: "#FB923C", "A réparer": "#FB7185" };
+/** Choix exclusif en pastilles colorées : les catégories et les états se lisent d'un coup d'œil. */
+function PillGroup({ label, value, onChange, options }: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    options: { value: string; label: string; color: string }[];
+}) {
+    return <div role="radiogroup" aria-label={label}>
+    <p className="mb-2 text-xs font-medium leading-none text-[#F5F5F5]/65">{label}</p>
+    <div className="flex flex-wrap gap-2">
+        {options.map(o => {
+            const on = o.value === value;
+            return <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0FF00]/70" style={on ? { borderColor: `${o.color}99`, background: `${o.color}1f`, color: "#F5F5F5" } : { borderColor: "rgba(245,245,245,.12)", color: "rgba(245,245,245,.6)" }}>
+            <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: o.color, opacity: on ? 1 : 0.5 }}/>
+            {o.label}
+            </button>;
+        })}
+    </div>
+    </div>;
+}
 export function EquipmentPage() {
     const live = useLiveData();
     const { equipmentInventory: inventory, equipmentLists: lists } = live;
@@ -49,15 +71,13 @@ export function EquipmentPage() {
         setRemove(null); setSaving(false); };
     if (live.loading)
         return <PageLoader />;
-    if (live.error && !item && !list && !remove)
-        return <PageError title="Impossible de charger le matériel" description={live.error} onRetry={() => mutate("user_live")}/>;
-    const shown = inventory.filter(i => i.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) && (!condition || i.condition === condition));
+    const loadError = live.sliceError("inventory", "lists");
+    if (loadError && !item && !list && !remove)
+        return <PageError title="Impossible de charger le matériel" description={loadError} onRetry={() => mutate("user_live")}/>;
+    const shown = inventory.filter(i => i.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) && (!condition || i.condition === condition)).sort(compareByCategory);
     const shownLists = lists.filter(l => l.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
     return <div>
-    <LiveHeader title="Matériel" description="Ton équipement, tes listes, tes départs sans oubli." actions={<Button onClick={() => tab === "inventory" ? setItem({ id: crypto.randomUUID(), name: "", quantity: 1, condition: "Bon", comment: "" }) : setList({ id: crypto.randomUUID(), name: "", description: "", itemIds: [] })}>
-        <Plus size={14} className="mr-2"/>
-        {tab === "inventory" ? "Ajouter du matériel" : "Nouvelle liste"}
-        </Button>}/>
+    <LiveHeader title="Matériel" description="Ton équipement, tes listes, tes départs sans oubli."/>
     <div className="mb-6 grid grid-cols-3 gap-4">
         {[{ label: "références", value: inventory.length, Icon: Boxes, color: "#34D399" }, { label: "listes prêtes à utiliser", value: lists.length, Icon: ClipboardList, color: "#A78BFA" }, { label: "à réparer", value: inventory.filter(i => i.condition === "A réparer").length, Icon: Wrench, color: "#FB923C" }].map(({ label, value, Icon, color }) => <div key={label} className="rounded-xl border border-[#F5F5F5]/10 p-5" style={{ background: `linear-gradient(130deg, ${color}10, rgba(44,44,46,.4))` }}>
         <div className="flex items-center justify-between">
@@ -77,6 +97,10 @@ export function EquipmentPage() {
         {tab === "inventory" && <div className="w-44">
         <Choice label="État" optional value={condition} onChange={setCondition} options={conditions.map(value => ({ value, label: value === "A réparer" ? "À réparer" : value }))}/>
         </div>}
+    <Button className="ml-auto" onClick={() => tab === "inventory" ? setItem({ id: crypto.randomUUID(), name: "", quantity: 1, condition: "Bon", category: "other", comment: "" }) : setList({ id: crypto.randomUUID(), name: "", description: "", itemIds: [] })}>
+        <Plus size={14} className="mr-2"/>
+        {tab === "inventory" ? "Ajouter du matériel" : "Nouvelle liste"}
+        </Button>
     </div>
         {tab === "inventory" ? <div className="overflow-hidden rounded-xl border border-[#F5F5F5]/10">
         <table className="w-full text-left text-sm">
@@ -92,8 +116,18 @@ export function EquipmentPage() {
         </tr>
         </thead>
         <tbody>
-            {shown.map(i => <tr key={i.id} className="border-t border-[#F5F5F5]/[.06] bg-[rgba(44,44,46,.3)] transition-colors hover:bg-[rgba(44,44,46,.7)]">
-            <td className="px-5 py-4">
+            {EQUIPMENT_CATEGORIES.map(([cat, label]) => {
+                const rows = shown.filter(i => i.category === cat);
+                if (!rows.length)
+                    return null;
+                return <Fragment key={cat}>
+                <tr className="border-t border-[#F5F5F5]/[.06] bg-[#F5F5F5]/[.04]">
+                <td colSpan={5} className="px-5 py-2" style={{ boxShadow: `inset 3px 0 0 ${CATEGORY_COLOR[cat]}` }}>
+                <CategoryTag category={cat} label={label} count={rows.length}/>
+                </td>
+                </tr>
+                {rows.map(i => <tr key={i.id} className="border-t border-[#F5F5F5]/[.06] bg-[rgba(44,44,46,.3)] transition-colors hover:bg-[rgba(44,44,46,.7)]">
+            <td className="px-5 py-4" style={{ boxShadow: `inset 3px 0 0 ${CATEGORY_COLOR[cat]}55` }}>
             <button className="text-left font-medium hover:text-[#F0FF00]" onClick={() => setItem({ ...i })}>
             {i.name}
             </button>
@@ -123,6 +157,8 @@ export function EquipmentPage() {
             </div>
             </td>
             </tr>)}
+                </Fragment>;
+            })}
         </tbody>
         </table>
         {!shown.length && <EmptyState icon={Package} title="Aucun matériel à afficher" description="Ajoute tes instruments, ton backline ou ton équipement DJ, puis compose tes listes."/>}
@@ -145,27 +181,43 @@ export function EquipmentPage() {
             <p className="mt-1 text-xs text-[#F5F5F5]/50">
             {l.description || "Une liste à emporter sur scène."}
             </p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-            {inventory.filter(i => l.itemIds.includes(i.id)).map(i => <span key={i.id} className="rounded-md border border-[#F5F5F5]/10 px-2 py-1 text-[11px] text-[#F5F5F5]/60">{i.name} × {i.quantity}</span>)}
+            <div className="mt-4 space-y-3">
+            {EQUIPMENT_CATEGORIES.map(([cat, label]) => {
+                const rows = inventory.filter(i => l.itemIds.includes(i.id) && i.category === cat).sort(compareByCategory);
+                if (!rows.length)
+                    return null;
+                return <div key={cat}>
+                <CategoryTag category={cat} label={label} count={rows.length} className="mb-1.5"/>
+                <div className="flex flex-wrap gap-1.5">
+                {rows.map(i => <span key={i.id} className="rounded-md border px-2 py-1 text-[11px] text-[#F5F5F5]/70" style={{ borderColor: `${CATEGORY_COLOR[cat]}40`, background: `${CATEGORY_COLOR[cat]}0d` }}>{i.name} × {i.quantity}</span>)}
+                </div>
+                </div>;
+            })}
             </div>
             <p className="mt-5 flex items-center gap-1.5 text-[10px] text-emerald-300/80"><CheckCircle2 size={12}/>Checklist disponible sur chaque date</p>
             </div>)}
         {!shownLists.length && <EmptyState icon={ClipboardList} title="Prépare ta première liste" description="Un set acoustique, un DJ set, une tournée : compose des listes réutilisables pour chaque configuration."/>}
         </div>}
     <Dialog open={!!item} onOpenChange={open => !open && !saving && setItem(null)}>
-    <DialogContent>
+    <DialogContent className="sm:max-w-lg sm:px-8">
     <DialogHeader>
     <DialogTitle>
     {inventory.some(i => i.id === item?.id) ? "Modifier le matériel" : "Ajouter du matériel"}
     </DialogTitle>
+    <DialogDescription>Rangé dans ton inventaire, prêt pour tes listes et tes fiches techniques.</DialogDescription>
     </DialogHeader>
-        {item && <div className="space-y-4">
+        {item && <div className="space-y-5">
         <TextField label="Nom" value={item.name} onChange={name => setItem({ ...item, name })} required/>
-        <div className="grid grid-cols-2 gap-4">
+        <PillGroup label="Catégorie" value={item.category} onChange={category => setItem({ ...item, category: normalizeCategory(category) })} options={EQUIPMENT_CATEGORIES.map(([value, label]) => ({ value, label, color: CATEGORY_COLOR[value] }))}/>
+        <div className="flex items-start gap-4">
+        <div className="w-24 shrink-0">
         <TextField label="Quantité" type="number" min="1" value={String(item.quantity)} onChange={quantity => setItem({ ...item, quantity: Number(quantity) })}/>
-        <Choice label="État" value={item.condition} onChange={condition => setItem({ ...item, condition })} options={conditions.map(value => ({ value, label: value }))}/>
         </div>
-        <TextField label="Notes" area value={item.comment ?? ""} onChange={comment => setItem({ ...item, comment })}/>
+        <div className="min-w-0 flex-1">
+        <PillGroup label="État" value={item.condition} onChange={condition => setItem({ ...item, condition })} options={conditions.map(value => ({ value, label: value === "A réparer" ? "À réparer" : value, color: colors[value] }))}/>
+        </div>
+        </div>
+        <TextField label="Notes" area placeholder="Numéro de série, réglages, à racheter…" value={item.comment ?? ""} onChange={comment => setItem({ ...item, comment })}/>
         </div>}
         {live.error && <p role="alert" className="text-xs text-rose-300">
         {live.error}
@@ -177,7 +229,7 @@ export function EquipmentPage() {
     </DialogContent>
     </Dialog>
     <Dialog open={!!list} onOpenChange={open => !open && !saving && setList(null)}>
-    <DialogContent>
+    <DialogContent className="sm:max-w-lg sm:px-8">
     <DialogHeader>
     <DialogTitle>Liste de matériel</DialogTitle>
     </DialogHeader>
@@ -185,13 +237,21 @@ export function EquipmentPage() {
         <TextField label="Nom de la liste" value={list.name} onChange={name => setList({ ...list, name })} required/>
         <TextField label="Description" value={list.description} onChange={description => setList({ ...list, description })}/>
         <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#F5F5F5]/10 p-3">
-            {inventory.map(i => <label key={i.id} className="flex cursor-pointer items-center gap-3 px-1 py-2 text-sm">
+            {EQUIPMENT_CATEGORIES.map(([cat, label]) => {
+                const rows = inventory.filter(i => i.category === cat).sort(compareByCategory);
+                if (!rows.length)
+                    return null;
+                return <div key={cat}>
+                <CategoryTag category={cat} label={label} className="px-1 pb-1 pt-2"/>
+                {rows.map(i => <label key={i.id} className="flex cursor-pointer items-center gap-3 px-1 py-2 text-sm">
             <Checkbox checked={list.itemIds.includes(i.id)} onCheckedChange={checked => setList({ ...list, itemIds: checked ? [...list.itemIds, i.id] : list.itemIds.filter(id => id !== i.id) })}/>
             <span className="flex-1">
             {i.name}
             </span>
             <span className="text-xs text-[#F5F5F5]/50">× {i.quantity}</span>
             </label>)}
+                </div>;
+            })}
         {!inventory.length && <p className="text-xs text-[#F5F5F5]/50">Ajoute d’abord du matériel à ton inventaire.</p>}
         </div>
         </div>}

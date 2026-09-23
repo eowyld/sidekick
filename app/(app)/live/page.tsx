@@ -1,6 +1,5 @@
-import { LiveOverviewPage } from "@/modules/live/components/LiveOverviewPage";
+import { LiveHomePage } from "@/modules/live/components/LiveHomePage";
 
 export default function LivePage() {
-  return <LiveOverviewPage />;
+  return <LiveHomePage />;
 }
-
