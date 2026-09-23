@@ -35,6 +35,19 @@ const SECTOR_CHOICES: {
   },
 ];
 
+const DEMO_CHOICES: { id: boolean; label: string; description: string }[] = [
+  {
+    id: true,
+    label: "Remplir avec des exemples",
+    description: "Recommandé pour découvrir. Données fictives, effaçables.",
+  },
+  {
+    id: false,
+    label: "Partir de zéro",
+    description: "Compte vide. On te guide sur la première action à faire.",
+  },
+];
+
 /** Coquille plein écran commune aux étapes d'onboarding. */
 export function OnboardingShell({ children }: { children: React.ReactNode }) {
   return (
@@ -54,7 +67,7 @@ export function OnboardingShell({ children }: { children: React.ReactNode }) {
  * reçoivent seule, depuis le tableau de bord.
  *
  * Étape 2 — secteurs : multi-choix, au moins un. Ce n'est qu'un réglage
- * d'affichage, réversible depuis Réglages > Personnalisation ; le texte le dit
+ * d'affichage, réversible depuis Réglages > Modules ; le texte le dit
  * pour que personne n'hésite par peur de se fermer une porte.
  *
  * Étape 3 — données d'exemple : facultatif, et jamais bloquant. Si le seed
@@ -68,6 +81,8 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selected, setSelected] = useState<Sector[]>([]);
   const [busy, setBusy] = useState(false);
+  // Rien de présélectionné : l'utilisateur choisit, puis valide avec Continuer.
+  const [withDemo, setWithDemo] = useState<boolean | null>(null);
 
   const toggle = (sector: Sector) => {
     setSelected((prev) =>
@@ -217,51 +232,58 @@ export function SectorOnboarding({ onDone }: { onDone: () => void }) {
               On peut créer un jeu de données fictives — un artiste, ses dates,
               ses titres, un an de revenus — pour que tu explores l&apos;outil
               sans rien saisir. Tout est supprimable en un clic depuis Réglages
-              &gt; Personnalisation, et rien ne touchera à ce que tu ajouteras
+              &gt; Données et confidentialité, et rien ne touchera à ce que tu ajouteras
               toi-même.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => finish(true)}
-                className="flex flex-col items-start gap-2 rounded-sm border border-[#F0FF00] bg-[rgba(240,255,0,0.06)] p-5 text-left transition-colors hover:bg-[rgba(240,255,0,0.1)] disabled:opacity-60"
-              >
-                <span className="flex items-center gap-2 text-sm font-semibold">
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-[#F0FF00]" />
-                  ) : (
-                    <Check className="h-4 w-4 text-[#F0FF00]" />
-                  )}
-                  Remplir avec des exemples
-                </span>
-                <span className="text-xs leading-relaxed text-[#f5f5f5]/55">
-                  Recommandé pour découvrir. Données fictives, effaçables.
-                </span>
-              </button>
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => finish(false)}
-                className="flex flex-col items-start gap-2 rounded-sm border border-[rgba(245,245,245,0.12)] p-5 text-left transition-colors hover:bg-[rgba(245,245,245,0.04)] disabled:opacity-60"
-              >
-                <span className="text-sm font-semibold">Partir de zéro</span>
-                <span className="text-xs leading-relaxed text-[#f5f5f5]/55">
-                  Compte vide. On te guide sur la première action à faire.
-                </span>
-              </button>
+              {DEMO_CHOICES.map((choice) => {
+                const checked = withDemo === choice.id;
+                return (
+                  <button
+                    key={String(choice.id)}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setWithDemo(choice.id)}
+                    aria-pressed={checked}
+                    className={cn(
+                      "flex flex-col items-start gap-2 rounded-sm border p-5 text-left transition-colors disabled:opacity-60",
+                      checked
+                        ? "border-[#F0FF00] bg-[rgba(240,255,0,0.06)]"
+                        : "border-[rgba(245,245,245,0.12)] hover:bg-[rgba(245,245,245,0.04)]"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      {choice.label}
+                      {checked && <Check className="h-3.5 w-3.5 text-[#F0FF00]" />}
+                    </span>
+                    <span className="text-xs leading-relaxed text-[#f5f5f5]/55">
+                      {choice.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setStep(2)}
-              className="mt-6 text-xs text-[#f5f5f5]/40 transition-colors hover:text-[#f5f5f5]/70 disabled:opacity-60"
-            >
-              ← Revenir aux secteurs
-            </button>
+            <div className="mt-8 flex items-center justify-between gap-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setStep(2)}
+                className="text-xs text-[#f5f5f5]/40 transition-colors hover:text-[#f5f5f5]/70 disabled:opacity-60"
+              >
+                ← Revenir aux secteurs
+              </button>
+              <Button
+                size="lg"
+                className="btn-glow gap-2"
+                disabled={withDemo === null || busy}
+                onClick={() => withDemo !== null && finish(withDemo)}
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Continuer
+              </Button>
+            </div>
           </>
         )}
     </OnboardingShell>

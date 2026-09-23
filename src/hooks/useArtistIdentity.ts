@@ -21,8 +21,16 @@ async function fetchMeta(): Promise<Record<string, unknown>> {
  * Voir CLAUDE.md, section « Identité de l'artiste ».
  */
 export function useArtistIdentity() {
-  const { artistName, identityMode, setArtistIdentity, preferencesReady } =
-    usePreferencesData();
+  const {
+    artistName,
+    identityMode,
+    setArtistIdentity,
+    artistLogo,
+    artistLogoExports,
+    setArtistLogo,
+    setArtistLogoExports,
+    preferencesReady,
+  } = usePreferencesData();
   const { data: meta, isLoading } = useSWR(AUTH_META_KEY, fetchMeta);
 
   const legal = useMemo(() => legalNameParts(meta ?? {}), [meta]);
@@ -36,6 +44,12 @@ export function useArtistIdentity() {
     legal,
     /** Valeur initiale d'un champ artiste de sortie. */
     releaseArtist: defaultArtist(artistName),
+    /** Logo en deux versions (fonds clairs / sombres), chacune facultative. Passer par `logoFor()`. */
+    logo: artistLogo,
+    /** Interrupteurs par export, normalisés (clé absente = affiché). */
+    logoExports: artistLogoExports,
+    setLogo: setArtistLogo,
+    setLogoExports: setArtistLogoExports,
     /** Préférences et métadonnées chargées : on peut pré-remplir. */
     ready: preferencesReady && !isLoading,
   };

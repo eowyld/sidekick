@@ -21,7 +21,7 @@ const CHOICES: {
   {
     id: "legal",
     label: "Mon nom",
-    description: "Tu sors ta musique sous ton nom, prénom et nom.",
+    description: "Tu sors ta musique sous tes prénom et nom.",
     icon: User,
   },
 ];
@@ -38,6 +38,7 @@ export function IdentityChoice({
   onModeChange,
   onArtistDraftChange,
   onLegalDraftChange,
+  autoFocus = false,
 }: {
   mode: IdentityMode | null;
   artistDraft: string;
@@ -45,6 +46,8 @@ export function IdentityChoice({
   onModeChange: (mode: IdentityMode) => void;
   onArtistDraftChange: (value: string) => void;
   onLegalDraftChange: (value: string) => void;
+  /** Focus auto du champ nom : utile dans l'onboarding (étape dédiée), pas dans Réglages où ça fait sauter le scroll. */
+  autoFocus?: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -88,7 +91,7 @@ export function IdentityChoice({
             value={artistDraft}
             onChange={(e) => onArtistDraftChange(e.target.value)}
             placeholder="Nom d'artiste"
-            autoFocus
+            autoFocus={autoFocus}
           />
         </div>
       )}
@@ -101,7 +104,7 @@ export function IdentityChoice({
             value={legalDraft}
             onChange={(e) => onLegalDraftChange(e.target.value)}
             placeholder="Prénom Nom"
-            autoFocus
+            autoFocus={autoFocus}
           />
         </div>
       )}

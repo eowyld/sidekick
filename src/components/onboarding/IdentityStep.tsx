@@ -5,6 +5,7 @@ import { usePostHog } from "posthog-js/react";
 import { Button } from "@/components/ui/button";
 import { useArtistIdentity } from "@/hooks/useArtistIdentity";
 import type { IdentityMode } from "@/lib/artist-identity";
+import { ArtistLogoField } from "@/modules/settings/components/ArtistLogoField";
 import { IdentityChoice } from "./IdentityChoice";
 
 /**
@@ -22,7 +23,7 @@ export function IdentityStep({
   onContinue: () => void;
 }) {
   const posthog = usePostHog();
-  const { identityMode, artistName, legal, setArtistIdentity } = useArtistIdentity();
+  const { identityMode, artistName, legal, setArtistIdentity, logo, setLogo } = useArtistIdentity();
 
   const [mode, setMode] = useState<IdentityMode | null>(identityMode);
   const [artistDraft, setArtistDraft] = useState(
@@ -65,7 +66,20 @@ export function IdentityStep({
           onModeChange={setMode}
           onArtistDraftChange={setArtistDraft}
           onLegalDraftChange={setLegalDraft}
+          autoFocus
         />
+      </div>
+
+      {/* Facultatif : enregistré dès l'import, « Continuer » ne l'attend pas. */}
+      <div className="mt-8 space-y-3">
+        <div>
+          <p className="text-sm font-semibold">Ton logo (facultatif)</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-[#f5f5f5]/55">
+            Il peut apparaître sur tes factures, tes fiches techniques et tes
+            liens d&apos;écoute. Tu choisis où dans les réglages.
+          </p>
+        </div>
+        <ArtistLogoField logo={logo} onChange={setLogo} />
       </div>
 
       <div className="mt-8 flex justify-end">
