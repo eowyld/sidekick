@@ -3,6 +3,8 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
+import { fetchAll } from "@/lib/fetch-all";
+import { userErrorMessage } from "@/lib/user-error";
 
 export interface Contact {
   id: string;
@@ -51,10 +53,14 @@ function contactToRow(contact: Contact): Record<string, unknown> {
 
 async function fetchContacts(): Promise<Contact[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("user_contacts")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const { data, error } = await fetchAll((from, to) =>
+    supabase
+      .from("user_contacts")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map(rowToContact);
 }
@@ -62,7 +68,7 @@ async function fetchContacts(): Promise<Contact[]> {
 export function useContactsData() {
   const { data: contacts = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<Contact[]>(KEY, fetchContacts);
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger tes contacts. Réessaie dans un instant.") : null;
 
   const setContacts = useCallback((fn: (prev: Contact[]) => Contact[]) => {
     const snapshot = contacts;

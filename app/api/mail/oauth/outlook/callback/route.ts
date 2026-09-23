@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestOrigin } from "@/lib/request-origin";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { saveMailConnection } from "@/lib/mail-connections";
 
 function redirect(origin: string, path: string, search?: string) {
   const target = new URL(path, origin);
@@ -9,7 +11,7 @@ function redirect(origin: string, path: string, search?: string) {
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const origin = url.origin;
+  const origin = requestOrigin(req);
 
   try {
     const code = url.searchParams.get("code");
@@ -99,6 +101,12 @@ export async function GET(req: NextRequest) {
     if (updateError) {
       console.error("[Outlook OAuth callback] updateUser error:", updateError.message, updateError);
       return redirect(origin, "/settings/mail", "error=outlook_supabase_failed");
+    }
+
+    // Double écriture pendant la transition : la table est la cible, les
+    // métadonnées restent la source de « connecté » jusqu'au nettoyage.
+    if (tokens.refresh_token) {
+      await saveMailConnection(user.id, "outlook", outlookEmail, tokens.refresh_token);
     }    return redirect(origin, "/settings/mail", "status=outlook_connected");
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

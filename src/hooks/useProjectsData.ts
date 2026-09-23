@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Project } from "@/lib/sidekick-store";
+import { userErrorMessage } from "@/lib/user-error";
 
 export type { Project, ProjectStatus, ProjectMember, KeyDate } from "@/lib/sidekick-store";
 
@@ -144,7 +145,7 @@ export function useProjectsData() {
   const { data: projects = [], isLoading, error: swrError, mutate: mutateLocal } =
     useSWR<Project[]>(KEY, fetchProjects);
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger tes projets. Réessaie dans un instant.") : null;
 
   const createProjectBundle = useCallback(async (payload: Record<string, unknown>) => {
     const supabase = createClient();

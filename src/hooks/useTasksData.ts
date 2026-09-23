@@ -3,7 +3,9 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
+import { fetchAll } from "@/lib/fetch-all";
 import type { Todo } from "@/lib/sidekick-store";
+import { userErrorMessage } from "@/lib/user-error";
 
 const KEY = "user_tasks";
 
@@ -37,10 +39,14 @@ function todoToRow(todo: Todo): Record<string, unknown> {
 
 async function fetchTasks(): Promise<Todo[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("user_tasks")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const { data, error } = await fetchAll((from, to) =>
+    supabase
+      .from("user_tasks")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map(rowToTodo);
 }
@@ -48,7 +54,7 @@ async function fetchTasks(): Promise<Todo[]> {
 export function useTasksData() {
   const { data: tasks = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<Todo[]>(KEY, fetchTasks);
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger tes tâches. Réessaie dans un instant.") : null;
 
   const setTasks = useCallback((fn: (prev: Todo[]) => Todo[]) => {
     const snapshot = tasks;

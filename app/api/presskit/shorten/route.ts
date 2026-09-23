@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
 
       if (updateError) {
         console.error("[Presskit shorten] Update error:", updateError);
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
+        console.error("[Presskit shorten] mise à jour refusée", updateError.message);
+        return NextResponse.json({ error: "Impossible de mettre à jour le lien. Réessaie." }, { status: 500 });
       }
       slug = existing.slug;
     } else {
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[Presskit shorten] Error:", message);
     return NextResponse.json(
-      { error: message || "Erreur serveur." },
+      { error: "Impossible de créer le lien. Réessaie." },
       { status: 500 }
     );
   }

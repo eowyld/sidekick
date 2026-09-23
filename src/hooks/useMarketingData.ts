@@ -6,6 +6,7 @@ import { createClient, getSessionUser } from "@/lib/supabase";
 import type { MailingCampaign, MailingContact, MailingSegment } from "@/modules/marketing/data/mailing.tsx";
 import { DEFAULT_PRESSKIT_PROFILE, type PresskitProfile } from "@/modules/marketing/data/presskit";
 import type { EditorialEvent } from "@/modules/marketing/data/calendrier-editorial";
+import { userErrorMessage } from "@/lib/user-error";
 
 export type { MailingCampaign, MailingContact, MailingSegment, PresskitProfile, EditorialEvent };
 
@@ -312,6 +313,6 @@ export function useMarketingData() {
     presskit: allData.presskit,
     setPresskit,
     loading: isLoading,
-    error: swrError instanceof Error ? swrError.message : null,
+    error: swrError ? userErrorMessage(swrError, "Impossible de charger le marketing. Réessaie dans un instant.") : null,
   };
 }

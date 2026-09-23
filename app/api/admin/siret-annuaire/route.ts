@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
 import { siretDigitsOnly } from "@/modules/admin/lib/siret";
 import { mapRechercheEntreprisesJson } from "@/modules/admin/lib/recherche-entreprises-siret";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     // L'API publique data.gouv est appelée en notre nom : on ne veut pas être
     // celui qui la martèle, ni se faire limiter côté amont.
-    const limit = rateLimit({
+    const limit = await rateLimitShared({
       key: `siret:${user.id}`,
       limit: 30,
       windowMs: 60 * 1000,

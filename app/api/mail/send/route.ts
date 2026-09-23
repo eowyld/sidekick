@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
+import { classifyRefreshFailure, isUsableRefreshToken } from "@/lib/mail-refresh-error";
+import { readMailRefreshToken } from "@/lib/mail-connections";
 
 /**
  * Injecte un pixel de tracking dans le HTML de l'email.
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     if (!to || !subject || !html || !fromEmail) {
       return NextResponse.json(
-        { error: "Missing required fields: to, subject, html, fromEmail" },
+        { error: "Il manque un destinataire, un objet, un message ou une adresse d'envoi." },
         { status: 400 }
       );
     }
@@ -108,12 +111,12 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Ta session a expiré. Reconnecte-toi." }, { status: 401 });
     }
 
     // Un envoi de campagne part de la boîte de l'utilisateur : une boucle
     // grillerait son quota Gmail et abîmerait sa réputation d'expéditeur.
-    const limit = rateLimit({
+    const limit = await rateLimitShared({
       key: `mail-send:${user.id}`,
       limit: 60,
       windowMs: 60 * 60 * 1000,
@@ -126,8 +129,8 @@ export async function POST(req: NextRequest) {
     const mailFrom = meta.mail_from as string | null;
     const gmailEmail = (meta.gmail_email as string | null) ?? (mailFrom && mailFrom.includes("gmail") ? mailFrom : null);
     const outlookEmail = (meta.outlook_email as string | null) ?? (mailFrom && (mailFrom.includes("outlook") || mailFrom.includes("hotmail")) ? mailFrom : null);
-    const hasGmail = !!(meta.gmail_refresh_token as string | undefined);
-    const hasOutlook = !!(meta.outlook_refresh_token as string | undefined);
+    const hasGmail = isUsableRefreshToken(meta.gmail_refresh_token);
+    const hasOutlook = isUsableRefreshToken(meta.outlook_refresh_token);
 
     const connectedEmails: string[] = [];
     if (hasGmail && gmailEmail) connectedEmails.push(gmailEmail);
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
 
     if (!connectedEmails.includes(fromEmail)) {
       return NextResponse.json(
-        { error: "Adresse d'envoi non connectée. Choisis une adresse connectée dans Paramètres > Configuration mail." },
+        { error: "Adresse d'envoi non connectée. Choisis une adresse connectée dans Paramètres > Intégrations." },
         { status: 400 }
       );
     }
@@ -149,17 +152,23 @@ export async function POST(req: NextRequest) {
 
     if (!mailProvider) {
       return NextResponse.json(
-        { error: "Unsupported email provider. Connect Gmail or Outlook." },
+        { error: "Cette adresse d'envoi n'est pas prise en charge. Connecte Gmail dans Paramètres > Intégrations." },
         { status: 400 }
       );
     }
 
+    // La table d'abord, les métadonnées en repli (transition du 21/09). La
+    // connexion elle-même reste décidée par les métadonnées ci-dessus : une
+    // adresse déconnectée ne repart pas depuis une ligne de table oubliée.
     const refreshTokenKey = mailProvider === "gmail" ? "gmail_refresh_token" : "outlook_refresh_token";
-    const refreshToken = meta[refreshTokenKey] as string | null;
+    const metaToken = meta[refreshTokenKey];
+    const refreshToken =
+      (await readMailRefreshToken(user.id, mailProvider)) ??
+      (isUsableRefreshToken(metaToken) ? metaToken : null);
 
     if (!refreshToken) {
       return NextResponse.json(
-        { error: `Compte ${mailProvider} non connecté. Reconnecte l'adresse dans Paramètres > Configuration mail.` },
+        { error: `Compte ${mailProvider} non connecté. Reconnecte l'adresse dans Paramètres > Intégrations.` },
         { status: 400 }
       );
     }
@@ -235,8 +244,34 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[Send email] Error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Le détail technique reste dans les journaux : l'écran reçoit une phrase.
+    return NextResponse.json({ error: "L'envoi a échoué. Réessaie dans un instant." }, { status: 500 });
   }
+}
+
+/**
+ * Refus de l'échange du refresh token. `invalid_grant` est définitif (token
+ * révoqué, expiré ou app Google en mode test) : seule une reconnexion règle le
+ * problème, on le signale donc avec un code que l'interface sait exploiter.
+ */
+async function refreshFailure(provider: "Gmail" | "Outlook", res: Response) {
+  const errText = await res.text();
+  console.error(`[Send email] ${provider} token refresh failed:`, res.status, errText);
+
+  if (classifyRefreshFailure(errText) === "reauth_required") {
+    return NextResponse.json(
+      {
+        error: `La connexion à ${provider} a expiré. Reconnecte ton adresse pour envoyer des mails.`,
+        code: "mail_reauth_required",
+        provider: provider.toLowerCase(),
+      },
+      { status: 401 }
+    );
+  }
+  return NextResponse.json(
+    { error: `Impossible de se connecter à ${provider}. Réessaie, ou reconnecte ton adresse dans Paramètres > Intégrations.` },
+    { status: 502 }
+  );
 }
 
 /**
@@ -254,7 +289,7 @@ async function sendViaGmail(
 
   if (!clientId || !clientSecret) {
     return NextResponse.json(
-      { error: "Google OAuth credentials not configured" },
+      { error: "L'envoi par Gmail n'est pas configuré sur le serveur." },
       { status: 500 }
     );
   }
@@ -271,28 +306,31 @@ async function sendViaGmail(
     })
   });
 
-  if (!tokenRes.ok) {
-    const errText = await tokenRes.text();
-    console.error("[Send email] Gmail token refresh failed:", tokenRes.status, errText);
-    return NextResponse.json(
-      { error: "Failed to refresh Gmail access token" },
-      { status: 500 }
-    );
-  }
+  if (!tokenRes.ok) return refreshFailure("Gmail", tokenRes);
 
   const { access_token } = await tokenRes.json();
 
   // 2) Construire le message email au format RFC 2822
   const toArray = Array.isArray(to) ? to : [to];
   const toHeader = toArray.join(", ");
-  
+
+  // Un en-tête ne peut porter que de l'ASCII : sans l'encodage RFC 2047, les
+  // accents de l'objet arrivaient en « Ã© ». Le corps passe en base64 pour la
+  // même raison, faute de quoi il est lu comme du 7 bits.
+  const encodedSubject = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+  const encodedBody = Buffer.from(html, "utf-8")
+    .toString("base64")
+    .replace(/.{76}/g, "$&\r\n");
+
   const emailContent = [
+    `MIME-Version: 1.0`,
     `To: ${toHeader}`,
     `From: ${fromEmail}`,
-    `Subject: ${subject}`,
-    `Content-Type: text/html; charset=utf-8`,
+    `Subject: ${encodedSubject}`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: base64`,
     ``,
-    html
+    encodedBody
   ].join("\r\n");
 
   // Encoder en base64url (Gmail exige base64url, pas base64)
@@ -318,7 +356,7 @@ async function sendViaGmail(
     const errText = await sendRes.text();
     console.error("[Send email] Gmail send failed:", sendRes.status, errText);
     return NextResponse.json(
-      { error: "Failed to send email via Gmail API" },
+      { error: "Gmail a refusé l'envoi. Réessaie dans un instant." },
       { status: 500 }
     );
   }
@@ -342,7 +380,7 @@ async function sendViaOutlook(
 
   if (!clientId || !clientSecret) {
     return NextResponse.json(
-      { error: "Microsoft OAuth credentials not configured" },
+      { error: "L'envoi par Outlook n'est pas configuré sur le serveur." },
       { status: 500 }
     );
   }
@@ -359,14 +397,7 @@ async function sendViaOutlook(
     })
   });
 
-  if (!tokenRes.ok) {
-    const errText = await tokenRes.text();
-    console.error("[Send email] Outlook token refresh failed:", tokenRes.status, errText);
-    return NextResponse.json(
-      { error: "Failed to refresh Outlook access token" },
-      { status: 500 }
-    );
-  }
+  if (!tokenRes.ok) return refreshFailure("Outlook", tokenRes);
 
   const { access_token } = await tokenRes.json();
 
@@ -401,7 +432,7 @@ async function sendViaOutlook(
     const errText = await sendRes.text();
     console.error("[Send email] Outlook send failed:", sendRes.status, errText);
     return NextResponse.json(
-      { error: "Failed to send email via Outlook API" },
+      { error: "Outlook a refusé l'envoi. Réessaie dans un instant." },
       { status: 500 }
     );
   }

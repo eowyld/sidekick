@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
 
 export const runtime = "nodejs";
 
@@ -321,7 +322,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const limit = rateLimit({
+  const limit = await rateLimitShared({
     key: `streaming-links:${user.id}`,
     limit: 20,
     windowMs: 60 * 1000,
@@ -332,7 +333,7 @@ export async function GET(req: NextRequest) {
 
   const artist = req.nextUrl.searchParams.get("artist")?.trim() || "";
   if (!artist) {
-    return NextResponse.json({ error: "Missing artist parameter." }, { status: 400 });
+    return NextResponse.json({ error: "Nom d’artiste manquant." }, { status: 400 });
   }
 
   const links = emptyLinks();

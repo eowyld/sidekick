@@ -5,6 +5,7 @@ import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { CreationStep, CreationSector } from "@/lib/sidekick-store";
 import { CREATION_TEMPLATES } from "@/modules/projects/data/creation-templates";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export function useProjectCreationData(projectId: string) {
     mutate: mutateLocal,
   } = useSWR<CreationStep[]>(key, () => fetchSteps(projectId));
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger les données du projet.") : null;
 
   // ─── Setter optimiste ────────────────────────────────────────────────────────
 

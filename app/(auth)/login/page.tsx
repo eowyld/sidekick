@@ -27,7 +27,9 @@ function LoginPageContent() {
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "oauth"
       ? "La connexion Google a échoué. Réessaie."
-      : null
+      : searchParams.get("error") === "lien"
+        ? "Ce lien a expiré ou a déjà servi. Connecte-toi, ou redemande un email."
+        : null
   );
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(

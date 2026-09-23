@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return new Response("Unauthorized", { status: 401 });
+    return new Response("Ta session a expiré. Reconnecte-toi.", { status: 401 });
   }
 
   if (!METADATA_ENABLED) {
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     // évite qu'un utilisateur tague le fichier d'un autre : `download` appelé
     // côté serveur ne passe pas par les policies RLS.
     if (audioPathRaw.split("/")[0] !== user.id) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
+      return Response.json({ error: "Ce fichier ne t’appartient pas." }, { status: 403 });
     }
     const { data: blob, error } = await supabase.storage
       .from(DRIVE_BUCKET)
@@ -114,14 +114,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (typeof metadataRaw !== "string") {
-    return new Response("Missing metadata", { status: 400 });
+    return new Response("Métadonnées manquantes.", { status: 400 });
   }
 
   let metadata: IncomingMetadata;
   try {
     metadata = JSON.parse(metadataRaw) as IncomingMetadata;
   } catch {
-    return new Response("Invalid metadata JSON", { status: 400 });
+    return new Response("Métadonnées illisibles.", { status: 400 });
   }
 
   const tmpDir = path.join(os.tmpdir(), "sidekick-phono");

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestOrigin } from "@/lib/request-origin";
 
 export function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const origin = req.nextUrl.origin;
+  const origin = requestOrigin(req);
   const redirectUri = origin + "/api/mail/oauth/google/callback";
 
   if (!clientId) {

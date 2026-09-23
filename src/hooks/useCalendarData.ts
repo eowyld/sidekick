@@ -8,7 +8,9 @@ import {
   parseTimeToMinutes,
 } from "@/lib/calendar-time";
 import { createClient, getSessionUser } from "@/lib/supabase";
+import { fetchAll } from "@/lib/fetch-all";
 import { formatTimeForDisplay } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 export type CalendarSector = "live" | "phono" | "admin" | "marketing" | "edition" | "revenus" | "other";
 
@@ -84,11 +86,15 @@ function itemToRow(item: CustomCalendarItem): Record<string, unknown> {
 
 async function fetchCalendarEvents(): Promise<CustomCalendarItem[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("calendar_events")
-    .select("*")
-    .eq("source_module", "custom")
-    .order("date", { ascending: true });
+  const { data, error } = await fetchAll((from, to) =>
+    supabase
+      .from("calendar_events")
+      .select("*")
+      .eq("source_module", "custom")
+      .order("date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map(rowToItem);
 }
@@ -96,7 +102,7 @@ async function fetchCalendarEvents(): Promise<CustomCalendarItem[]> {
 export function useCalendarData() {
   const { data: customEvents = [], isLoading, error: swrError, mutate: mutateLocal } = useSWR<CustomCalendarItem[]>(KEY, fetchCalendarEvents);
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger ton calendrier. Réessaie dans un instant.") : null;
 
   const setCustomEvents = useCallback((fn: (prev: CustomCalendarItem[]) => CustomCalendarItem[]) => {
     let snapshot: CustomCalendarItem[] = [];

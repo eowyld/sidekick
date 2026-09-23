@@ -38,7 +38,8 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[listening/session] création refusée", error.message);
+    return NextResponse.json({ error: "La session d’écoute n’a pas pu démarrer. Recharge la page." }, { status: 500 });
   }
 
   // Première ouverture de l'invitation : c'est ce qui éteint la règle de relance.

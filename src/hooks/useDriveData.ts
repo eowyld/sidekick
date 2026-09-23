@@ -28,6 +28,7 @@ import {
   moveStorageFolder,
   moveStorageFile
 } from "@/lib/drive-db";
+import { userErrorMessage } from "@/lib/user-error";
 
 const isAbortError = (error: unknown) =>
   error instanceof Error &&
@@ -131,7 +132,7 @@ export function useDriveData(): UseDriveDataResult {
         setError(
           isAbortError(err)
             ? "Le chargement du Drive a été interrompu. Recharge la page."
-            : err instanceof Error ? err.message : String(err)
+            : userErrorMessage(err, "Impossible de charger le Drive. Recharge la page.")
         );
         break;
       }
@@ -152,7 +153,7 @@ export function useDriveData(): UseDriveDataResult {
       if (latestContentsPathRef.current !== path) return;
       setStorageContents(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(userErrorMessage(err, "Impossible d’ouvrir ce dossier. Réessaie."));
     } finally {
       setIsLoadingContents(false);
     }

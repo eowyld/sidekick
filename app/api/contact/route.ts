@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { escapeHtml, sendEmail } from "@/lib/brevo";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
 
 /**
  * POST /api/contact — formulaire de contact public.
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Message trop long." }, { status: 400 });
   }
 
-  const limit = rateLimit({ key: `contact:${clientIp(request)}`, ...RATE_LIMIT });
+  const limit = await rateLimitShared({ key: `contact:${clientIp(request)}`, ...RATE_LIMIT });
   if (!limit.allowed) {
     return tooManyRequests(limit.retryAfter);
   }

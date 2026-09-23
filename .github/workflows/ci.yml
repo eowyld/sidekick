@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Types
+        run: npx tsc --noEmit
+      - name: Tests unitaires
+        run: npm test
+      # Le lint n'est pas encore branché : il porte une dette antérieure (57
+      # erreurs le 21/09). À ajouter une fois ramené à zéro.
+      # Les tests de fumée (`npm run test:smoke`) demandent un serveur lancé ;
+      # ils restent un outil local tant que la CI ne démarre pas l'app.

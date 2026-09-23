@@ -100,7 +100,14 @@ function InscriptionPageContent() {
         password,
         options: {
           // Version des CGU acceptée, gardée comme preuve de l'acceptation.
-          data: { full_name: fullName, terms_accepted: LEGAL_UPDATED.cgu },
+          // Prénom et nom séparés, en plus de `full_name` : les redécouper
+          // plus tard devinerait mal les prénoms composés.
+          data: {
+            full_name: fullName,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            terms_accepted: LEGAL_UPDATED.cgu,
+          },
           // Doit passer par /auth/callback : le lien de confirmation porte un
           // code PKCE à échanger contre une session. Pointer directement sur
           // /dashboard laissait l'utilisateur non connecté.

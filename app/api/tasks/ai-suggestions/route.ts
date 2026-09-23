@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Ta session a expiré. Reconnecte-toi." }, { status: 401 });
   }
 
   // On lit le corps pour rester compatible avec l'appelant, sans l'exploiter.

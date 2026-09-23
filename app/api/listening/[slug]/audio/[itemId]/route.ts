@@ -10,10 +10,12 @@ import {
 import { streamStorageFile } from "@/lib/storage-stream";
 
 /**
- * Audio d'un titre d'un lien d'écoute.
+ * Audio d'un titre d'un lien d'écoute, servi plage par plage.
  *
- * - `POST` donne au lecteur l'adresse de lecture (celle du `GET` ci-dessous).
- * - `GET` sert les octets, plage par plage.
+ * Il n'y a plus d'étape préalable : un `POST` renvoyait autrefois cette même
+ * adresse, prévisible, après avoir refait les contrôles que le `GET` refait de
+ * toute façon. Il coûtait un aller-retour complet avant chaque lecture — une
+ * bonne part du délai au clic — sans rien protéger de plus.
  *
  * L'audio passe par notre domaine de bout en bout : ce lien est envoyé à un
  * label ou à un programmateur, une URL `…supabase.co/storage/v1/object/sign/…`
@@ -28,7 +30,18 @@ async function resolveAudioPath(
   itemId: string
 ): Promise<{ audioPath: string; title: string; error?: never } | { error: Response; audioPath?: never; title?: never }> {
   const supabase = getServiceSupabase();
-  const row = await resolveLinkRow(supabase, slug);
+  // Les deux lectures partent ensemble : le titre est cherché par son seul
+  // identifiant, puis son appartenance au lien est vérifiée plus bas. Chaque
+  // plage demandée par le lecteur repasse ici, un aller-retour de moins par
+  // requête se sent au démarrage comme à chaque saut dans la forme d'onde.
+  const [row, { data: item }] = await Promise.all([
+    resolveLinkRow(supabase, slug),
+    supabase
+      .from("user_listening_link_items")
+      .select("link_id, audio_path, snapshot")
+      .eq("id", itemId)
+      .maybeSingle(),
+  ]);
 
   // Revérification à chaque lecture : un lien expiré ou coupé pendant la
   // session cesse immédiatement de servir de l'audio.
@@ -44,14 +57,10 @@ async function resolveAudioPath(
     }
   }
 
-  const { data: item } = await supabase
-    .from("user_listening_link_items")
-    .select("audio_path, snapshot")
-    .eq("id", itemId)
-    .eq("link_id", row.id)
-    .maybeSingle();
-
-  const audioPath = (item as { audio_path?: string } | null)?.audio_path;
+  // Un titre d'un autre lien est traité comme introuvable : sans ce contrôle,
+  // un lien ouvert servirait l'audio de n'importe quel autre.
+  const typed = item as { link_id?: string; audio_path?: string } | null;
+  const audioPath = typed?.link_id === row.id ? typed.audio_path : undefined;
   if (!audioPath) {
     return { error: NextResponse.json({ error: "Titre introuvable." }, { status: 404 }) };
   }
@@ -60,19 +69,6 @@ async function resolveAudioPath(
     (item as { snapshot?: { title?: string } } | null)?.snapshot?.title ?? "titre";
 
   return { audioPath, title };
-}
-
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ slug: string; itemId: string }> }
-) {
-  const { slug, itemId } = await params;
-  const resolved = await resolveAudioPath(slug, itemId);
-  if (resolved.error) return resolved.error;
-
-  return NextResponse.json({
-    url: `/api/listening/${encodeURIComponent(slug)}/audio/${encodeURIComponent(itemId)}`,
-  });
 }
 
 export async function GET(

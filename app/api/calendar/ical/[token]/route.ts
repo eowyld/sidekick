@@ -22,7 +22,7 @@ export async function GET(
     .single();
 
   if (tokenError || !tokenRow) {
-    return new NextResponse("Not found", { status: 404 });
+    return new NextResponse("Calendrier introuvable.", { status: 404 });
   }
 
   const { data: events, error: eventsError } = await supabase
@@ -32,7 +32,7 @@ export async function GET(
     .in("sector", tokenRow.enabled_sectors);
 
   if (eventsError) {
-    return new NextResponse("Server error", { status: 500 });
+    return new NextResponse("Erreur serveur.", { status: 500 });
   }
 
   const icsContent = generateICalContent(

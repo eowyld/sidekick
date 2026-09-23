@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Ta session a expiré. Reconnecte-toi." }, { status: 401 });
   }
 
   let events: RawEvent[];
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     events = body.events;
     if (!Array.isArray(events)) throw new Error("events must be array");
   } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const rows = events.map((e) => {
@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
     .upsert(rows, { onConflict: "user_id,source_module,source_id", ignoreDuplicates: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[calendar/migrate] écriture refusée", error.message);
+    return NextResponse.json({ error: "La reprise du calendrier a échoué. Réessaie." }, { status: 500 });
   }
 
   return NextResponse.json({ migrated: rows.length });

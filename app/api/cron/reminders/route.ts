@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { escapeHtml, sendEmail } from "@/lib/brevo";
+import { SITE_URL } from "@/lib/site";
 import type { AdminProcedure } from "@/lib/sidekick-store";
 import { applyAllRecurringRollovers } from "@/modules/admin/lib/procedure-recurrence";
 
@@ -10,7 +11,24 @@ const HORIZON_DAYS = 14;
 /** Deux envois ne peuvent pas se suivre à moins de 20 h, même si le cron est rejoué. */
 const MIN_INTERVAL_MS = 20 * 60 * 60 * 1000;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://sidekick.tools";
+/** Taille d'une page de lecture, égale au plafond par défaut de PostgREST. */
+const PAGE_SIZE = 1000;
+
+/** Durée maximale d'une fonction Vercel pour cette route. */
+export const maxDuration = 300;
+
+/** On cesse de démarrer de nouveaux envois passé ce délai, pour finir proprement. */
+const TIME_BUDGET_MS = 240 * 1000;
+
+/** Envois simultanés : assez pour tenir le budget, peu pour rester poli avec Brevo. */
+const CONCURRENCY = 5;
+
+/**
+ * Plafond d'emails par passage. Le plan gratuit de Brevo autorise 300 envois par
+ * jour, partagés avec les notifications d'inscription et le formulaire de
+ * contact : on garde de la marge. Surchargeable quand le plan change.
+ */
+const MAX_EMAILS_PER_RUN = Number(process.env.REMINDERS_MAX_PER_RUN) || 250;
 
 type ProcedureRow = {
   id: string;
@@ -76,16 +94,24 @@ export async function GET(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: procedures, error: proceduresError } = await supabase
-    .from("user_admin_procedures")
-    .select("id, user_id, label, data");
+  // PostgREST plafonne une réponse à 1 000 lignes : sans pagination, le cron
+  // ignorerait silencieusement toutes les démarches au-delà.
+  const rows: ProcedureRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error: proceduresError } = await supabase
+      .from("user_admin_procedures")
+      .select("id, user_id, label, data")
+      .order("id", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (proceduresError) {
-    console.error("[cron/reminders] lecture des démarches impossible", proceduresError);
-    return NextResponse.json({ ok: false, error: "read_failed" }, { status: 500 });
+    if (proceduresError) {
+      console.error("[cron/reminders] lecture des démarches impossible", proceduresError);
+      return NextResponse.json({ ok: false, error: "read_failed" }, { status: 500 });
+    }
+
+    rows.push(...((page ?? []) as ProcedureRow[]));
+    if (!page || page.length < PAGE_SIZE) break;
   }
-
-  const rows = (procedures ?? []) as ProcedureRow[];
 
   // Fait avancer les échéances récurrentes avant de composer le digest — c'est
   // la seule exécution fiable pour l'artiste qui n'ouvre jamais
@@ -177,6 +203,8 @@ export async function GET(request: Request) {
   let skipped = 0;
   const now = Date.now();
 
+  // Préférences et délai minimal d'abord : ils s'appliquent sans appel réseau.
+  const candidates: Array<[string, DueProcedure[]]> = [];
   for (const [userId, items] of byUser) {
     const preference = preferenceByUser.get(userId);
 
@@ -194,12 +222,24 @@ export async function GET(request: Request) {
       continue;
     }
 
+    candidates.push([userId, items]);
+  }
+
+  // Les plus en retard d'abord : si le plafond coupe la file, ce sont les
+  // démarches les moins urgentes qui attendent le passage suivant.
+  const mostUrgent = (items: DueProcedure[]) => Math.min(...items.map((i) => i.daysLeft));
+  candidates.sort((a, b) => mostUrgent(a[1]) - mostUrgent(b[1]));
+
+  const queue = candidates.slice(0, MAX_EMAILS_PER_RUN);
+  const deferred = candidates.length - queue.length;
+
+  /** Envoie le digest d'un utilisateur. `true` si le mail est parti. */
+  async function remind(userId: string, items: DueProcedure[]): Promise<boolean> {
     const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
     const email = userData?.user?.email;
     if (userError || !email) {
       console.error("[cron/reminders] email introuvable", userId, userError);
-      skipped += 1;
-      continue;
+      return false;
     }
 
     items.sort((a, b) => a.daysLeft - b.daysLeft);
@@ -228,7 +268,7 @@ export async function GET(request: Request) {
       </ul>
       <p><a href="${SITE_URL}/admin/demarches">Voir mes démarches</a></p>
       <p style="color:#888;font-size:12px">
-        Pour ne plus recevoir ces rappels : Réglages &gt; Personnalisation.
+        Pour ne plus recevoir ces rappels : Réglages &gt; Notifications.
       </p>
     `;
 
@@ -239,10 +279,7 @@ export async function GET(request: Request) {
       html,
     });
 
-    if (!result.ok) {
-      skipped += 1;
-      continue;
-    }
+    if (!result.ok) return false;
 
     // Horodaté seulement après un envoi réussi : un échec doit pouvoir être
     // rattrapé au passage suivant.
@@ -254,8 +291,30 @@ export async function GET(request: Request) {
         updated_at: new Date().toISOString(),
       });
 
-    sent += 1;
+    return true;
   }
 
-  return NextResponse.json({ ok: true, sent, skipped });
+  // Envois en parallèle borné, avec un budget de temps : une file trop longue
+  // s'arrête proprement au lieu d'être coupée net par Vercel en plein envoi.
+  const startedAt = Date.now();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < queue.length) {
+      if (Date.now() - startedAt > TIME_BUDGET_MS) return;
+      const [userId, items] = queue[cursor++];
+      if (await remind(userId, items)) sent += 1;
+      else skipped += 1;
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+  // Ni envoyés ni ignorés : ils restent éligibles, faute d'horodatage.
+  const remaining = deferred + (queue.length - cursor);
+  if (remaining > 0) {
+    console.warn(
+      `[cron/reminders] ${remaining} utilisateur(s) non traité(s) ce passage (plafond ${MAX_EMAILS_PER_RUN}, budget ${TIME_BUDGET_MS / 1000}s)`
+    );
+  }
+
+  return NextResponse.json({ ok: true, sent, skipped, remaining });
 }

@@ -46,18 +46,50 @@ function contentDisposition(name: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
+/**
+ * URLs signées réutilisées tant qu'il leur reste de la marge.
+ *
+ * Un lecteur audio émet plusieurs requêtes par titre (ouverture, puis une
+ * plage à chaque saut dans la forme d'onde) : les signer une à une ajoutait un
+ * aller-retour vers Storage à chacune. L'URL ne quitte jamais le serveur, la
+ * garder quelques secondes en mémoire n'expose rien. Le cache vit le temps
+ * d'une instance de fonction ; un démarrage à froid repart simplement à vide.
+ */
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+/** Marge laissée avant l'expiration réelle : la requête amont doit démarrer à temps. */
+const SIGNED_URL_REUSE_MS = (SIGNED_URL_TTL_SECONDS - 15) * 1000;
+const SIGNED_URL_CACHE_MAX = 200;
+
+async function signedUrlFor(supabase: SupabaseClient, path: string): Promise<string | null> {
+  const now = Date.now();
+  const cached = signedUrlCache.get(path);
+  if (cached && cached.expiresAt > now) return cached.url;
+
+  const { data, error } = await supabase.storage
+    .from(DRIVE_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data?.signedUrl) return null;
+
+  if (signedUrlCache.size >= SIGNED_URL_CACHE_MAX) {
+    for (const [key, entry] of signedUrlCache) {
+      if (entry.expiresAt <= now) signedUrlCache.delete(key);
+    }
+    if (signedUrlCache.size >= SIGNED_URL_CACHE_MAX) signedUrlCache.clear();
+  }
+  signedUrlCache.set(path, { url: data.signedUrl, expiresAt: now + SIGNED_URL_REUSE_MS });
+  return data.signedUrl;
+}
+
 export async function streamStorageFile(
   supabase: SupabaseClient,
   path: string,
   opts: StreamStorageFileOptions = {}
 ): Promise<Response> {
-  const { data, error } = await supabase.storage
-    .from(DRIVE_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-
-  if (error || !data?.signedUrl) {
+  const signedUrl = await signedUrlFor(supabase, path);
+  if (!signedUrl) {
     return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
   }
+  const data = { signedUrl };
 
   let upstream: Response;
   try {

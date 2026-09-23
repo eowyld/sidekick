@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { Track, Album, Mix, TrackGuest } from "@/lib/sidekick-store";
 import { normalizeTrackGuests } from "@/modules/phono/lib/track";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Local session type (SessionsStudioPage) ─────────────────────────────────
 
@@ -360,7 +361,7 @@ function makeOptimisticSetter<T extends { id: string }>(
         // projet cloud (colonnes manquantes sur `user_phono_sessions`).
         console.error(`[phono/${slice}] écriture refusée`, firstError.error);
         toast.error("Enregistrement impossible", {
-          description: firstError.error.message,
+          description: userErrorMessage(firstError.error, "Tes modifications n’ont pas été gardées. Réessaie."),
         });
         mutate(KEY, (current: PhonoData | undefined) => ({ ...(current ?? FALLBACK), [slice]: snapshot }), false);
       } else {
@@ -410,6 +411,6 @@ export function usePhonoData() {
     sessions: allData.sessions,
     setSessions,
     loading: isLoading,
-    error: swrError ? String(swrError) : null,
+    error: swrError ? userErrorMessage(swrError, "Impossible de charger ton catalogue. Réessaie dans un instant.") : null,
   };
 }

@@ -37,6 +37,6 @@ export async function GET(
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[Presskit get] Error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Impossible d’ouvrir ce presskit. Réessaie." }, { status: 500 });
   }
 }

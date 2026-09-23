@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export function useProjectMarketingData(projectId: string) {
   const { data = FALLBACK, isLoading, error: swrError, mutate: mutateLocal } =
     useSWR<ProjectMarketingData>(key, () => fetchProjectMarketing(projectId));
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger le marketing du projet.") : null;
 
   const attachCampaign = useCallback(async (campaignId: string): Promise<void> => {
     const supabase = createClient();

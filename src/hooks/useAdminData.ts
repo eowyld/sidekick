@@ -5,6 +5,7 @@ import useSWR, { mutate } from "swr";
 import { createClient, getSessionUser } from "@/lib/supabase";
 import type { AdminStatus, AdminStructure, AdminProcedure } from "@/lib/sidekick-store";
 import { normalizeStoredAdminStatusType } from "@/modules/admin/data/statuts-form-config";
+import { userErrorMessage } from "@/lib/user-error";
 
 export type { AdminStatus, AdminStructure, AdminProcedure };
 
@@ -289,6 +290,6 @@ export function useAdminData() {
     procedures,
     setProcedures,
     loading: isLoading,
-    error: error ? String(error) : null,
+    error: error ? userErrorMessage(error, "Impossible de charger tes statuts et démarches. Réessaie dans un instant.") : null,
   };
 }

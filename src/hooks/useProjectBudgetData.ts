@@ -5,6 +5,7 @@ import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 import { money, dateISO, type LiveDetails } from "@/modules/live/lib/live-model";
 import { frToIso } from "@/lib/date-format";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export function useProjectBudgetData(projectId: string) {
   const { data = FALLBACK, isLoading, error: swrError, mutate: mutateLocal } =
     useSWR<BudgetData>(key, () => fetchBudgetData(projectId));
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger le budget du projet. Réessaie dans un instant.") : null;
 
   // ─── Budget lines setters ──────────────────────────────────────────────────
 

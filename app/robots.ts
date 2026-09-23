@@ -20,6 +20,7 @@ const DISALLOW = [
   "/inscription",
   "/auth",
   "/presskit",
+  "/accord",
 ];
 
 const ALLOW = ["/", "/faq", "/blog", "/blog/", "/blog/*"];

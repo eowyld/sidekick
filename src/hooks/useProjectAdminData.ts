@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { createClient } from "@/lib/supabase";
 import type { ContractStatus } from "@/lib/contracts-db";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export function useProjectAdminData(projectId: string) {
   const { data = FALLBACK, isLoading, error: swrError } =
     useSWR<ProjectAdminData>(key, () => fetchProjectAdmin(projectId));
 
-  const error = swrError ? (swrError as Error).message : null;
+  const error = swrError ? userErrorMessage(swrError, "Impossible de charger l’administratif du projet.") : null;
 
   const attachContract = useCallback(async (contractId: string): Promise<void> => {
     const supabase = createClient();

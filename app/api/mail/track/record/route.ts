@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const { campaignId, email } = body;
 
     if (!campaignId) {
-      return NextResponse.json({ error: "Missing campaignId" }, { status: 400 });
+      return NextResponse.json({ error: "Campagne manquante." }, { status: 400 });
     }
 
     // Récupérer l'utilisateur
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Ta session a expiré. Reconnecte-toi." }, { status: 401 });
     }
 
     // Retourner les données pour que le client les stocke dans localStorage
@@ -42,6 +42,6 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[Record open] Error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "L’ouverture n’a pas pu être enregistrée." }, { status: 500 });
   }
 }
