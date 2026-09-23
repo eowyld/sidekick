@@ -3,6 +3,7 @@ import { adminRules } from "./admin";
 import { incomesRules } from "./incomes";
 import { projectsRules } from "./projects";
 import { phonoRules } from "./phono";
+import { editionRules } from "./edition";
 import type { Rule } from "./types";
 
 export const allRules: Rule[] = [
@@ -11,4 +12,5 @@ export const allRules: Rule[] = [
   ...incomesRules,
   ...projectsRules,
   ...phonoRules,
+  ...editionRules,
 ];

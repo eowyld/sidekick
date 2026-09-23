@@ -10,11 +10,13 @@ import { BookOpen, Plus, Link, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+// Même vocabulaire que le module Édition (`work-lifecycle.ts`) : « finalisée »
+// n'est plus une étape, elle se lit comme un brouillon.
 const WORK_STATUS_LABELS: Record<string, string> = {
-  "in-progress": "En cours",
-  finalized: "Finalisé",
-  "registered-sacem": "Déposé SACEM",
-  "accepted-sacem": "Accepté SACEM",
+  "in-progress": "Brouillon",
+  finalized: "Brouillon",
+  "registered-sacem": "Déclarée SACEM",
+  "accepted-sacem": "Acceptée",
 };
 
 interface EditionSectionProps {
@@ -87,7 +89,7 @@ export function EditionSection({ project }: EditionSectionProps) {
               return (
                 <div
                   key={work.id}
-                  onClick={() => router.push("/edition")}
+                  onClick={() => router.push(`/edition/${work.id}`)}
                   className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[rgba(245,245,245,0.06)] hover:bg-[rgba(245,245,245,0.04)] cursor-pointer transition-colors"
                 >
                   <div className="flex-1 min-w-0">

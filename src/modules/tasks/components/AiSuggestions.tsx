@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Todo } from "@/lib/sidekick-store";
 import type { RuleSuggestion } from "../rules/types";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Suggestions IA des Tâches — mises en pause avant la bêta.
@@ -91,7 +92,7 @@ export function AiSuggestions({
       const json = await res.json() as { suggestions: Suggestion[] };
       setSuggestions(json.suggestions ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de charger les suggestions.");
+      setError(userErrorMessage(err, "Impossible de charger les suggestions."));
     } finally {
       setLoading(false);
     }

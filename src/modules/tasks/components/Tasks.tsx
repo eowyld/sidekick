@@ -12,7 +12,11 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { Todo } from "@/lib/sidekick-store";
-import { useSidekickData } from "@/hooks/useSidekickData";
+import { useCalendarData } from "@/hooks/useCalendarData";
+import { useEditionData } from "@/hooks/useEditionData";
+import { useEditionAgreements } from "@/hooks/useEditionAgreements";
+import { usePhonoData } from "@/hooks/usePhonoData";
+import { useArtistIdentity } from "@/hooks/useArtistIdentity";
 import { usePreferencesData } from "@/hooks/usePreferencesData";
 import { useTasksData } from "@/hooks/useTasksData";
 import { useLiveData } from "@/hooks/useLiveData";
@@ -31,6 +35,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { PageError } from "@/components/ui/page-error";
 import { mutate } from "swr";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TaskModal, type TaskFormData, type TaskSector } from "./TaskModal";
 import { TodayPanel } from "./TodayPanel";
 import { BacklogPanel } from "./BacklogPanel";
@@ -42,12 +47,17 @@ export function Tasks() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const editTaskId = searchParams.get("editTask");
-  const { data } = useSidekickData();
+  const { customEvents } = useCalendarData();
   const { tasks, setTasks, loading, error } = useTasksData();
+  const { confirm, confirmDialog } = useConfirm();
   const { tourDates, rehearsals } = useLiveData();
   const { structures, procedures } = useAdminData();
   const { invoices, imports } = useIncomesData();
   const { projects } = useProjectsData();
+  const { works } = useEditionData();
+  const { agreements } = useEditionAgreements();
+  const { tracks } = usePhonoData();
+  const { artistName } = useArtistIdentity();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,11 +143,20 @@ export function Tasks() {
         enabledModules.phono !== false
           ? { links: listeningLinks, invites: listeningInvites }
           : null,
+      edition:
+        enabledModules.edition !== false
+          ? { works, agreements, tracks, tourDates, artistName }
+          : null,
     };
     return allRules.map((rule) => rule(ctx)).filter((s): s is RuleSuggestion => s !== null);
-  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules, projects, listeningLinks, listeningInvites]);
+  }, [tasks, tourDates, rehearsals, structures, procedures, invoices, imports, enabledModules, projects, listeningLinks, listeningInvites, works, agreements, tracks, artistName]);
 
-  const calendarEvents = data.calendar?.events ?? [];
+  // Contexte des suggestions IA : les événements du calendrier en base. Le
+  // blob localStorage lu ici avant la migration du calendrier était figé.
+  const calendarEvents = useMemo(
+    () => customEvents.map((e) => ({ title: e.title, start: e.time ? `${e.date}T${e.time}` : e.date })),
+    [customEvents]
+  );
 
   // --- Handlers ---
 
@@ -174,8 +193,13 @@ export function Tasks() {
     setModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    const ok = await confirm({
+      title: task?.title ? `Supprimer « ${task.title} » ?` : "Supprimer cette tâche ?",
+      description: "La tâche et ses étapes seront définitivement supprimées.",
+    });
+    if (ok) setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleSave = (taskData: TaskFormData) => {
@@ -467,6 +491,8 @@ export function Tasks() {
         backlogTasks={backlogTasks}
         onConfirm={handleStartDayConfirm}
       />
+
+      {confirmDialog}
     </div>
   );
 }
